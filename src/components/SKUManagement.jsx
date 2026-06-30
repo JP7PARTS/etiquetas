@@ -1,0 +1,435 @@
+import React, { useState, useEffect } from 'react';
+import api from '../utils/api.js';
+
+const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', local: '' };
+
+export default function SKUManagement() {
+  const [skus, setSkus] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [modal, setModal] = useState(null); // null | 'create' | 'edit'
+  const [form, setForm] = useState(emptyForm);
+  const [editId, setEditId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    loadSKUs();
+  }, []);
+
+  async function loadSKUs(q = '') {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api.get('/skus', { params: q ? { search: q } : {} });
+      setSkus(res.data);
+    } catch (err) {
+      setError('Erro ao carregar SKUs: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function showMessage(msg, type = 'success') {
+    if (type === 'success') { setSuccess(msg); setError(''); }
+    else { setError(msg); setSuccess(''); }
+    setTimeout(() => { setSuccess(''); setError(''); }, 3500);
+  }
+
+  function openCreate() {
+    setForm(emptyForm);
+    setEditId(null);
+    setModal('create');
+  }
+
+  function openEdit(sku) {
+    setForm({
+      sku: sku.sku,
+      descricao_longa: sku.descricao_longa || '',
+      descricao_curta: sku.descricao_curta || '',
+      local: sku.local || '',
+    });
+    setEditId(sku.id);
+    setModal('edit');
+  }
+
+  function closeModal() {
+    setModal(null);
+    setForm(emptyForm);
+    setEditId(null);
+  }
+
+  function handleFormChange(e) {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: name === 'sku' ? value.toUpperCase() : value }));
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    if (!form.sku.trim()) return;
+    setSaving(true);
+    try {
+      if (modal === 'edit' && editId) {
+        await api.put(`/skus/${editId}`, form);
+        showMessage('SKU atualizado com sucesso!');
+      } else {
+        await api.post('/skus', form);
+        showMessage('SKU criado com sucesso!');
+      }
+      closeModal();
+      loadSKUs(search);
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Erro ao salvar SKU', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id) {
+    setDeleting(true);
+    try {
+      await api.delete(`/skus/${id}`);
+      showMessage('SKU deletado com sucesso!');
+      setDeleteConfirm(null);
+      loadSKUs(search);
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Erro ao deletar SKU', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function handleSearch(e) {
+    setSearch(e.target.value);
+    loadSKUs(e.target.value);
+  }
+
+  return (
+    <div>
+      <div className="page-header">
+        <h1>Gerenciar SKUs</h1>
+        <p>Cadastre e edite os SKUs disponíveis para geração de etiquetas</p>
+      </div>
+
+      {error && <div className="alert alert-error">{error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
+
+      <div className="card">
+        <div style={styles.toolbar}>
+          <div style={styles.searchWrapper}>
+            <svg style={styles.searchIcon} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={handleSearch}
+              placeholder="Buscar SKU, descrição ou local..."
+              style={{paddingLeft: '34px'}}
+            />
+          </div>
+          <button className="btn-primary" onClick={openCreate}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Novo SKU
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{padding:'40px', textAlign:'center'}}>
+            <div className="spinner" style={{margin:'0 auto'}} />
+            <p style={{marginTop:'12px',color:'var(--text-muted)'}}>Carregando...</p>
+          </div>
+        ) : skus.length === 0 ? (
+          <div className="empty-state">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" strokeWidth="1.5">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            </svg>
+            <p>{search ? `Nenhum SKU encontrado para "${search}"` : 'Nenhum SKU cadastrado'}</p>
+          </div>
+        ) : (
+          <div style={{overflowX:'auto'}}>
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Descrição Curta</th>
+                  <th>Descrição Longa</th>
+                  <th>Local</th>
+                  <th style={{textAlign:'right'}}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {skus.map(s => (
+                  <tr key={s.id}>
+                    <td><code style={styles.code}>{s.sku}</code></td>
+                    <td>{s.descricao_curta || <span style={{color:'var(--text-muted)'}}>—</span>}</td>
+                    <td style={{maxWidth:'240px', color:'var(--text-secondary)'}}>
+                      <span title={s.descricao_longa || ''}>
+                        {s.descricao_longa
+                          ? s.descricao_longa.length > 50
+                            ? s.descricao_longa.slice(0,50) + '…'
+                            : s.descricao_longa
+                          : <span style={{color:'var(--text-muted)'}}>—</span>
+                        }
+                      </span>
+                    </td>
+                    <td>
+                      {s.local
+                        ? <span style={styles.localBadge}>{s.local}</span>
+                        : <span style={{color:'var(--text-muted)'}}>—</span>
+                      }
+                    </td>
+                    <td>
+                      <div style={{display:'flex', gap:'6px', justifyContent:'flex-end'}}>
+                        <button
+                          className="btn-outline"
+                          style={{padding:'5px 10px'}}
+                          onClick={() => openEdit(s)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="btn-danger"
+                          style={{padding:'5px 10px'}}
+                          onClick={() => setDeleteConfirm(s)}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={styles.tableFooter}>
+              {skus.length} SKU{skus.length !== 1 ? 's' : ''} encontrado{skus.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Create/Edit Modal */}
+      {modal && (
+        <div style={styles.modalOverlay} onClick={e => e.target === e.currentTarget && closeModal()}>
+          <div style={styles.modal}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>{modal === 'edit' ? 'Editar SKU' : 'Novo SKU'}</h2>
+              <button style={styles.closeBtn} onClick={closeModal}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleSave} style={styles.modalBody}>
+              <div className="form-group">
+                <label htmlFor="modal-sku">SKU *</label>
+                <input
+                  id="modal-sku"
+                  name="sku"
+                  value={form.sku}
+                  onChange={handleFormChange}
+                  placeholder="JP7-001"
+                  maxLength={100}
+                  required
+                  disabled={modal === 'edit'}
+                  style={modal === 'edit' ? {background:'#f7fafc'} : {}}
+                />
+                {modal === 'edit' && (
+                  <div style={{fontSize:'11.5px',color:'var(--text-muted)',marginTop:'4px'}}>
+                    O código SKU não pode ser alterado após criação
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
+                <label htmlFor="modal-desc-curta">Descrição Curta</label>
+                <input
+                  id="modal-desc-curta"
+                  name="descricao_curta"
+                  value={form.descricao_curta}
+                  onChange={handleFormChange}
+                  placeholder="Parafuso M8x30"
+                  maxLength={100}
+                />
+                <div style={{fontSize:'11.5px',color:'var(--text-muted)',marginTop:'4px'}}>
+                  Aparece na linha superior da etiqueta ({form.descricao_curta.length}/100)
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="modal-desc-longa">Descrição Longa</label>
+                <textarea
+                  id="modal-desc-longa"
+                  name="descricao_longa"
+                  value={form.descricao_longa}
+                  onChange={handleFormChange}
+                  placeholder="Parafuso Sextavado M8x30 Zincado DIN 933"
+                  maxLength={500}
+                  rows={3}
+                  style={{resize:'vertical'}}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="modal-local">Local de Armazenamento</label>
+                <input
+                  id="modal-local"
+                  name="local"
+                  value={form.local}
+                  onChange={handleFormChange}
+                  placeholder="A1-01"
+                  maxLength={100}
+                />
+              </div>
+              <div style={{display:'flex', gap:'8px', justifyContent:'flex-end', paddingTop:'8px', borderTop:'1px solid var(--border)'}}>
+                <button type="button" className="btn-secondary" onClick={closeModal}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" disabled={!form.sku.trim() || saving}>
+                  {saving
+                    ? <><span className="spinner" style={{width:13,height:13,borderWidth:2}} /> Salvando...</>
+                    : modal === 'edit' ? 'Salvar Alterações' : 'Criar SKU'
+                  }
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div style={styles.modalOverlay} onClick={e => e.target === e.currentTarget && setDeleteConfirm(null)}>
+          <div style={{...styles.modal, maxWidth:'420px'}}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>Confirmar Exclusão</h2>
+              <button style={styles.closeBtn} onClick={() => setDeleteConfirm(null)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <p style={{color:'var(--text-secondary)', marginBottom:'16px'}}>
+                Tem certeza que deseja excluir o SKU{' '}
+                <strong style={{color:'var(--text-primary)'}}>{deleteConfirm.sku}</strong>?
+                {deleteConfirm.descricao_curta && ` (${deleteConfirm.descricao_curta})`}
+              </p>
+              <p style={{color:'var(--btn-danger)', fontSize:'12.5px', marginBottom:'20px'}}>
+                Esta ação não pode ser desfeita.
+              </p>
+              <div style={{display:'flex', gap:'8px', justifyContent:'flex-end'}}>
+                <button className="btn-secondary" onClick={() => setDeleteConfirm(null)}>
+                  Cancelar
+                </button>
+                <button
+                  className="btn-danger"
+                  onClick={() => handleDelete(deleteConfirm.id)}
+                  disabled={deleting}
+                >
+                  {deleting
+                    ? <><span className="spinner" style={{width:13,height:13,borderWidth:2,borderTopColor:'#fff',borderColor:'rgba(255,255,255,0.3)'}} /> Excluindo...</>
+                    : 'Sim, excluir'
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const styles = {
+  toolbar: {
+    display: 'flex',
+    gap: '12px',
+    marginBottom: '16px',
+    flexWrap: 'wrap',
+  },
+  searchWrapper: {
+    flex: 1,
+    minWidth: '200px',
+    position: 'relative',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: '10px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: 'var(--text-muted)',
+    pointerEvents: 'none',
+  },
+  code: {
+    background: '#f1f5f9',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    fontSize: '12.5px',
+    fontFamily: 'monospace',
+    color: '#2b6cb0',
+  },
+  localBadge: {
+    background: '#e6fffa',
+    color: '#276749',
+    padding: '2px 7px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    fontWeight: '600',
+    fontFamily: 'monospace',
+  },
+  tableFooter: {
+    padding: '10px 14px',
+    fontSize: '12px',
+    color: 'var(--text-muted)',
+    borderTop: '1px solid var(--border)',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.5)',
+    zIndex: 500,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+  },
+  modal: {
+    background: '#fff',
+    borderRadius: '12px',
+    width: '100%',
+    maxWidth: '520px',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '18px 22px',
+    borderBottom: '1px solid var(--border)',
+  },
+  modalTitle: {
+    fontSize: '16px',
+    fontWeight: '700',
+    color: 'var(--text-primary)',
+  },
+  closeBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    padding: '4px',
+    display: 'flex',
+    borderRadius: '4px',
+  },
+  modalBody: {
+    padding: '22px',
+  },
+};
