@@ -15,10 +15,21 @@ export default function GenerateFromSKU() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const [localFilter, setLocalFilter] = useState('');
 
   useEffect(() => {
     loadSKUs();
   }, []);
+
+  // Lista de locais únicos disponíveis (A, B, C, ...) para os chips de filtro
+  const locais = Array.from(
+    new Set(skus.map(s => (s.local || '').trim()).filter(Boolean))
+  ).sort();
+
+  // SKUs visíveis nos dropdowns, respeitando o filtro de localização
+  const skusFiltrados = localFilter
+    ? skus.filter(s => (s.local || '').trim() === localFilter)
+    : skus;
 
   async function loadSKUs() {
     setLoading(true);
@@ -79,6 +90,29 @@ export default function GenerateFromSKU() {
       <div className="card" style={{maxWidth: '640px'}}>
         {error && <div className="alert alert-error">{error}</div>}
 
+        {locais.length > 0 && (
+          <div style={styles.localFilterBar}>
+            <span style={styles.localFilterLabel}>Localização:</span>
+            <button
+              type="button"
+              onClick={() => setLocalFilter('')}
+              style={{...styles.localChip, ...(localFilter === '' ? styles.localChipActive : {})}}
+            >
+              Todos
+            </button>
+            {locais.map(l => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLocalFilter(l === localFilter ? '' : l)}
+                style={{...styles.localChip, ...(localFilter === l ? styles.localChipActive : {})}}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={handleGenerate}>
           <div style={styles.rowsHeader}>
             <span style={{...styles.colLabel, flex: 1}}>SKU</span>
@@ -90,7 +124,7 @@ export default function GenerateFromSKU() {
             <SkuRow
               key={row.id}
               row={row}
-              skus={skus}
+              skus={skusFiltrados}
               loading={loading}
               canRemove={rows.length > 1}
               onChange={patch => updateRow(row.id, patch)}
@@ -167,7 +201,8 @@ function SkuRow({ row, skus, loading, canRemove, onChange, onRemove }) {
     : skus.filter(s =>
         s.sku.toLowerCase().includes(q) ||
         (s.descricao_curta && s.descricao_curta.toLowerCase().includes(q)) ||
-        (s.descricao_longa && s.descricao_longa.toLowerCase().includes(q))
+        (s.descricao_longa && s.descricao_longa.toLowerCase().includes(q)) ||
+        (s.local && s.local.toLowerCase().includes(q))
       );
 
   function selectSKU(s) {
@@ -206,7 +241,10 @@ function SkuRow({ row, skus, loading, canRemove, onChange, onRemove }) {
                   }}
                   onMouseDown={() => selectSKU(item)}
                 >
-                  <div style={styles.skuCode}>{item.sku}</div>
+                  <div style={styles.skuCodeRow}>
+                    <span style={styles.skuCode}>{item.sku}</span>
+                    {item.local && <span style={styles.skuLocalBadge}>{item.local}</span>}
+                  </div>
                   {item.descricao_curta && <div style={styles.skuDesc}>{item.descricao_curta}</div>}
                 </div>
               ))}
@@ -369,11 +407,59 @@ const styles = {
   dropdownItemActive: {
     background: '#ebf8ff',
   },
+  skuCodeRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+  },
   skuCode: {
     fontWeight: '600',
     fontSize: '13px',
     color: 'var(--text-primary)',
     fontFamily: 'monospace',
+  },
+  skuLocalBadge: {
+    background: '#e6fffa',
+    color: '#276749',
+    padding: '1px 7px',
+    borderRadius: '4px',
+    fontSize: '11px',
+    fontWeight: '700',
+    fontFamily: 'monospace',
+    flexShrink: 0,
+  },
+  localFilterBar: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '6px',
+    marginBottom: '16px',
+    paddingBottom: '14px',
+    borderBottom: '1px solid var(--border)',
+  },
+  localFilterLabel: {
+    fontSize: '12.5px',
+    fontWeight: '600',
+    color: 'var(--text-muted)',
+    marginRight: '4px',
+  },
+  localChip: {
+    minWidth: '34px',
+    padding: '5px 12px',
+    borderRadius: '20px',
+    border: '1px solid var(--border)',
+    background: '#fff',
+    color: 'var(--text-secondary)',
+    fontSize: '12.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.12s',
+  },
+  localChipActive: {
+    background: 'var(--btn-primary)',
+    borderColor: 'var(--btn-primary)',
+    color: '#fff',
   },
   skuDesc: {
     fontSize: '12px',

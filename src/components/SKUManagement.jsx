@@ -7,6 +7,7 @@ export default function SKUManagement() {
   const [skus, setSkus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [localFilter, setLocalFilter] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [modal, setModal] = useState(null); // null | 'create' | 'edit'
@@ -107,6 +108,14 @@ export default function SKUManagement() {
     loadSKUs(e.target.value);
   }
 
+  // Locais únicos para os chips + lista filtrada por localização (client-side)
+  const locais = Array.from(
+    new Set(skus.map(s => (s.local || '').trim()).filter(Boolean))
+  ).sort();
+  const skusVisiveis = localFilter
+    ? skus.filter(s => (s.local || '').trim() === localFilter)
+    : skus;
+
   return (
     <div>
       <div className="page-header">
@@ -141,17 +150,42 @@ export default function SKUManagement() {
           </button>
         </div>
 
+        {locais.length > 0 && (
+          <div style={styles.localFilterBar}>
+            <span style={styles.localFilterLabel}>Localização:</span>
+            <button
+              onClick={() => setLocalFilter('')}
+              style={{...styles.localChip, ...(localFilter === '' ? styles.localChipActive : {})}}
+            >
+              Todos
+            </button>
+            {locais.map(l => (
+              <button
+                key={l}
+                onClick={() => setLocalFilter(l === localFilter ? '' : l)}
+                style={{...styles.localChip, ...(localFilter === l ? styles.localChipActive : {})}}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
+
         {loading ? (
           <div style={{padding:'40px', textAlign:'center'}}>
             <div className="spinner" style={{margin:'0 auto'}} />
             <p style={{marginTop:'12px',color:'var(--text-muted)'}}>Carregando...</p>
           </div>
-        ) : skus.length === 0 ? (
+        ) : skusVisiveis.length === 0 ? (
           <div className="empty-state">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" strokeWidth="1.5">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
             </svg>
-            <p>{search ? `Nenhum SKU encontrado para "${search}"` : 'Nenhum SKU cadastrado'}</p>
+            <p>
+              {localFilter
+                ? `Nenhum SKU na localização "${localFilter}"`
+                : search ? `Nenhum SKU encontrado para "${search}"` : 'Nenhum SKU cadastrado'}
+            </p>
           </div>
         ) : (
           <div style={{overflowX:'auto'}}>
@@ -166,7 +200,7 @@ export default function SKUManagement() {
                 </tr>
               </thead>
               <tbody>
-                {skus.map(s => (
+                {skusVisiveis.map(s => (
                   <tr key={s.id}>
                     <td><code style={styles.code}>{s.sku}</code></td>
                     <td>{s.descricao_curta || <span style={{color:'var(--text-muted)'}}>—</span>}</td>
@@ -209,7 +243,8 @@ export default function SKUManagement() {
               </tbody>
             </table>
             <div style={styles.tableFooter}>
-              {skus.length} SKU{skus.length !== 1 ? 's' : ''} encontrado{skus.length !== 1 ? 's' : ''}
+              {skusVisiveis.length} SKU{skusVisiveis.length !== 1 ? 's' : ''} encontrado{skusVisiveis.length !== 1 ? 's' : ''}
+              {localFilter ? ` na localização "${localFilter}"` : ''}
             </div>
           </div>
         )}
@@ -366,6 +401,36 @@ const styles = {
     transform: 'translateY(-50%)',
     color: 'var(--text-muted)',
     pointerEvents: 'none',
+  },
+  localFilterBar: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '6px',
+    marginBottom: '16px',
+  },
+  localFilterLabel: {
+    fontSize: '12.5px',
+    fontWeight: '600',
+    color: 'var(--text-muted)',
+    marginRight: '4px',
+  },
+  localChip: {
+    minWidth: '34px',
+    padding: '5px 12px',
+    borderRadius: '20px',
+    border: '1px solid var(--border)',
+    background: '#fff',
+    color: 'var(--text-secondary)',
+    fontSize: '12.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.12s',
+  },
+  localChipActive: {
+    background: 'var(--btn-primary)',
+    borderColor: 'var(--btn-primary)',
+    color: '#fff',
   },
   code: {
     background: '#f1f5f9',
