@@ -47,14 +47,14 @@ export default function Login({ onLogin }) {
 
         <form onSubmit={handleSubmit} style={styles.form}>
           <div className="form-group">
-            <label htmlFor="email">E-mail</label>
+            <label htmlFor="email">Usuário ou e-mail</label>
             <input
               id="email"
-              type="email"
+              type="text"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              autoComplete="email"
+              placeholder="operador ou seu@email.com"
+              autoComplete="username"
               required
             />
           </div>
