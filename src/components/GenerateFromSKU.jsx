@@ -184,8 +184,8 @@ export default function GenerateFromSKU() {
                         <td style={styles.colDesc}>
                           <div style={styles.descPrimary}>{sku.descricao_curta || '—'}</div>
                           {sku.descricao_longa && (
-                            <div style={styles.descSecondary} title={sku.descricao_longa}>
-                              {sku.descricao_longa.length > 40 ? sku.descricao_longa.slice(0, 40) + '…' : sku.descricao_longa}
+                            <div style={styles.descSecondary}>
+                              {sku.descricao_longa}
                             </div>
                           )}
                         </td>
@@ -306,17 +306,17 @@ export default function GenerateFromSKU() {
                       </>
                   }
                 </button>
+
+                {copiedOnGenerate && (
+                  <div style={styles.copyFeedback}>
+                    ✅ ZPL gerado e copiado para a área de transferência
+                  </div>
+                )}
               </div>
             </form>
           </div>
         </div>
       </div>
-
-      {result && copiedOnGenerate && (
-        <div className="alert alert-success" style={{marginTop: '16px'}}>
-          ✅ ZPL gerado e copiado para a área de transferência! Cole (Ctrl+V) onde precisar.
-        </div>
-      )}
 
       {result && (
         <ZPLOutput
@@ -453,6 +453,8 @@ const styles = {
     fontSize: '11px',
     color: 'var(--text-muted)',
     marginTop: '2px',
+    whiteSpace: 'normal',
+    wordBreak: 'break-word',
   },
   badge: {
     background: '#e6fffa',
@@ -520,5 +522,12 @@ const styles = {
     background: '#f7fafc',
     borderRadius: 'var(--radius-sm)',
     marginBottom: '8px',
+  },
+  copyFeedback: {
+    marginTop: '8px',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#276749',
+    textAlign: 'center',
   },
 };
