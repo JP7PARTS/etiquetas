@@ -10,7 +10,7 @@ function newRow(sku = null) {
 
 export default function GenerateFromSKU() {
   const [skus, setSkus] = useState([]);
-  const [rows, setRows] = useState([newRow()]);
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
@@ -214,10 +214,11 @@ export default function GenerateFromSKU() {
 
             <form onSubmit={handleGenerate} style={{display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0}}>
               {/* Lista de linhas do lote */}
-              <div style={{flex: 1, overflowY: 'auto', minHeight: 0, marginBottom: '12px'}}>
+              <div style={{flex: 1, overflowY: 'auto', minHeight: 0}}>
                 {rows.length === 0 ? (
-                  <div style={{textAlign: 'center', color: 'var(--text-muted)', padding: '20px 0'}}>
-                    Nenhum SKU no lote
+                  <div style={{textAlign: 'center', color: 'var(--text-muted)', padding: '40px 20px'}}>
+                    <p style={{fontSize: '14px', marginBottom: '6px'}}>Nenhum SKU adicionado</p>
+                    <p style={{fontSize: '12px', color: 'var(--text-muted)'}}>Selecione SKUs à esquerda para montar sua lote</p>
                   </div>
                 ) : (
                   <div>
@@ -269,22 +270,24 @@ export default function GenerateFromSKU() {
                 )}
               </div>
 
-              {/* Sumário + Botão */}
-              <div style={{borderTop: '1px solid var(--border)', paddingTop: '12px'}}>
-                <div style={styles.loteSummary}>
-                  <div>
-                    <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>SKUs no lote</div>
-                    <div style={{fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)'}}>
-                      {selectedRows.length} / {totalQuantity} {totalQuantity === 1 ? 'etiqueta' : 'etiquetas'}
+              {/* Sticky Footer - Sumário + Botão */}
+              <div style={{position: 'sticky', bottom: 0, background: 'white', borderTop: '1px solid var(--border)', padding: '16px', zIndex: 10}}>
+                {rows.length > 0 && (
+                  <div style={styles.loteSummary}>
+                    <div>
+                      <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>SKUs no lote</div>
+                      <div style={{fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)'}}>
+                        {selectedRows.length} / {totalQuantity} {totalQuantity === 1 ? 'etiqueta' : 'etiquetas'}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <button
                   type="submit"
                   className="btn-primary"
-                  disabled={selectedRows.length === 0 || generating}
-                  style={{width: '100%', marginTop: '8px'}}
+                  disabled={rows.length === 0 || generating}
+                  style={{width: '100%', marginTop: rows.length > 0 ? '8px' : '0'}}
                 >
                   {generating
                     ? <><span className="spinner" style={{width:14,height:14,borderWidth:2}} /> Gerando...</>
