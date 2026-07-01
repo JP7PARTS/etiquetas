@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 const navItems = [
-  { id: 'generate-sku', label: 'Gerar por SKU', icon: '🏷️', roles: ['admin', 'user'] },
+  { id: 'generate-sku', label: 'Gerar / Imprimir em Lote', icon: '🏷️', roles: ['admin', 'user'] },
   { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
   { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
 ];

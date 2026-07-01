@@ -33,8 +33,8 @@ function generateZPL(sku, descricao_curta, quantity) {
 ^LL200
 ^CI28
 ^FO10,22^A0N,20,20^FB300,2,2,^FD${desc}^FS
-^FO${barcodeX},50^BY${moduleWidth}^BCN,100,N,N,N^FD${sku}^FS
-^FO10,156^A0N,26,26^FB300,1,,C^FD${sku}^FS
+^FO${barcodeX},72^BY${moduleWidth}^BCN,88,N,N,N^FD${sku}^FS
+^FO10,164^A0N,26,26^FB300,1,,C^FD${sku}^FS
 ^PQ${qty}
 ^XZ`;
 }
@@ -56,6 +56,35 @@ router.post('/generate', authenticate, (req, res) => {
     descricao_curta: descricao_curta || '',
     quantity: qty,
     moduleWidth: getModuleWidth(skuClean),
+  });
+});
+
+// POST /api/labels/generate-batch
+// Body: { items: [{ sku, descricao_curta, quantity }, ...] }
+// Retorna um unico arquivo ZPL com todas as etiquetas concatenadas
+router.post('/generate-batch', authenticate, (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Informe ao menos um SKU' });
+  }
+
+  const valid = items.filter(it => it && it.sku && it.sku.trim());
+  if (valid.length === 0) {
+    return res.status(400).json({ error: 'Nenhum SKU válido informado' });
+  }
+
+  let totalLabels = 0;
+  const blocks = valid.map(it => {
+    const skuClean = it.sku.trim().toUpperCase();
+    const qty = normalizeQuantity(it.quantity);
+    totalLabels += qty;
+    return generateZPL(skuClean, it.descricao_curta, qty);
+  });
+
+  res.json({
+    zpl: blocks.join('\n'),
+    count: valid.length,
+    totalLabels,
   });
 });
 

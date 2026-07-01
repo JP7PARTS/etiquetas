@@ -35,8 +35,8 @@ export function generateZPL(sku, descricao_curta, quantity) {
 ^LL200
 ^CI28
 ^FO10,22^A0N,20,20^FB300,2,2,^FD${desc}^FS
-^FO${barcodeX},50^BY${moduleWidth}^BCN,100,N,N,N^FD${sku}^FS
-^FO10,156^A0N,26,26^FB300,1,,C^FD${sku}^FS
+^FO${barcodeX},72^BY${moduleWidth}^BCN,88,N,N,N^FD${sku}^FS
+^FO10,164^A0N,26,26^FB300,1,,C^FD${sku}^FS
 ^PQ${qty}
 ^XZ`;
 }

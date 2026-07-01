@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { downloadZPL, copyZPL, tryPrintZPL } from '../utils/zpl.js';
 
-export default function ZPLOutput({ zpl, sku, descricao_curta, quantity }) {
+export default function ZPLOutput({ zpl, sku, descricao_curta, quantity, filename, count, totalLabels }) {
+  const isBatch = count != null;
   const [copied, setCopied] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [printStatus, setPrintStatus] = useState(null); // null | 'success' | 'error'
@@ -18,7 +19,7 @@ export default function ZPLOutput({ zpl, sku, descricao_curta, quantity }) {
   }
 
   function handleDownload() {
-    downloadZPL(zpl, sku);
+    downloadZPL(zpl, filename || sku);
   }
 
   async function handlePrint() {
@@ -43,12 +44,20 @@ export default function ZPLOutput({ zpl, sku, descricao_curta, quantity }) {
         <div>
           <div style={styles.headerLabel}>ZPL Gerado</div>
           <div style={styles.headerMeta}>
-            <span style={styles.metaItem}>SKU: <strong>{sku}</strong></span>
-            {descricao_curta && (
-              <span style={styles.metaItem}>Desc: <strong>{descricao_curta}</strong></span>
-            )}
-            {quantity > 1 && (
-              <span style={styles.metaItem}>Qtde: <strong>{quantity}</strong></span>
+            {isBatch ? (
+              <span style={styles.metaItem}>
+                Lote: <strong>{count} SKU(s)</strong> · <strong>{totalLabels} etiqueta(s)</strong>
+              </span>
+            ) : (
+              <>
+                <span style={styles.metaItem}>SKU: <strong>{sku}</strong></span>
+                {descricao_curta && (
+                  <span style={styles.metaItem}>Desc: <strong>{descricao_curta}</strong></span>
+                )}
+                {quantity > 1 && (
+                  <span style={styles.metaItem}>Qtde: <strong>{quantity}</strong></span>
+                )}
+              </>
             )}
             <span style={styles.metaItem}>40×25mm · 203 DPI · Zebra GC420T</span>
           </div>
