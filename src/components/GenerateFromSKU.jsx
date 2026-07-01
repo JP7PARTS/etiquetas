@@ -175,75 +175,104 @@ function SkuRow({ row, skus, loading, canRemove, onChange, onRemove }) {
     setOpen(false);
   }
 
+  const s = row.selected;
+
   return (
-    <div style={styles.row}>
-      <div ref={ref} style={{position: 'relative', flex: 1}}>
+    <div style={styles.rowWrapper}>
+      <div style={styles.row}>
+        <div ref={ref} style={{position: 'relative', flex: 1}}>
+          <input
+            type="text"
+            value={row.search}
+            onChange={e => {
+              const v = e.target.value;
+              onChange({ search: v, selected: row.selected && row.selected.sku === v ? row.selected : null });
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder={loading ? 'Carregando...' : 'Buscar SKU...'}
+            disabled={loading}
+            autoComplete="off"
+            style={row.selected ? styles.inputSelected : undefined}
+          />
+          {open && filtered.length > 0 && (
+            <div style={styles.dropdown}>
+              {filtered.slice(0, 50).map(item => (
+                <div
+                  key={item.id}
+                  style={{
+                    ...styles.dropdownItem,
+                    ...(row.selected?.id === item.id ? styles.dropdownItemActive : {}),
+                  }}
+                  onMouseDown={() => selectSKU(item)}
+                >
+                  <div style={styles.skuCode}>{item.sku}</div>
+                  {item.descricao_curta && <div style={styles.skuDesc}>{item.descricao_curta}</div>}
+                </div>
+              ))}
+              {filtered.length > 50 && (
+                <div style={styles.dropdownMore}>+{filtered.length - 50} resultados. Refine a busca.</div>
+              )}
+            </div>
+          )}
+          {open && !loading && filtered.length === 0 && row.search && (
+            <div style={styles.dropdown}>
+              <div style={styles.dropdownEmpty}>Nenhum SKU encontrado</div>
+            </div>
+          )}
+        </div>
+
         <input
-          type="text"
-          value={row.search}
+          type="number"
+          min={1}
+          max={999}
+          value={row.quantity}
           onChange={e => {
             const v = e.target.value;
-            onChange({ search: v, selected: row.selected && row.selected.sku === v ? row.selected : null });
-            setOpen(true);
+            onChange({ quantity: v === '' ? '' : Math.max(1, Math.min(parseInt(v, 10) || 1, 999)) });
           }}
-          onFocus={() => setOpen(true)}
-          placeholder={loading ? 'Carregando...' : 'Buscar SKU...'}
-          disabled={loading}
-          autoComplete="off"
-          style={row.selected ? styles.inputSelected : undefined}
+          onBlur={() => { if (!row.quantity) onChange({ quantity: 1 }); }}
+          style={{width: '90px'}}
         />
-        {open && filtered.length > 0 && (
-          <div style={styles.dropdown}>
-            {filtered.slice(0, 50).map(s => (
-              <div
-                key={s.id}
-                style={{
-                  ...styles.dropdownItem,
-                  ...(row.selected?.id === s.id ? styles.dropdownItemActive : {}),
-                }}
-                onMouseDown={() => selectSKU(s)}
-              >
-                <div style={styles.skuCode}>{s.sku}</div>
-                {s.descricao_curta && <div style={styles.skuDesc}>{s.descricao_curta}</div>}
-              </div>
-            ))}
-            {filtered.length > 50 && (
-              <div style={styles.dropdownMore}>+{filtered.length - 50} resultados. Refine a busca.</div>
-            )}
-          </div>
-        )}
-        {open && !loading && filtered.length === 0 && row.search && (
-          <div style={styles.dropdown}>
-            <div style={styles.dropdownEmpty}>Nenhum SKU encontrado</div>
-          </div>
-        )}
+
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={!canRemove}
+          title="Remover"
+          style={{...styles.removeBtn, ...(canRemove ? {} : styles.removeBtnDisabled)}}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
-      <input
-        type="number"
-        min={1}
-        max={999}
-        value={row.quantity}
-        onChange={e => {
-          const v = e.target.value;
-          onChange({ quantity: v === '' ? '' : Math.max(1, Math.min(parseInt(v, 10) || 1, 999)) });
-        }}
-        onBlur={() => { if (!row.quantity) onChange({ quantity: 1 }); }}
-        style={{width: '90px'}}
-      />
-
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={!canRemove}
-        title="Remover"
-        style={{...styles.removeBtn, ...(canRemove ? {} : styles.removeBtnDisabled)}}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
+      {s && (
+        <div style={styles.selectedInfo}>
+          {s.descricao_longa && (
+            <div style={styles.infoRow}>
+              <span style={styles.infoLabel}>Descrição:</span>
+              <span style={styles.infoValue}>{s.descricao_longa}</span>
+            </div>
+          )}
+          {s.descricao_curta && (
+            <div style={styles.infoRow}>
+              <span style={styles.infoLabel}>Desc. curta:</span>
+              <span style={styles.infoValue}>{s.descricao_curta}</span>
+            </div>
+          )}
+          {s.local && (
+            <div style={styles.infoRow}>
+              <span style={styles.infoLabel}>Local:</span>
+              <span style={styles.infoValue}>
+                <strong style={{color:'var(--btn-primary)'}}>{s.local}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -260,11 +289,36 @@ const styles = {
     fontWeight: '600',
     color: 'var(--text-muted)',
   },
+  rowWrapper: {
+    marginBottom: '10px',
+  },
   row: {
     display: 'flex',
     alignItems: 'flex-start',
     gap: '8px',
-    marginBottom: '8px',
+  },
+  selectedInfo: {
+    background: '#f7fafc',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '10px 12px',
+    marginTop: '6px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  infoRow: {
+    display: 'flex',
+    gap: '8px',
+    fontSize: '12.5px',
+  },
+  infoLabel: {
+    color: 'var(--text-muted)',
+    minWidth: '78px',
+    flexShrink: 0,
+  },
+  infoValue: {
+    color: 'var(--text-primary)',
   },
   inputSelected: {
     borderColor: 'var(--btn-primary)',
