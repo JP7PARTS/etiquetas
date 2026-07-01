@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
 import ZPLOutput from './ZPLOutput.jsx';
-import { normalizeQuantity } from '../utils/zpl.js';
+import { normalizeQuantity, copyZPL } from '../utils/zpl.js';
 
 let rowSeq = 1;
 function newRow(sku = null) {
@@ -15,6 +15,7 @@ export default function GenerateFromSKU() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const [copiedOnGenerate, setCopiedOnGenerate] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('');
 
@@ -81,6 +82,13 @@ export default function GenerateFromSKU() {
       }));
       const res = await api.post('/labels/generate-batch', { items });
       setResult(res.data);
+      try {
+        await copyZPL(res.data.zpl);
+        setCopiedOnGenerate(true);
+        setTimeout(() => setCopiedOnGenerate(false), 3000);
+      } catch {
+        setCopiedOnGenerate(false);
+      }
     } catch (err) {
       setError('Erro ao gerar ZPL: ' + (err.response?.data?.error || err.message));
     } finally {
@@ -303,6 +311,12 @@ export default function GenerateFromSKU() {
           </div>
         </div>
       </div>
+
+      {result && copiedOnGenerate && (
+        <div className="alert alert-success" style={{marginTop: '16px'}}>
+          ✅ ZPL gerado e copiado para a área de transferência! Cole (Ctrl+V) onde precisar.
+        </div>
+      )}
 
       {result && (
         <ZPLOutput
