@@ -61,7 +61,7 @@ export default function GenerateFromSKU() {
   }
 
   function removeRow(id) {
-    setRows(rows => (rows.length > 1 ? rows.filter(r => r.id !== id) : rows));
+    setRows(rows => rows.filter(r => r.id !== id));
     setResult(null);
   }
 
@@ -257,9 +257,8 @@ export default function GenerateFromSKU() {
                           <button
                             type="button"
                             onClick={() => removeRow(row.id)}
-                            disabled={rows.length === 1}
                             title="Remover"
-                            style={{...styles.removeBtn, ...(rows.length === 1 ? styles.removeBtnDisabled : {})}}
+                            style={styles.removeBtn}
                           >
                             ✕
                           </button>
