@@ -5,6 +5,7 @@ import ZPLOutput from './ZPLOutput.jsx';
 export default function GenerateCustom() {
   const [sku, setSku] = useState('');
   const [descricao, setDescricao] = useState('');
+  const [quantity, setQuantity] = useState(1);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -18,6 +19,7 @@ export default function GenerateCustom() {
       const res = await api.post('/labels/generate', {
         sku: sku.trim(),
         descricao_curta: descricao.trim(),
+        quantity,
       });
       setResult(res.data);
     } catch (err) {
@@ -30,6 +32,7 @@ export default function GenerateCustom() {
   function handleClear() {
     setSku('');
     setDescricao('');
+    setQuantity(1);
     setResult(null);
     setError('');
   }
@@ -82,6 +85,24 @@ export default function GenerateCustom() {
             </div>
           </div>
 
+          <div className="form-group">
+            <label htmlFor="quantity">Quantidade de etiquetas</label>
+            <input
+              id="quantity"
+              type="number"
+              min={1}
+              max={999}
+              value={quantity}
+              onChange={e => {
+                const v = e.target.value;
+                setQuantity(v === '' ? '' : Math.max(1, Math.min(parseInt(v, 10) || 1, 999)));
+                setResult(null);
+              }}
+              onBlur={() => { if (!quantity) setQuantity(1); }}
+              style={{maxWidth: '160px'}}
+            />
+          </div>
+
           <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
             <button
               type="submit"
@@ -112,6 +133,7 @@ export default function GenerateCustom() {
           zpl={result.zpl}
           sku={result.sku}
           descricao_curta={result.descricao_curta}
+          quantity={result.quantity}
         />
       )}
     </div>

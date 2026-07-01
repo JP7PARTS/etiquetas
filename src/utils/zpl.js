@@ -10,19 +10,25 @@ export function getModuleWidth(sku) {
   return 1;
 }
 
-export function generateZPL(sku, descricao_curta) {
+export function normalizeQuantity(quantity) {
+  return Math.max(1, Math.min(parseInt(quantity, 10) || 1, 999));
+}
+
+export function generateZPL(sku, descricao_curta, quantity) {
   const moduleWidth = getModuleWidth(sku);
   const desc = (descricao_curta || sku)
     .replace(/[^\x20-\x7E\xC0-\xFF]/g, '')
     .substring(0, 100);
+  const qty = normalizeQuantity(quantity);
 
   return `^XA
 ^PW320
 ^LL200
 ^CI28
-^FO10,5^A0N,20,20^FB300,2,2,^FD${desc}^FS
-^FO10,50^BY${moduleWidth}^BCN,90,N,N,N^FD${sku}^FS
-^FO10,148^A0N,18,18^FB300,1,,C^FD${sku}^FS
+^FO10,22^A0N,20,20^FB300,2,2,^FD${desc}^FS
+^FO10,62^BY${moduleWidth}^BCN,90,N,N,N^FD${sku}^FS
+^FO10,162^A0N,18,18^FB300,1,,C^FD${sku}^FS
+^PQ${qty}
 ^XZ`;
 }
 

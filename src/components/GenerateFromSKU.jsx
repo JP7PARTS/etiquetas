@@ -7,6 +7,7 @@ export default function GenerateFromSKU() {
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
+  const [quantity, setQuantity] = useState(1);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -70,6 +71,7 @@ export default function GenerateFromSKU() {
       const res = await api.post('/labels/generate', {
         sku: selected.sku,
         descricao_curta: selected.descricao_curta || '',
+        quantity,
       });
       setResult(res.data);
     } catch (err) {
@@ -170,6 +172,24 @@ export default function GenerateFromSKU() {
             </div>
           )}
 
+          <div className="form-group">
+            <label htmlFor="quantity">Quantidade de etiquetas</label>
+            <input
+              id="quantity"
+              type="number"
+              min={1}
+              max={999}
+              value={quantity}
+              onChange={e => {
+                const v = e.target.value;
+                setQuantity(v === '' ? '' : Math.max(1, Math.min(parseInt(v, 10) || 1, 999)));
+                setResult(null);
+              }}
+              onBlur={() => { if (!quantity) setQuantity(1); }}
+              style={{maxWidth: '160px'}}
+            />
+          </div>
+
           <button
             type="submit"
             className="btn-primary"
@@ -194,6 +214,7 @@ export default function GenerateFromSKU() {
           zpl={result.zpl}
           sku={result.sku}
           descricao_curta={result.descricao_curta}
+          quantity={result.quantity}
         />
       )}
     </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { downloadZPL, copyZPL, tryPrintZPL } from '../utils/zpl.js';
 
-export default function ZPLOutput({ zpl, sku, descricao_curta }) {
+export default function ZPLOutput({ zpl, sku, descricao_curta, quantity }) {
   const [copied, setCopied] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [printStatus, setPrintStatus] = useState(null); // null | 'success' | 'error'
@@ -46,6 +46,9 @@ export default function ZPLOutput({ zpl, sku, descricao_curta }) {
             <span style={styles.metaItem}>SKU: <strong>{sku}</strong></span>
             {descricao_curta && (
               <span style={styles.metaItem}>Desc: <strong>{descricao_curta}</strong></span>
+            )}
+            {quantity > 1 && (
+              <span style={styles.metaItem}>Qtde: <strong>{quantity}</strong></span>
             )}
             <span style={styles.metaItem}>40×25mm · 203 DPI · Zebra GC420T</span>
           </div>
