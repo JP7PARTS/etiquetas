@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import api from '../utils/api.js';
 import ZPLOutput from './ZPLOutput.jsx';
+import { getModuleWidth } from '../utils/zpl.js';
 
 export default function GenerateCustom() {
   const [sku, setSku] = useState('');
@@ -38,7 +39,7 @@ export default function GenerateCustom() {
   }
 
   const skuLen = sku.trim().length;
-  const moduleWidth = skuLen <= 10 ? 3 : skuLen <= 15 ? 2 : 1;
+  const moduleWidth = getModuleWidth(sku.trim());
 
   return (
     <div>
