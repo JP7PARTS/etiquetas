@@ -46,7 +46,7 @@ export default function App() {
   } else if (page === 'generate-custom') {
     content = <GenerateCustom />;
   } else if (page === 'warning-labels') {
-    content = <WarningLabels />;
+    content = <WarningLabels user={user} />;
   } else {
     content = <GenerateFromSKU />;
   }

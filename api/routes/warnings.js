@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -40,7 +40,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/warnings
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, requireAdmin, async (req, res) => {
   const { nome, zpl } = req.body;
   if (!nome || !nome.trim()) {
     return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -62,7 +62,7 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 // PUT /api/warnings/:id
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   const { nome, zpl } = req.body;
   if (!nome || !nome.trim()) {
     return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -87,7 +87,7 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 // DELETE /api/warnings/:id
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const result = await db.query('DELETE FROM warning_labels WHERE id = $1 RETURNING id', [req.params.id]);
     if (!result.rows[0]) {

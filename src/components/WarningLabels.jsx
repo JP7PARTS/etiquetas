@@ -4,6 +4,9 @@ import { copyZPL } from '../utils/zpl.js';
 
 const emptyForm = { nome: '', zpl: '' };
 
+// Deslocamento vertical aplicado na impressão para descer as linhas (dots @ 8 dpmm).
+const PRINT_OFFSET_Y = 25;
+
 // Aplica a quantidade desejada ao comando ^PQ do ZPL (mantém params extras).
 function applyQuantity(zpl, qty) {
   const q = Math.max(1, Math.min(parseInt(qty, 10) || 1, 9999));
@@ -16,7 +19,20 @@ function applyQuantity(zpl, qty) {
   return zpl;
 }
 
-export default function WarningLabels() {
+// Desce todas as linhas somando dy ao Y do ^LH (label home). Insere ^LH se não houver.
+function applyPrintOffset(zpl, dy) {
+  if (!dy) return zpl;
+  if (/\^LH\d+,\d+/i.test(zpl)) {
+    return zpl.replace(/(\^LH\d+,)(\d+)/i, (m, p, y) => `${p}${parseInt(y, 10) + dy}`);
+  }
+  if (/\^XA/i.test(zpl)) {
+    return zpl.replace(/\^XA/i, `^XA\n^LH0,${dy}`);
+  }
+  return zpl;
+}
+
+export default function WarningLabels({ user }) {
+  const isAdmin = user?.role === 'admin';
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -54,12 +70,14 @@ export default function WarningLabels() {
   }
 
   function openCreate() {
+    if (!isAdmin) return;
     setForm(emptyForm);
     setEditId(null);
     setMode('create');
   }
 
   function openEdit(item) {
+    if (!isAdmin) return;
     setForm({ nome: item.nome, zpl: item.zpl });
     setEditId(item.id);
     setMode('edit');
@@ -114,7 +132,7 @@ export default function WarningLabels() {
   async function handleCopy(item) {
     const qty = Math.max(1, Math.min(parseInt(quantities[item.id], 10) || 1, 9999));
     try {
-      await copyZPL(applyQuantity(item.zpl, qty));
+      await copyZPL(applyPrintOffset(applyQuantity(item.zpl, qty), PRINT_OFFSET_Y));
       showMessage(`ZPL de "${item.nome}" (${qty} ${qty === 1 ? 'etiqueta' : 'etiquetas'}) copiado!`);
     } catch {
       showMessage('Não foi possível copiar o ZPL', 'error');
@@ -214,13 +232,15 @@ export default function WarningLabels() {
               style={{paddingLeft: '34px'}}
             />
           </div>
-          <button className="btn-primary" onClick={openCreate}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Novo aviso
-          </button>
+          {isAdmin && (
+            <button className="btn-primary" onClick={openCreate}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Novo aviso
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -270,12 +290,16 @@ export default function WarningLabels() {
                         <button className="btn-success" style={{padding:'5px 12px'}} onClick={() => handleCopy(item)}>
                           Copiar
                         </button>
-                        <button className="btn-outline" style={{padding:'5px 10px'}} onClick={() => openEdit(item)}>
-                          Editar
-                        </button>
-                        <button className="btn-danger" style={{padding:'5px 10px'}} onClick={() => setDeleteConfirm(item)}>
-                          Excluir
-                        </button>
+                        {isAdmin && (
+                          <>
+                            <button className="btn-outline" style={{padding:'5px 10px'}} onClick={() => openEdit(item)}>
+                              Editar
+                            </button>
+                            <button className="btn-danger" style={{padding:'5px 10px'}} onClick={() => setDeleteConfirm(item)}>
+                              Excluir
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
