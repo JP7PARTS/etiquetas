@@ -204,7 +204,15 @@ export default function SKUManagement() {
                 {skusVisiveis.map(s => (
                   <tr key={s.id}>
                     <td><code style={styles.code}>{s.sku}</code></td>
-                    <td>{s.descricao_curta || <span style={{color:'var(--text-muted)'}}>—</span>}</td>
+                    <td>
+                      {s.descricao_curta || <span style={{color:'var(--text-muted)'}}>—</span>}
+                      {s.descricao_curta_2 && (
+                        <div style={{display:'flex',alignItems:'center',gap:'6px',marginTop:'3px',fontSize:'12px',fontWeight:'600',color:'var(--btn-primary)'}}>
+                          <span style={{background:'var(--btn-primary)',color:'#fff',padding:'1px 6px',borderRadius:'10px',fontSize:'9.5px',fontWeight:'700'}}>Alt</span>
+                          {s.descricao_curta_2}
+                        </div>
+                      )}
+                    </td>
                     <td style={{maxWidth:'240px', color:'var(--text-secondary)'}}>
                       <span title={s.descricao_longa || ''}>
                         {s.descricao_longa

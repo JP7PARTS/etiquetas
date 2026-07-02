@@ -35,6 +35,7 @@ export default function GenerateFromSKU() {
     const matchText = !q ||
       s.sku.toLowerCase().includes(q) ||
       (s.descricao_curta && s.descricao_curta.toLowerCase().includes(q)) ||
+      (s.descricao_curta_2 && s.descricao_curta_2.toLowerCase().includes(q)) ||
       (s.descricao_longa && s.descricao_longa.toLowerCase().includes(q));
     return matchLocal && matchText;
   });
@@ -185,6 +186,12 @@ export default function GenerateFromSKU() {
                         </td>
                         <td style={styles.colDesc}>
                           <div style={styles.descPrimary}>{sku.descricao_curta || '—'}</div>
+                          {sku.descricao_curta_2 && (
+                            <div style={styles.descAlt}>
+                              <span style={styles.descAltTag}>Alt</span>
+                              {sku.descricao_curta_2}
+                            </div>
+                          )}
                           {sku.descricao_longa && (
                             <div style={styles.descSecondary}>
                               {sku.descricao_longa}
@@ -464,6 +471,24 @@ const styles = {
   descPrimary: {
     color: 'var(--text-primary)',
     fontWeight: '500',
+  },
+  descAlt: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: 'var(--btn-primary)',
+    marginTop: '3px',
+  },
+  descAltTag: {
+    background: 'var(--btn-primary)',
+    color: '#fff',
+    padding: '1px 6px',
+    borderRadius: '10px',
+    fontSize: '9.5px',
+    fontWeight: '700',
+    flexShrink: 0,
   },
   descSecondary: {
     fontSize: '11px',

@@ -12,7 +12,7 @@ router.get('/', authenticate, async (req, res) => {
     const params = [];
 
     if (search && search.trim()) {
-      query += ' WHERE sku ILIKE $1 OR descricao_longa ILIKE $1 OR descricao_curta ILIKE $1';
+      query += ' WHERE sku ILIKE $1 OR descricao_longa ILIKE $1 OR descricao_curta ILIKE $1 OR descricao_curta_2 ILIKE $1';
       params.push(`%${search.trim()}%`);
     }
 
