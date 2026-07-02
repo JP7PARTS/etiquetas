@@ -494,12 +494,29 @@ export default function SKUManagement() {
             </div>
             <div style={styles.modalBody}>
               {importErr && <div className="alert alert-error" style={{marginBottom:'14px'}}>{importErr}</div>}
-              <p style={{fontSize:'13px', color:'var(--text-secondary)', marginBottom:'10px'}}>
-                Colunas esperadas (cabeçalho): <code style={styles.code}>sku</code>, <code style={styles.code}>descricao_longa</code>, <code style={styles.code}>descricao_curta</code>, <code style={styles.code}>descricao_curta_2</code>, <code style={styles.code}>local</code>. Só <b>sku</b> é obrigatório. SKUs já existentes são atualizados.
+
+              <ol style={{margin:'0 0 14px', paddingLeft:'20px', fontSize:'13px', color:'var(--text-secondary)', lineHeight:1.7}}>
+                <li>Baixe a planilha modelo</li>
+                <li>Adicione ou edite os produtos</li>
+                <li>Salve no Excel como <b>CSV</b> (Arquivo → Salvar como → CSV)</li>
+                <li>Importe o arquivo aqui</li>
+              </ol>
+
+              <p style={{fontSize:'12px', color:'var(--text-muted)', marginBottom:'14px'}}>
+                Colunas: <code style={styles.code}>sku</code>, <code style={styles.code}>descricao_longa</code>, <code style={styles.code}>descricao_curta</code>, <code style={styles.code}>descricao_curta_2</code>, <code style={styles.code}>local</code>. Só <b>sku</b> é obrigatório. SKUs já existentes são atualizados.
               </p>
-              <p style={{fontSize:'12px', marginBottom:'14px'}}>
-                No Excel: <b>Arquivo → Salvar como → CSV</b>. <a href="#" onClick={e => { e.preventDefault(); downloadTemplate(); }}>Baixar modelo .csv</a>
-              </p>
+
+              <div style={{marginBottom:'8px'}}>
+                <button type="button" className="btn-outline" onClick={downloadTemplate}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Baixar planilha modelo
+                </button>
+              </div>
+              <label style={{display:'block', fontSize:'12px', color:'var(--text-muted)', marginBottom:'4px'}}>Depois, escolha o arquivo preenchido:</label>
               <input type="file" accept=".csv,text/csv" onChange={handleFile} style={{marginBottom:'14px'}} />
               {importRows && (
                 <div className="alert alert-success" style={{marginBottom:'14px'}}>
