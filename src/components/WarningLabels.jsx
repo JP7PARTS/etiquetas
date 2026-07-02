@@ -1,8 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
-import { copyZPL, downloadZPL, tryPrintZPL } from '../utils/zpl.js';
+import { copyZPL } from '../utils/zpl.js';
 
 const emptyForm = { nome: '', zpl: '' };
+
+// Aplica a quantidade desejada ao comando ^PQ do ZPL (mantém params extras).
+function applyQuantity(zpl, qty) {
+  const q = Math.max(1, Math.min(parseInt(qty, 10) || 1, 9999));
+  if (/\^PQ\d+/i.test(zpl)) {
+    return zpl.replace(/(\^PQ)\d+/i, `$1${q}`);
+  }
+  if (/\^XZ/i.test(zpl)) {
+    return zpl.replace(/\^XZ/i, `^PQ${q}\n^XZ`);
+  }
+  return zpl;
+}
 
 export default function WarningLabels() {
   const [list, setList] = useState([]);
@@ -16,6 +28,7 @@ export default function WarningLabels() {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [quantities, setQuantities] = useState({}); // { [id]: qty }
 
   useEffect(() => {
     loadList();
@@ -99,20 +112,12 @@ export default function WarningLabels() {
   }
 
   async function handleCopy(item) {
+    const qty = Math.max(1, Math.min(parseInt(quantities[item.id], 10) || 1, 9999));
     try {
-      await copyZPL(item.zpl);
-      showMessage(`ZPL de "${item.nome}" copiado para a área de transferência!`);
+      await copyZPL(applyQuantity(item.zpl, qty));
+      showMessage(`ZPL de "${item.nome}" (${qty} ${qty === 1 ? 'etiqueta' : 'etiquetas'}) copiado!`);
     } catch {
       showMessage('Não foi possível copiar o ZPL', 'error');
-    }
-  }
-
-  async function handlePrint(item) {
-    try {
-      await tryPrintZPL(item.zpl);
-      showMessage(`"${item.nome}" enviado à impressora!`);
-    } catch (err) {
-      showMessage('Impressão falhou: ' + err.message + ' — use Copiar ou Baixar.', 'error');
     }
   }
 
@@ -246,15 +251,24 @@ export default function WarningLabels() {
                   <tr key={item.id}>
                     <td style={{fontWeight:500, color:'var(--text-primary)'}}>{item.nome}</td>
                     <td>
-                      <div style={{display:'flex', gap:'6px', justifyContent:'flex-end', flexWrap:'wrap'}}>
-                        <button className="btn-success" style={{padding:'5px 10px'}} onClick={() => handlePrint(item)}>
-                          Imprimir
-                        </button>
-                        <button className="btn-outline" style={{padding:'5px 10px'}} onClick={() => handleCopy(item)}>
+                      <div style={{display:'flex', gap:'6px', justifyContent:'flex-end', alignItems:'center', flexWrap:'wrap'}}>
+                        <div style={styles.qtyWrapper}>
+                          <label style={styles.qtyLabel}>Qtde</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={9999}
+                            value={quantities[item.id] ?? 1}
+                            onChange={e => {
+                              const v = e.target.value;
+                              setQuantities(q => ({ ...q, [item.id]: v === '' ? '' : Math.max(1, Math.min(parseInt(v, 10) || 1, 9999)) }));
+                            }}
+                            onBlur={e => { if (!e.target.value) setQuantities(q => ({ ...q, [item.id]: 1 })); }}
+                            style={styles.qtyInput}
+                          />
+                        </div>
+                        <button className="btn-success" style={{padding:'5px 12px'}} onClick={() => handleCopy(item)}>
                           Copiar
-                        </button>
-                        <button className="btn-secondary" style={{padding:'5px 10px'}} onClick={() => downloadZPL(item.zpl, item.nome)}>
-                          Baixar
                         </button>
                         <button className="btn-outline" style={{padding:'5px 10px'}} onClick={() => openEdit(item)}>
                           Editar
@@ -420,6 +434,22 @@ const styles = {
     fontSize: '12px',
     color: 'var(--text-muted)',
     borderTop: '1px solid var(--border)',
+  },
+  qtyWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    marginRight: '2px',
+  },
+  qtyLabel: {
+    fontSize: '11px',
+    color: 'var(--text-muted)',
+    fontWeight: '600',
+  },
+  qtyInput: {
+    width: '64px',
+    padding: '5px 6px',
+    textAlign: 'center',
   },
   editorGrid: {
     display: 'grid',
