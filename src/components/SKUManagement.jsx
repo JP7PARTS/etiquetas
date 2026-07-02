@@ -58,10 +58,16 @@ export default function SKUManagement() {
     setImportErr(''); setImportRows(null);
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async ev => {
       const { rows, error } = parseCSV(String(ev.target.result || ''));
-      if (error) setImportErr(error);
-      else setImportRows(rows);
+      if (error) { setImportErr(error); return; }
+      // Classifica cada linha como novo ou edição comparando com o banco
+      let existing = new Set();
+      try {
+        const res = await api.get('/skus');
+        existing = new Set(res.data.map(s => (s.sku || '').toUpperCase()));
+      } catch { /* se falhar, mostra sem classificação */ }
+      setImportRows(rows.map(r => ({ ...r, isNew: existing.size ? !existing.has(r.sku.toUpperCase()) : null })));
     };
     reader.readAsText(file, 'utf-8');
   }
@@ -518,17 +524,41 @@ export default function SKUManagement() {
               </div>
               <label style={{display:'block', fontSize:'12px', color:'var(--text-muted)', marginBottom:'4px'}}>Depois, escolha o arquivo preenchido:</label>
               <input type="file" accept=".csv,text/csv" onChange={handleFile} style={{marginBottom:'14px'}} />
-              {importRows && (
-                <div className="alert alert-success" style={{marginBottom:'14px'}}>
-                  {importRows.length} SKU{importRows.length !== 1 ? 's' : ''} encontrado{importRows.length !== 1 ? 's' : ''} na planilha, pronto{importRows.length !== 1 ? 's' : ''} para importar.
-                </div>
-              )}
+              {importRows && (() => {
+                const novos = importRows.filter(r => r.isNew === true).length;
+                const edits = importRows.filter(r => r.isNew === false).length;
+                return (
+                  <div style={{marginBottom:'14px'}}>
+                    <div style={{display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'10px'}}>
+                      <span style={styles.countPill}>{importRows.length} na planilha</span>
+                      <span style={{...styles.countPill, ...styles.pillNew}}>{novos} novo{novos !== 1 ? 's' : ''}</span>
+                      <span style={{...styles.countPill, ...styles.pillEdit}}>{edits} atualizaç{edits !== 1 ? 'ões' : 'ão'}</span>
+                    </div>
+                    <div style={styles.previewBox}>
+                      <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12.5px'}}>
+                        <tbody>
+                          {importRows.map((r, i) => (
+                            <tr key={i} style={{borderBottom:'1px solid var(--border)'}}>
+                              <td style={{padding:'6px 8px'}}><code style={styles.code}>{r.sku}</code></td>
+                              <td style={{padding:'6px 8px', color:'var(--text-secondary)'}}>{r.descricao_curta || r.descricao_longa || '—'}</td>
+                              <td style={{padding:'6px 8px', textAlign:'right', whiteSpace:'nowrap'}}>
+                                {r.isNew === true && <span style={{...styles.tag, ...styles.pillNew}}>Novo</span>}
+                                {r.isNew === false && <span style={{...styles.tag, ...styles.pillEdit}}>Editando</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{display:'flex', gap:'8px', justifyContent:'flex-end', paddingTop:'8px', borderTop:'1px solid var(--border)'}}>
                 <button className="btn-secondary" onClick={() => setImportOpen(false)}>Cancelar</button>
                 <button className="btn-primary" onClick={doImport} disabled={!importRows || importRows.length === 0 || importing}>
                   {importing
                     ? <><span className="spinner" style={{width:13,height:13,borderWidth:2}} /> Importando...</>
-                    : `Importar${importRows ? ` ${importRows.length}` : ''}`}
+                    : `Confirmar importação${importRows ? ` (${importRows.length})` : ''}`}
                 </button>
               </div>
             </div>
@@ -695,5 +725,15 @@ const styles = {
   },
   modalBody: {
     padding: '22px',
+  },
+  countPill: {
+    fontSize: '12px', fontWeight: 700, padding: '4px 10px', borderRadius: '14px',
+    background: '#f1f5f9', color: 'var(--text-secondary)',
+  },
+  pillNew: { background: '#e4f2e9', color: '#276749' },
+  pillEdit: { background: '#fff4e0', color: '#9a6a00' },
+  tag: { fontSize: '11px', fontWeight: 700, padding: '2px 9px', borderRadius: '10px' },
+  previewBox: {
+    maxHeight: '220px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px',
   },
 };
