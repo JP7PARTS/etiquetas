@@ -5,7 +5,7 @@ import { copyZPL } from '../utils/zpl.js';
 const emptyForm = { nome: '', zpl: '' };
 
 // Deslocamento vertical aplicado na impressão para descer as linhas (dots @ 8 dpmm).
-const PRINT_OFFSET_Y = 25;
+const PRINT_OFFSET_Y = 5;
 
 // Aplica a quantidade desejada ao comando ^PQ do ZPL (mantém params extras).
 function applyQuantity(zpl, qty) {
