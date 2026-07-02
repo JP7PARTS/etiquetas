@@ -336,7 +336,10 @@ function ZplPreview({ zpl }) {
           'https://api.labelary.com/v1/printers/8dpmm/labels/1.5748x0.9843/0/',
           {
             method: 'POST',
-            headers: { 'Accept': 'image/png' },
+            headers: {
+              'Accept': 'image/png',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
             body: trimmed,
             signal: controller.signal,
           }
