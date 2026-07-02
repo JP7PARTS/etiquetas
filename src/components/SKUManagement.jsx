@@ -16,10 +16,80 @@ export default function SKUManagement() {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importRows, setImportRows] = useState(null);
+  const [importErr, setImportErr] = useState('');
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     loadSKUs();
   }, []);
+
+  // ---- Importação de planilha CSV ----
+  function parseCSV(text) {
+    const clean = text.replace(/^﻿/, ''); // remove BOM
+    const lines = clean.split(/\r?\n/).filter(l => l.trim() !== '');
+    if (lines.length < 2) return { rows: [], error: 'A planilha precisa de um cabeçalho e ao menos uma linha.' };
+    const sep = (lines[0].match(/;/g) || []).length >= (lines[0].match(/,/g) || []).length ? ';' : ',';
+    const splitLine = l => l.split(sep).map(c => c.trim().replace(/^"(.*)"$/, '$1'));
+    const header = splitLine(lines[0]).map(h => h.toLowerCase());
+    const idx = name => header.indexOf(name);
+    const iSku = idx('sku');
+    if (iSku === -1) return { rows: [], error: 'A planilha precisa de uma coluna "sku".' };
+    const iL = idx('descricao_longa'), iC = idx('descricao_curta'), iC2 = idx('descricao_curta_2'), iLoc = idx('local');
+    const rows = [];
+    for (let n = 1; n < lines.length; n++) {
+      const c = splitLine(lines[n]);
+      const sku = (c[iSku] || '').trim();
+      if (!sku) continue;
+      rows.push({
+        sku: sku.toUpperCase(),
+        descricao_longa: iL > -1 ? c[iL] || '' : '',
+        descricao_curta: iC > -1 ? c[iC] || '' : '',
+        descricao_curta_2: iC2 > -1 ? c[iC2] || '' : '',
+        local: iLoc > -1 ? c[iLoc] || '' : '',
+      });
+    }
+    return { rows, error: rows.length === 0 ? 'Nenhum SKU válido encontrado na planilha.' : '' };
+  }
+
+  function handleFile(e) {
+    const file = e.target.files?.[0];
+    setImportErr(''); setImportRows(null);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const { rows, error } = parseCSV(String(ev.target.result || ''));
+      if (error) setImportErr(error);
+      else setImportRows(rows);
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  async function doImport() {
+    if (!importRows || importRows.length === 0) return;
+    setImporting(true);
+    try {
+      const res = await api.post('/skus/import', { items: importRows });
+      const { processados, ignorados } = res.data;
+      showMessage(`Importação concluída: ${processados} processado(s)${ignorados ? `, ${ignorados} ignorado(s)` : ''}.`);
+      setImportOpen(false); setImportRows(null); setImportErr('');
+      loadSKUs(search);
+    } catch (err) {
+      setImportErr(err.response?.data?.error || 'Erro ao importar');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function downloadTemplate() {
+    const csv = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1\n';
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'modelo_skus.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function loadSKUs(q = '') {
     setLoading(true);
@@ -142,6 +212,14 @@ export default function SKUManagement() {
               style={{paddingLeft: '34px'}}
             />
           </div>
+          <button className="btn-outline" onClick={() => { setImportOpen(true); setImportRows(null); setImportErr(''); }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Importar planilha
+          </button>
           <button className="btn-primary" onClick={openCreate}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19"/>
@@ -356,6 +434,45 @@ export default function SKUManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import CSV Modal */}
+      {importOpen && (
+        <div style={styles.modalOverlay} onClick={e => e.target === e.currentTarget && setImportOpen(false)}>
+          <div style={styles.modal}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>Importar planilha (CSV)</h2>
+              <button style={styles.closeBtn} onClick={() => setImportOpen(false)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              {importErr && <div className="alert alert-error" style={{marginBottom:'14px'}}>{importErr}</div>}
+              <p style={{fontSize:'13px', color:'var(--text-secondary)', marginBottom:'10px'}}>
+                Colunas esperadas (cabeçalho): <code style={styles.code}>sku</code>, <code style={styles.code}>descricao_longa</code>, <code style={styles.code}>descricao_curta</code>, <code style={styles.code}>descricao_curta_2</code>, <code style={styles.code}>local</code>. Só <b>sku</b> é obrigatório. SKUs já existentes são atualizados.
+              </p>
+              <p style={{fontSize:'12px', marginBottom:'14px'}}>
+                No Excel: <b>Arquivo → Salvar como → CSV</b>. <a href="#" onClick={e => { e.preventDefault(); downloadTemplate(); }}>Baixar modelo .csv</a>
+              </p>
+              <input type="file" accept=".csv,text/csv" onChange={handleFile} style={{marginBottom:'14px'}} />
+              {importRows && (
+                <div className="alert alert-success" style={{marginBottom:'14px'}}>
+                  {importRows.length} SKU{importRows.length !== 1 ? 's' : ''} encontrado{importRows.length !== 1 ? 's' : ''} na planilha, pronto{importRows.length !== 1 ? 's' : ''} para importar.
+                </div>
+              )}
+              <div style={{display:'flex', gap:'8px', justifyContent:'flex-end', paddingTop:'8px', borderTop:'1px solid var(--border)'}}>
+                <button className="btn-secondary" onClick={() => setImportOpen(false)}>Cancelar</button>
+                <button className="btn-primary" onClick={doImport} disabled={!importRows || importRows.length === 0 || importing}>
+                  {importing
+                    ? <><span className="spinner" style={{width:13,height:13,borderWidth:2}} /> Importando...</>
+                    : `Importar${importRows ? ` ${importRows.length}` : ''}`}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

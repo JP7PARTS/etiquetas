@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const skusRoutes = require('./routes/skus');
 const labelsRoutes = require('./routes/labels');
 const warningsRoutes = require('./routes/warnings');
+const usersRoutes = require('./routes/users');
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/skus', skusRoutes);
 app.use('/api/labels', labelsRoutes);
 app.use('/api/warnings', warningsRoutes);
+app.use('/api/users', usersRoutes);
 
 // 404 handler for /api routes
 app.use('/api/*', (req, res) => {

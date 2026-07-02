@@ -39,6 +39,39 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
+// POST /api/skus/import  — importa vários SKUs de uma planilha (UPSERT)
+router.post('/import', authenticate, requireAdmin, async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Nenhum SKU para importar' });
+  }
+
+  let processados = 0;
+  let ignorados = 0;
+  for (const it of items) {
+    const sku = (it.sku || '').trim().toUpperCase();
+    if (!sku) { ignorados++; continue; }
+    try {
+      await db.query(
+        `INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (sku) DO UPDATE SET
+           descricao_longa = EXCLUDED.descricao_longa,
+           descricao_curta = EXCLUDED.descricao_curta,
+           descricao_curta_2 = EXCLUDED.descricao_curta_2,
+           local = EXCLUDED.local`,
+        [sku, it.descricao_longa || null, it.descricao_curta || null, it.descricao_curta_2 || null, it.local || null]
+      );
+      processados++;
+    } catch (err) {
+      console.error('Import SKU error (' + sku + '):', err.message);
+      ignorados++;
+    }
+  }
+
+  res.json({ total: items.length, processados, ignorados });
+});
+
 // POST /api/skus
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   const { sku, descricao_longa, descricao_curta, descricao_curta_2, local } = req.body;

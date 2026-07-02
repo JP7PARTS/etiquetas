@@ -5,6 +5,7 @@ import SKUManagement from './components/SKUManagement.jsx';
 import GenerateFromSKU from './components/GenerateFromSKU.jsx';
 import GenerateCustom from './components/GenerateCustom.jsx';
 import WarningLabels from './components/WarningLabels.jsx';
+import UserManagement from './components/UserManagement.jsx';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -43,6 +44,8 @@ export default function App() {
   let content;
   if (page === 'skus' && user.role === 'admin') {
     content = <SKUManagement />;
+  } else if (page === 'users' && user.role === 'admin') {
+    content = <UserManagement user={user} />;
   } else if (page === 'generate-custom') {
     content = <GenerateCustom />;
   } else if (page === 'warning-labels') {

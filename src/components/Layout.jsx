@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
+import ChangePasswordModal from './ChangePasswordModal.jsx';
 
 const navItems = [
   { id: 'generate-sku', label: 'Etiquetas produtos', icon: '🏷️', roles: ['admin', 'user'] },
   { id: 'warning-labels', label: 'Etiquetas de Aviso', icon: '⚠️', roles: ['admin', 'user'] },
   { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
   { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
+  { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
 ];
 
 export default function Layout({ user, page, onNavigate, onLogout, children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showChangePw, setShowChangePw] = useState(false);
 
   const visibleItems = navItems.filter(item => item.roles.includes(user.role));
 
@@ -59,6 +62,16 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
             </div>
           </div>
           <button
+            onClick={() => setShowChangePw(true)}
+            style={styles.logoutBtn}
+            title="Trocar senha"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </button>
+          <button
             onClick={onLogout}
             style={styles.logoutBtn}
             title="Sair"
@@ -71,6 +84,8 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
           </button>
         </div>
       </aside>
+
+      {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
 
       {/* Main content */}
       <div style={styles.main}>

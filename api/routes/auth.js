@@ -56,4 +56,35 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
+// POST /api/auth/change-password  — usuário logado troca a própria senha
+router.post('/change-password', authenticate, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Senha atual e nova são obrigatórias' });
+  }
+  if (newPassword.length < 4) {
+    return res.status(400).json({ error: 'A nova senha deve ter ao menos 4 caracteres' });
+  }
+
+  try {
+    const result = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Senha atual incorreta' });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
+    res.json({ message: 'Senha alterada com sucesso' });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 module.exports = router;
