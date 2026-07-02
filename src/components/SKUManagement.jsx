@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api.js';
 
-const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', local: '' };
+const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', descricao_curta_2: '', local: '' };
 
 export default function SKUManagement() {
   const [skus, setSkus] = useState([]);
@@ -51,6 +51,7 @@ export default function SKUManagement() {
       sku: sku.sku,
       descricao_longa: sku.descricao_longa || '',
       descricao_curta: sku.descricao_curta || '',
+      descricao_curta_2: sku.descricao_curta_2 || '',
       local: sku.local || '',
     });
     setEditId(sku.id);
@@ -295,6 +296,20 @@ export default function SKUManagement() {
                 />
                 <div style={{fontSize:'11.5px',color:'var(--text-muted)',marginTop:'4px'}}>
                   Aparece na linha superior da etiqueta ({form.descricao_curta.length}/100)
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="modal-desc-curta-2">Descrição alternativa (opcional)</label>
+                <input
+                  id="modal-desc-curta-2"
+                  name="descricao_curta_2"
+                  value={form.descricao_curta_2}
+                  onChange={handleFormChange}
+                  placeholder="LTZ BRANCO"
+                  maxLength={100}
+                />
+                <div style={{fontSize:'11.5px',color:'var(--text-muted)',marginTop:'4px'}}>
+                  Segunda opção de texto para a etiqueta (ex.: LTZ BRANCO). Deixe em branco se não usar. ({form.descricao_curta_2.length}/100)
                 </div>
               </div>
               <div className="form-group">

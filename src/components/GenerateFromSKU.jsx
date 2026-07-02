@@ -5,7 +5,7 @@ import { normalizeQuantity, copyZPL } from '../utils/zpl.js';
 
 let rowSeq = 1;
 function newRow(sku = null) {
-  return { id: rowSeq++, selected: sku, search: sku ? sku.sku : '', quantity: 1 };
+  return { id: rowSeq++, selected: sku, search: sku ? sku.sku : '', quantity: 1, useAlt: false };
 }
 
 export default function GenerateFromSKU() {
@@ -77,7 +77,9 @@ export default function GenerateFromSKU() {
     try {
       const items = selectedRows.map(r => ({
         sku: r.selected.sku,
-        descricao_curta: r.selected.descricao_curta || '',
+        descricao_curta: (r.useAlt && r.selected.descricao_curta_2)
+          ? r.selected.descricao_curta_2
+          : (r.selected.descricao_curta || ''),
         quantity: normalizeQuantity(r.quantity),
       }));
       const res = await api.post('/labels/generate-batch', { items });
@@ -243,8 +245,22 @@ export default function GenerateFromSKU() {
                               <>
                                 <code style={styles.skuCodeInline}>{row.selected.sku}</code>
                                 <span style={{fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px'}}>
-                                  {row.selected.descricao_curta}
+                                  {(row.useAlt && row.selected.descricao_curta_2)
+                                    ? row.selected.descricao_curta_2
+                                    : row.selected.descricao_curta}
                                 </span>
+                                {row.selected.descricao_curta_2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateRow(row.id, { useAlt: !row.useAlt })}
+                                    title={row.useAlt
+                                      ? `Usando alternativa: ${row.selected.descricao_curta_2}`
+                                      : `Usando padrão: ${row.selected.descricao_curta || '—'}`}
+                                    style={{...styles.altToggle, ...(row.useAlt ? styles.altToggleActive : {})}}
+                                  >
+                                    {row.useAlt ? 'Alt' : 'Padrão'}
+                                  </button>
+                                )}
                               </>
                             ) : (
                               <span style={{color: 'var(--text-muted)'}}>Vazio</span>
@@ -497,6 +513,23 @@ const styles = {
     fontFamily: 'monospace',
     fontSize: '12px',
     color: '#2b6cb0',
+  },
+  altToggle: {
+    marginLeft: '8px',
+    padding: '2px 8px',
+    borderRadius: '12px',
+    border: '1px solid var(--border)',
+    background: '#fff',
+    color: 'var(--text-secondary)',
+    fontSize: '10.5px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    verticalAlign: 'middle',
+  },
+  altToggleActive: {
+    background: 'var(--btn-primary)',
+    borderColor: 'var(--btn-primary)',
+    color: '#fff',
   },
   removeBtn: {
     width: '28px',

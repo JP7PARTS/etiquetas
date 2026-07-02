@@ -41,15 +41,15 @@ router.get('/:id', authenticate, async (req, res) => {
 
 // POST /api/skus
 router.post('/', authenticate, requireAdmin, async (req, res) => {
-  const { sku, descricao_longa, descricao_curta, local } = req.body;
+  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local } = req.body;
   if (!sku) {
     return res.status(400).json({ error: 'SKU é obrigatório' });
   }
 
   try {
     const result = await db.query(
-      'INSERT INTO skus (sku, descricao_longa, descricao_curta, local) VALUES ($1, $2, $3, $4) RETURNING *',
-      [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, local || null]
+      'INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -63,15 +63,15 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
 // PUT /api/skus/:id
 router.put('/:id', authenticate, requireAdmin, async (req, res) => {
-  const { sku, descricao_longa, descricao_curta, local } = req.body;
+  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local } = req.body;
   if (!sku) {
     return res.status(400).json({ error: 'SKU é obrigatório' });
   }
 
   try {
     const result = await db.query(
-      'UPDATE skus SET sku = $1, descricao_longa = $2, descricao_curta = $3, local = $4 WHERE id = $5 RETURNING *',
-      [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, local || null, req.params.id]
+      'UPDATE skus SET sku = $1, descricao_longa = $2, descricao_curta = $3, descricao_curta_2 = $4, local = $5 WHERE id = $6 RETURNING *',
+      [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null, req.params.id]
     );
     if (!result.rows[0]) {
       return res.status(404).json({ error: 'SKU não encontrado' });

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS skus (
   sku VARCHAR(100) UNIQUE NOT NULL,
   descricao_longa VARCHAR(500),
   descricao_curta VARCHAR(100),
+  descricao_curta_2 VARCHAR(100),
   local VARCHAR(100),
   created_at TIMESTAMP DEFAULT NOW()
 );
