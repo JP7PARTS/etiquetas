@@ -82,13 +82,43 @@ export default function SKUManagement() {
     }
   }
 
-  function downloadTemplate() {
-    const csv = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1\n';
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  // Escapa um campo CSV (aspas se contiver separador, aspas ou quebra de linha)
+  function csvField(v) {
+    const s = (v ?? '').toString();
+    return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function saveCSV(content, filename) {
+    // BOM (﻿) faz o Excel abrir com acentos corretos
+    const blob = new Blob(['﻿' + content], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'modelo_skus.csv'; a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
+  }
+
+  const CSV_HEADER = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local';
+
+  function downloadTemplate() {
+    saveCSV(CSV_HEADER + '\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1\n', 'modelo_skus.csv');
+  }
+
+  const [exporting, setExporting] = useState(false);
+  async function exportAll() {
+    setExporting(true);
+    try {
+      const res = await api.get('/skus'); // todos, sem filtro
+      const rows = res.data.map(s =>
+        [s.sku, s.descricao_longa, s.descricao_curta, s.descricao_curta_2, s.local].map(csvField).join(';')
+      );
+      const stamp = new Date().toISOString().slice(0, 10);
+      saveCSV(CSV_HEADER + '\n' + rows.join('\n') + '\n', `skus_${stamp}.csv`);
+      showMessage(`${rows.length} SKU(s) exportado(s).`);
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Erro ao exportar SKUs', 'error');
+    } finally {
+      setExporting(false);
+    }
   }
 
   async function loadSKUs(q = '') {
@@ -212,6 +242,18 @@ export default function SKUManagement() {
               style={{paddingLeft: '34px'}}
             />
           </div>
+          <button className="btn-outline" onClick={exportAll} disabled={exporting} title="Baixar todos os SKUs em CSV para editar e reenviar">
+            {exporting
+              ? <><span className="spinner" style={{width:13,height:13,borderWidth:2}} /> Exportando...</>
+              : <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Exportar planilha
+                </>}
+          </button>
           <button className="btn-outline" onClick={() => { setImportOpen(true); setImportRows(null); setImportErr(''); }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
