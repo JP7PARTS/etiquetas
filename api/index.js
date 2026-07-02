@@ -6,6 +6,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const skusRoutes = require('./routes/skus');
 const labelsRoutes = require('./routes/labels');
+const warningsRoutes = require('./routes/warnings');
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/skus', skusRoutes);
 app.use('/api/labels', labelsRoutes);
+app.use('/api/warnings', warningsRoutes);
 
 // 404 handler for /api routes
 app.use('/api/*', (req, res) => {

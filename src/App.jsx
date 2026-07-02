@@ -4,6 +4,7 @@ import Layout from './components/Layout.jsx';
 import SKUManagement from './components/SKUManagement.jsx';
 import GenerateFromSKU from './components/GenerateFromSKU.jsx';
 import GenerateCustom from './components/GenerateCustom.jsx';
+import WarningLabels from './components/WarningLabels.jsx';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -44,6 +45,8 @@ export default function App() {
     content = <SKUManagement />;
   } else if (page === 'generate-custom') {
     content = <GenerateCustom />;
+  } else if (page === 'warning-labels') {
+    content = <WarningLabels />;
   } else {
     content = <GenerateFromSKU />;
   }

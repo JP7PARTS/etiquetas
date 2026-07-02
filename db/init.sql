@@ -18,6 +18,13 @@ CREATE TABLE IF NOT EXISTS skus (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS warning_labels (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(150) NOT NULL,
+  zpl TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (email, password_hash, role)
