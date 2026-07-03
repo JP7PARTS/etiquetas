@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS print_history (
   items JSONB NOT NULL,
   total_skus INTEGER,
   total_labels INTEGER,
+  origin VARCHAR(20) DEFAULT 'lote',
   created_at TIMESTAMP DEFAULT NOW()
 );
 

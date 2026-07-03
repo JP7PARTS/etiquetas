@@ -139,25 +139,40 @@ export default function PrintHistory() {
                 <tr>
                   <th>Data / hora</th>
                   <th>Operador</th>
-                  <th style={{ textAlign: 'center' }}>SKUs</th>
+                  <th>Itens</th>
                   <th style={{ textAlign: 'center' }}>Etiquetas</th>
                   <th style={{ textAlign: 'right' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(rec => (
+                {filtered.map(rec => {
+                  const items = Array.isArray(rec.items) ? rec.items : [];
+                  const single = items.length === 1 ? items[0] : null;
+                  return (
                   <React.Fragment key={rec.id}>
                     <tr>
                       <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{fmtDate(rec.created_at)}</td>
-                      <td>{rec.user_email || '—'}</td>
-                      <td style={{ textAlign: 'center' }}>{rec.total_skus}</td>
+                      <td>
+                        {rec.user_email || '—'}
+                        {rec.origin === 'personalizado' && <span style={styles.custom}>✏️ Personalizado</span>}
+                      </td>
+                      <td>
+                        {single ? (
+                          <div style={styles.itemRowInline}>
+                            <code style={styles.code}>{single.sku}</code>
+                            {single.descricao_curta && <span style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>{single.descricao_curta}</span>}
+                            <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>×{single.quantity}</span>
+                          </div>
+                        ) : (
+                          <button className="btn-outline" style={{ padding: '5px 10px' }}
+                            onClick={() => setExpanded(expanded === rec.id ? null : rec.id)}>
+                            {expanded === rec.id ? 'Ocultar' : `Ver itens (${items.length})`}
+                          </button>
+                        )}
+                      </td>
                       <td style={{ textAlign: 'center', fontWeight: 700 }}>{rec.total_labels}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button className="btn-outline" style={{ padding: '5px 10px' }}
-                            onClick={() => setExpanded(expanded === rec.id ? null : rec.id)}>
-                            {expanded === rec.id ? 'Ocultar' : 'Ver itens'}
-                          </button>
                           <button className="btn-primary" style={{ padding: '5px 10px' }}
                             onClick={() => recopy(rec)} disabled={busyId === rec.id}>
                             {busyId === rec.id ? 'Copiando...' : copiedId === rec.id ? '✅ Copiado!' : 'Copiar de novo'}
@@ -165,11 +180,11 @@ export default function PrintHistory() {
                         </div>
                       </td>
                     </tr>
-                    {expanded === rec.id && (
+                    {!single && expanded === rec.id && (
                       <tr>
                         <td colSpan={5} style={{ background: '#f7fafc', padding: '10px 14px' }}>
                           <div style={styles.itemsBox}>
-                            {(rec.items || []).map((it, i) => (
+                            {items.map((it, i) => (
                               <div key={i} style={styles.itemRow}>
                                 <code style={styles.code}>{it.sku}</code>
                                 <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: '12.5px' }}>{it.descricao_curta || ''}</span>
@@ -181,7 +196,8 @@ export default function PrintHistory() {
                       </tr>
                     )}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             <div style={styles.footer}>{filtered.length} registro{filtered.length !== 1 ? 's' : ''}</div>
@@ -199,6 +215,8 @@ const styles = {
   code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: '#2b6cb0' },
   itemsBox: { display: 'flex', flexDirection: 'column', gap: '6px' },
   itemRow: { display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0', borderBottom: '1px solid var(--border)' },
+  itemRowInline: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+  custom: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
   footer: { padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' },
   periodBar: { display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' },
   presets: { display: 'flex', gap: '6px', flexWrap: 'wrap' },

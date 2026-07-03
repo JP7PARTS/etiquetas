@@ -10,10 +10,11 @@ function normalizeQuantity(q) {
 
 // POST /api/history  — registra uma geração de lote (qualquer usuário logado)
 router.post('/', authenticate, async (req, res) => {
-  const { items } = req.body;
+  const { items, origin } = req.body;
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Nada para registrar' });
   }
+  const orig = origin === 'personalizado' ? 'personalizado' : 'lote';
 
   const clean = items
     .filter(it => it && it.sku)
@@ -29,9 +30,9 @@ router.post('/', authenticate, async (req, res) => {
 
   try {
     const result = await db.query(
-      `INSERT INTO print_history (user_id, user_email, items, total_skus, total_labels)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`,
-      [req.user.id, req.user.email, JSON.stringify(clean), clean.length, totalLabels]
+      `INSERT INTO print_history (user_id, user_email, items, total_skus, total_labels, origin)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+      [req.user.id, req.user.email, JSON.stringify(clean), clean.length, totalLabels, orig]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

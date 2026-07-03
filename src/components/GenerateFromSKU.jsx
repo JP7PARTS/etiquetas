@@ -86,7 +86,7 @@ export default function GenerateFromSKU() {
       const res = await api.post('/labels/generate-batch', { items });
       setResult(res.data);
       // Registra no histórico (não bloqueia o fluxo se falhar)
-      api.post('/history', { items }).catch(() => {});
+      api.post('/history', { items, origin: 'lote' }).catch(() => {});
       try {
         await copyZPL(res.data.zpl);
         setCopiedOnGenerate(true);

@@ -26,6 +26,7 @@ export default function GenerateCustom() {
       // Registra no histórico (não bloqueia o fluxo se falhar)
       api.post('/history', {
         items: [{ sku: sku.trim(), descricao_curta: descricao.trim(), quantity }],
+        origin: 'personalizado',
       }).catch(() => {});
     } catch (err) {
       setError('Erro ao gerar ZPL: ' + (err.response?.data?.error || err.message));
