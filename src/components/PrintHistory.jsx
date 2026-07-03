@@ -13,6 +13,7 @@ export default function PrintHistory() {
   const [expanded, setExpanded] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => { load(); }, []);
 
@@ -61,6 +62,20 @@ export default function PrintHistory() {
   }
 
   function setPresetClear(p) { setPreset(p); setFromDate(''); setToDate(''); }
+
+  async function remove(rec) {
+    const when = fmtDate(rec.created_at);
+    if (!window.confirm(`Excluir este registro do histórico?\n\n${when} · ${rec.total_labels} etiqueta(s)\n\nEsta ação não pode ser desfeita.`)) return;
+    setDeletingId(rec.id);
+    try {
+      await api.delete(`/history/${rec.id}`);
+      setList(l => l.filter(r => r.id !== rec.id));
+    } catch (err) {
+      setError('Erro ao excluir: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const q = search.trim().toLowerCase();
   const range = periodRange();
@@ -176,6 +191,10 @@ export default function PrintHistory() {
                           <button className="btn-primary" style={{ padding: '5px 10px' }}
                             onClick={() => recopy(rec)} disabled={busyId === rec.id}>
                             {busyId === rec.id ? 'Copiando...' : copiedId === rec.id ? '✅ Copiado!' : 'Copiar de novo'}
+                          </button>
+                          <button className="btn-danger" style={{ padding: '5px 10px' }}
+                            onClick={() => remove(rec)} disabled={deletingId === rec.id} title="Excluir registro">
+                            {deletingId === rec.id ? '...' : 'Excluir'}
                           </button>
                         </div>
                       </td>

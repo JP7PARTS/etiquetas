@@ -54,4 +54,18 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+// DELETE /api/history/:id  — exclui um registro (somente admin)
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const result = await db.query('DELETE FROM print_history WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Registro não encontrado' });
+    }
+    res.json({ message: 'Registro excluído' });
+  } catch (err) {
+    console.error('DELETE /history/:id error:', err);
+    res.status(500).json({ error: 'Erro ao excluir registro' });
+  }
+});
+
 module.exports = router;
