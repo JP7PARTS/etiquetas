@@ -23,6 +23,10 @@ export default function GenerateCustom() {
         quantity,
       });
       setResult(res.data);
+      // Registra no histórico (não bloqueia o fluxo se falhar)
+      api.post('/history', {
+        items: [{ sku: sku.trim(), descricao_curta: descricao.trim(), quantity }],
+      }).catch(() => {});
     } catch (err) {
       setError('Erro ao gerar ZPL: ' + (err.response?.data?.error || err.message));
     } finally {
