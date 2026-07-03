@@ -180,13 +180,19 @@ export default function PrintHistory() {
                           <div>
                             <button className="btn-outline" style={{ padding: '4px 10px', fontSize: '12px', marginBottom: '6px' }}
                               onClick={() => setExpanded(null)}>Ocultar</button>
-                            {items.map((it, i) => (
-                              <div key={i} style={styles.itemLine}>
-                                <span style={styles.qty}>{it.quantity}×</span>
-                                <code style={styles.code}>{it.sku}</code>
-                                {it.descricao_curta && <span style={styles.itemDesc}>{it.descricao_curta}</span>}
-                              </div>
-                            ))}
+                            <div style={styles.subTableWrap}>
+                              <table style={styles.subTable}>
+                                <tbody>
+                                  {items.map((it, i) => (
+                                    <tr key={i} style={i % 2 ? styles.zebra : undefined}>
+                                      <td style={styles.subQty}>{it.quantity}×</td>
+                                      <td style={styles.subSku}><code style={styles.code}>{it.sku}</code></td>
+                                      <td style={styles.subDesc}>{it.descricao_curta || ''}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         ) : (
                           <button className="btn-outline" style={{ padding: '4px 10px', fontSize: '12px' }}
@@ -230,6 +236,12 @@ const styles = {
   itemLine: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', whiteSpace: 'nowrap', padding: '2px 0' },
   qty: { fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: '30px' },
   itemDesc: { color: 'var(--text-secondary)', fontSize: '12.5px' },
+  subTableWrap: { border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' },
+  subTable: { width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' },
+  zebra: { background: '#f7fafc' },
+  subQty: { padding: '4px 10px', fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: 'none', width: '48px' },
+  subSku: { padding: '4px 10px', whiteSpace: 'nowrap', borderBottom: 'none', width: '1%' },
+  subDesc: { padding: '4px 10px', color: 'var(--text-secondary)', borderBottom: 'none' },
   custom: { display: 'inline-block', marginBottom: '4px', fontSize: '10.5px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
   actBtn: { padding: '4px 12px', fontSize: '12.5px', whiteSpace: 'nowrap', lineHeight: 1.2 },
   footer: { padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' },
