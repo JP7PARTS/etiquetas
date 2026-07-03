@@ -7,6 +7,9 @@ export default function PrintHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [preset, setPreset] = useState('todos'); // todos | hoje | 7d | 30d
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [expanded, setExpanded] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [busyId, setBusyId] = useState(null);
@@ -43,11 +46,33 @@ export default function PrintHistory() {
     }
   }
 
+  function periodRange() {
+    if (fromDate || toDate) {
+      return {
+        start: fromDate ? new Date(fromDate + 'T00:00:00') : null,
+        end: toDate ? new Date(toDate + 'T23:59:59.999') : null,
+      };
+    }
+    const now = Date.now();
+    if (preset === 'hoje') { const s = new Date(); s.setHours(0, 0, 0, 0); return { start: s, end: null }; }
+    if (preset === '7d') return { start: new Date(now - 7 * 864e5), end: null };
+    if (preset === '30d') return { start: new Date(now - 30 * 864e5), end: null };
+    return { start: null, end: null };
+  }
+
+  function setPresetClear(p) { setPreset(p); setFromDate(''); setToDate(''); }
+
   const q = search.trim().toLowerCase();
-  const filtered = !q ? list : list.filter(r =>
-    (r.user_email || '').toLowerCase().includes(q) ||
-    (Array.isArray(r.items) && r.items.some(it => (it.sku || '').toLowerCase().includes(q)))
-  );
+  const range = periodRange();
+  const filtered = list.filter(r => {
+    const d = new Date(r.created_at);
+    if (range.start && d < range.start) return false;
+    if (range.end && d > range.end) return false;
+    if (!q) return true;
+    return (r.user_email || '').toLowerCase().includes(q) ||
+      (Array.isArray(r.items) && r.items.some(it => (it.sku || '').toLowerCase().includes(q)));
+  });
+  const totalEtiquetas = filtered.reduce((s, r) => s + (r.total_labels || 0), 0);
 
   return (
     <div>
@@ -69,6 +94,36 @@ export default function PrintHistory() {
           </div>
           <button className="btn-outline" onClick={load}>Atualizar</button>
         </div>
+
+        {/* Filtro de período */}
+        <div style={styles.periodBar}>
+          <div style={styles.presets}>
+            {[['todos', 'Tudo'], ['hoje', 'Hoje'], ['7d', '7 dias'], ['30d', '30 dias']].map(([id, lbl]) => (
+              <button key={id} type="button" onClick={() => setPresetClear(id)}
+                style={{ ...styles.presetChip, ...(preset === id && !fromDate && !toDate ? styles.presetActive : {}) }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          <div style={styles.dateRange}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>De</span>
+            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} style={styles.dateInput} />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>até</span>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} style={styles.dateInput} />
+          </div>
+        </div>
+
+        {/* Resumo do período */}
+        {!loading && (
+          <div style={styles.summary}>
+            <div>
+              <div style={styles.summaryK}>No período selecionado</div>
+              <div style={styles.summaryV}>
+                {filtered.length} geraç{filtered.length !== 1 ? 'ões' : 'ão'} · <b>{totalEtiquetas}</b> etiqueta{totalEtiquetas !== 1 ? 's' : ''}
+              </div>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -145,4 +200,13 @@ const styles = {
   itemsBox: { display: 'flex', flexDirection: 'column', gap: '6px' },
   itemRow: { display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0', borderBottom: '1px solid var(--border)' },
   footer: { padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' },
+  periodBar: { display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' },
+  presets: { display: 'flex', gap: '6px', flexWrap: 'wrap' },
+  presetChip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
+  presetActive: { background: 'var(--btn-primary)', borderColor: 'var(--btn-primary)', color: '#fff' },
+  dateRange: { display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' },
+  dateInput: { padding: '5px 8px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12.5px' },
+  summary: { padding: '12px 14px', background: '#f7fafc', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '16px' },
+  summaryK: { fontSize: '12px', color: 'var(--text-muted)' },
+  summaryV: { fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' },
 };
