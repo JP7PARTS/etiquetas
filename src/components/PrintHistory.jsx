@@ -167,21 +167,31 @@ export default function PrintHistory() {
                   <React.Fragment key={rec.id}>
                     <tr>
                       <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{fmtDate(rec.created_at)}</td>
+                      <td>{rec.user_email || '—'}</td>
                       <td>
-                        {rec.user_email || '—'}
                         {rec.origin === 'personalizado' && <span style={styles.custom}>✏️ Personalizado</span>}
-                      </td>
-                      <td>
                         {single ? (
-                          <div style={styles.itemRowInline}>
-                            <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{single.quantity}×</span>
+                          <div style={styles.itemLine}>
+                            <span style={styles.qty}>{single.quantity}×</span>
                             <code style={styles.code}>{single.sku}</code>
-                            {single.descricao_curta && <span style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>{single.descricao_curta}</span>}
+                            {single.descricao_curta && <span style={styles.itemDesc}>{single.descricao_curta}</span>}
+                          </div>
+                        ) : expanded === rec.id ? (
+                          <div>
+                            <button className="btn-outline" style={{ padding: '4px 10px', fontSize: '12px', marginBottom: '6px' }}
+                              onClick={() => setExpanded(null)}>Ocultar</button>
+                            {items.map((it, i) => (
+                              <div key={i} style={styles.itemLine}>
+                                <span style={styles.qty}>{it.quantity}×</span>
+                                <code style={styles.code}>{it.sku}</code>
+                                {it.descricao_curta && <span style={styles.itemDesc}>{it.descricao_curta}</span>}
+                              </div>
+                            ))}
                           </div>
                         ) : (
-                          <button className="btn-outline" style={{ padding: '5px 10px' }}
-                            onClick={() => setExpanded(expanded === rec.id ? null : rec.id)}>
-                            {expanded === rec.id ? 'Ocultar' : `Ver itens (${items.length})`}
+                          <button className="btn-outline" style={{ padding: '4px 10px', fontSize: '12px' }}
+                            onClick={() => setExpanded(rec.id)}>
+                            {`Ver itens (${items.length})`}
                           </button>
                         )}
                       </td>
@@ -199,21 +209,6 @@ export default function PrintHistory() {
                         </div>
                       </td>
                     </tr>
-                    {!single && expanded === rec.id && (
-                      <tr>
-                        <td colSpan={5} style={{ background: '#f7fafc', padding: '10px 14px' }}>
-                          <div style={styles.itemsBox}>
-                            {items.map((it, i) => (
-                              <div key={i} style={styles.itemRow}>
-                                <code style={styles.code}>{it.sku}</code>
-                                <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: '12.5px' }}>{it.descricao_curta || ''}</span>
-                                <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>x{it.quantity}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                   </React.Fragment>
                   );
                 })}
@@ -232,10 +227,10 @@ const styles = {
   searchWrapper: { flex: 1, minWidth: '200px', position: 'relative' },
   searchIcon: { position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' },
   code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: '#2b6cb0' },
-  itemsBox: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  itemRow: { display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0', borderBottom: '1px solid var(--border)' },
-  itemRowInline: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', whiteSpace: 'nowrap' },
-  custom: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
+  itemLine: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', whiteSpace: 'nowrap', padding: '2px 0' },
+  qty: { fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: '30px' },
+  itemDesc: { color: 'var(--text-secondary)', fontSize: '12.5px' },
+  custom: { display: 'inline-block', marginBottom: '4px', fontSize: '10.5px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
   actBtn: { padding: '4px 12px', fontSize: '12.5px', whiteSpace: 'nowrap', lineHeight: 1.2 },
   footer: { padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' },
   periodBar: { display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' },
