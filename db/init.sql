@@ -26,6 +26,17 @@ CREATE TABLE IF NOT EXISTS warning_labels (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Histórico de gerações de lote (Etiquetas produtos)
+CREATE TABLE IF NOT EXISTS print_history (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER,
+  user_email VARCHAR(255),
+  items JSONB NOT NULL,
+  total_skus INTEGER,
+  total_labels INTEGER,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (email, password_hash, role)
