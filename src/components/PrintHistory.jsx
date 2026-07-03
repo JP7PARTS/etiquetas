@@ -174,9 +174,9 @@ export default function PrintHistory() {
                       <td>
                         {single ? (
                           <div style={styles.itemRowInline}>
+                            <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{single.quantity}×</span>
                             <code style={styles.code}>{single.sku}</code>
                             {single.descricao_curta && <span style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>{single.descricao_curta}</span>}
-                            <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>×{single.quantity}</span>
                           </div>
                         ) : (
                           <button className="btn-outline" style={{ padding: '5px 10px' }}
@@ -234,7 +234,7 @@ const styles = {
   code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: '#2b6cb0' },
   itemsBox: { display: 'flex', flexDirection: 'column', gap: '6px' },
   itemRow: { display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0', borderBottom: '1px solid var(--border)' },
-  itemRowInline: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+  itemRowInline: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', whiteSpace: 'nowrap' },
   custom: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
   footer: { padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' },
   periodBar: { display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' },
