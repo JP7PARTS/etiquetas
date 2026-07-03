@@ -187,12 +187,12 @@ export default function PrintHistory() {
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 700 }}>{rec.total_labels}</td>
                       <td>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button className="btn-primary" style={{ padding: '5px 10px' }}
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                          <button className="btn-primary" style={styles.actBtn}
                             onClick={() => recopy(rec)} disabled={busyId === rec.id}>
-                            {busyId === rec.id ? 'Copiando...' : copiedId === rec.id ? '✅ Copiado!' : 'Copiar de novo'}
+                            {busyId === rec.id ? 'Copiando...' : copiedId === rec.id ? '✅ Copiado!' : 'Copiar'}
                           </button>
-                          <button className="btn-danger" style={{ padding: '5px 10px' }}
+                          <button className="btn-danger" style={styles.actBtn}
                             onClick={() => remove(rec)} disabled={deletingId === rec.id} title="Excluir registro">
                             {deletingId === rec.id ? '...' : 'Excluir'}
                           </button>
@@ -236,6 +236,7 @@ const styles = {
   itemRow: { display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0', borderBottom: '1px solid var(--border)' },
   itemRowInline: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', whiteSpace: 'nowrap' },
   custom: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
+  actBtn: { padding: '4px 12px', fontSize: '12.5px', whiteSpace: 'nowrap', lineHeight: 1.2 },
   footer: { padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' },
   periodBar: { display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' },
   presets: { display: 'flex', gap: '6px', flexWrap: 'wrap' },

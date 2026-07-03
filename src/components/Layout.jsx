@@ -293,7 +293,7 @@ const styles = {
   content: {
     flex: 1,
     padding: '28px',
-    maxWidth: '900px',
+    maxWidth: '1150px',
     width: '100%',
   },
 };
