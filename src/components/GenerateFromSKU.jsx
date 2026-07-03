@@ -229,7 +229,14 @@ export default function GenerateFromSKU() {
         {/* LOTE (DIREITA) */}
         <div style={styles.lotePanel}>
           <div className="card" style={{height: '100%', display: 'flex', flexDirection: 'column'}}>
-            <h3 style={styles.panelTitle}>Seu Lote</h3>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px'}}>
+              <h3 style={{...styles.panelTitle, margin: 0}}>Seu Lote</h3>
+              {rows.length > 0 && (
+                <button type="button" onClick={() => { setRows([]); setResult(null); }} style={styles.clearBtn}>
+                  Limpar lista
+                </button>
+              )}
+            </div>
 
             <form onSubmit={handleGenerate} style={{display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0}}>
               {/* Lista de linhas do lote */}
@@ -589,5 +596,15 @@ const styles = {
     fontWeight: '600',
     color: '#276749',
     textAlign: 'center',
+  },
+  clearBtn: {
+    background: '#fff5f5',
+    color: '#e53e3e',
+    border: '1px solid #fed7d7',
+    borderRadius: '6px',
+    padding: '5px 12px',
+    fontSize: '12.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
   },
 };
