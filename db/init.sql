@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS print_history (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Índices para manter Histórico e Ranking rápidos conforme o volume cresce
+CREATE INDEX IF NOT EXISTS idx_print_history_created_at ON print_history (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_print_history_user_id ON print_history (user_id);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (username, email, password_hash, role)
