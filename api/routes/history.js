@@ -32,7 +32,7 @@ router.post('/', authenticate, async (req, res) => {
     const result = await db.query(
       `INSERT INTO print_history (user_id, user_email, items, total_skus, total_labels, origin)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
-      [req.user.id, req.user.email, JSON.stringify(clean), clean.length, totalLabels, orig]
+      [req.user.id, req.user.username || req.user.email, JSON.stringify(clean), clean.length, totalLabels, orig]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

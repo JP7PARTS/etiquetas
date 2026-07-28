@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api.js';
 
-const emptyForm = { email: '', password: '', role: 'user' };
+const emptyForm = { username: '', email: '', password: '', role: 'user' };
 
 export default function UserManagement({ user }) {
   const [users, setUsers] = useState([]);
@@ -43,7 +43,7 @@ export default function UserManagement({ user }) {
   }
 
   function openEdit(u) {
-    setForm({ email: u.email, password: '', role: u.role });
+    setForm({ username: u.username || '', email: u.email || '', password: '', role: u.role });
     setEditUser(u);
     setModal('edit');
   }
@@ -64,7 +64,7 @@ export default function UserManagement({ user }) {
     setSaving(true);
     try {
       if (modal === 'edit' && editUser) {
-        const payload = { role: form.role };
+        const payload = { role: form.role, email: form.email };
         if (form.password.trim()) payload.password = form.password;
         await api.put(`/users/${editUser.id}`, payload);
         showMessage('Usuário atualizado com sucesso!');
@@ -138,8 +138,9 @@ export default function UserManagement({ user }) {
                 {users.map(u => (
                   <tr key={u.id}>
                     <td>
-                      {u.email}
+                      <strong>{u.username || '—'}</strong>
                       {u.id === user?.id && <span style={styles.youTag}>você</span>}
+                      {u.email && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{u.email}</div>}
                     </td>
                     <td>
                       <span className={`badge badge-${u.role}`}>{u.role}</span>
@@ -178,18 +179,28 @@ export default function UserManagement({ user }) {
             </div>
             <form onSubmit={handleSave} style={styles.modalBody}>
               <div className="form-group">
-                <label htmlFor="u-email">Usuário ou e-mail *</label>
+                <label htmlFor="u-username">Usuário *</label>
                 <input
-                  id="u-email" name="email" value={form.email} onChange={handleChange}
-                  placeholder="operador" maxLength={255} required
+                  id="u-username" name="username" value={form.username} onChange={handleChange}
+                  placeholder="operador" maxLength={100} required
                   disabled={modal === 'edit'}
                   style={modal === 'edit' ? { background: '#f7fafc' } : {}}
                 />
-                {modal === 'edit' && (
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    O login não pode ser alterado após a criação
-                  </div>
-                )}
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  {modal === 'edit'
+                    ? 'O usuário não pode ser alterado após a criação'
+                    : 'Nome de login que aparece no histórico (ex.: carlao)'}
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="u-email">E-mail (opcional)</label>
+                <input
+                  id="u-email" name="email" type="email" value={form.email} onChange={handleChange}
+                  placeholder="seu@email.com" maxLength={255}
+                />
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Opção extra de login. Pode entrar com o usuário OU o e-mail.
+                </div>
               </div>
               <div className="form-group">
                 <label htmlFor="u-pass">{modal === 'edit' ? 'Nova senha' : 'Senha *'}</label>

@@ -12,7 +12,7 @@ router.use(authenticate, requireAdmin);
 router.get('/', async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, email, role, created_at FROM users ORDER BY email ASC'
+      'SELECT id, username, email, role, created_at FROM users ORDER BY username ASC NULLS LAST, email ASC'
     );
     res.json(result.rows);
   } catch (err) {
@@ -23,9 +23,12 @@ router.get('/', async (req, res) => {
 
 // POST /api/users
 router.post('/', async (req, res) => {
-  const { email, password, role } = req.body;
-  if (!email || !email.trim()) {
-    return res.status(400).json({ error: 'Usuário/e-mail é obrigatório' });
+  const { username, email, password, role } = req.body;
+  if (!username || !username.trim()) {
+    return res.status(400).json({ error: 'Usuário é obrigatório' });
+  }
+  if (email && email.trim() && !email.includes('@')) {
+    return res.status(400).json({ error: 'E-mail inválido' });
   }
   if (!password || password.length < 4) {
     return res.status(400).json({ error: 'Senha deve ter ao menos 4 caracteres' });
@@ -37,13 +40,13 @@ router.post('/', async (req, res) => {
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await db.query(
-      'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING id, email, role, created_at',
-      [email.toLowerCase().trim(), hash, role]
+      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at',
+      [username.toLowerCase().trim(), email && email.trim() ? email.toLowerCase().trim() : null, hash, role]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ error: 'Usuário já existe' });
+      return res.status(409).json({ error: 'Usuário ou e-mail já existe' });
     }
     console.error('POST /users error:', err);
     res.status(500).json({ error: 'Erro ao criar usuário' });
@@ -52,7 +55,7 @@ router.post('/', async (req, res) => {
 
 // PUT /api/users/:id  — atualiza papel e, opcionalmente, reseta senha
 router.put('/:id', async (req, res) => {
-  const { role, password } = req.body;
+  const { role, password, email } = req.body;
   const id = Number(req.params.id);
 
   if (!['admin', 'user'].includes(role)) {
@@ -65,26 +68,32 @@ router.put('/:id', async (req, res) => {
   if (password && password.length < 4) {
     return res.status(400).json({ error: 'Senha deve ter ao menos 4 caracteres' });
   }
+  if (email && email.trim() && !email.includes('@')) {
+    return res.status(400).json({ error: 'E-mail inválido' });
+  }
+  const emailVal = email !== undefined ? (email && email.trim() ? email.toLowerCase().trim() : null) : undefined;
 
   try {
-    let result;
+    const sets = ['role = $1', 'email = $2'];
+    const params = [role, emailVal ?? null];
     if (password) {
       const hash = await bcrypt.hash(password, 10);
-      result = await db.query(
-        'UPDATE users SET role = $1, password_hash = $2 WHERE id = $3 RETURNING id, email, role, created_at',
-        [role, hash, id]
-      );
-    } else {
-      result = await db.query(
-        'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, role, created_at',
-        [role, id]
-      );
+      sets.push(`password_hash = $${params.length + 1}`);
+      params.push(hash);
     }
+    params.push(id);
+    const result = await db.query(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, username, email, role, created_at`,
+      params
+    );
     if (!result.rows[0]) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
     res.json(result.rows[0]);
   } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'E-mail já está em uso' });
+    }
     console.error('PUT /users/:id error:', err);
     res.status(500).json({ error: 'Erro ao atualizar usuário' });
   }

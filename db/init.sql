@@ -3,7 +3,8 @@
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
+  username VARCHAR(100) UNIQUE,
+  email VARCHAR(255) UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(10) CHECK (role IN ('admin', 'user')) DEFAULT 'user',
   created_at TIMESTAMP DEFAULT NOW()
@@ -40,8 +41,9 @@ CREATE TABLE IF NOT EXISTS print_history (
 
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
-INSERT INTO users (email, password_hash, role)
+INSERT INTO users (username, email, password_hash, role)
 VALUES (
+  'admin',
   'admin@jp7parts.com.br',
   '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
   'admin'

@@ -14,7 +14,11 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const result = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    const login = email.toLowerCase().trim();
+    const result = await db.query(
+      'SELECT * FROM users WHERE LOWER(email) = $1 OR LOWER(username) = $1',
+      [login]
+    );
     const user = result.rows[0];
     if (!user) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
@@ -26,14 +30,14 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, username: user.username, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
 
     res.json({
       token,
-      user: { id: user.id, email: user.email, role: user.role },
+      user: { id: user.id, email: user.email, username: user.username, role: user.role },
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -44,7 +48,7 @@ router.post('/login', async (req, res) => {
 // GET /api/auth/me
 router.get('/me', authenticate, async (req, res) => {
   try {
-    const result = await db.query('SELECT id, email, role, created_at FROM users WHERE id = $1', [req.user.id]);
+    const result = await db.query('SELECT id, email, username, role, created_at FROM users WHERE id = $1', [req.user.id]);
     const user = result.rows[0];
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });

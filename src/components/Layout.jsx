@@ -56,10 +56,10 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
         <div style={styles.sidebarFooter}>
           <div style={styles.userInfo}>
             <div style={styles.userAvatar}>
-              {user.email[0].toUpperCase()}
+              {(user.username || user.email || '?')[0].toUpperCase()}
             </div>
             <div style={styles.userDetails}>
-              <div style={styles.userEmail}>{user.email}</div>
+              <div style={styles.userEmail}>{user.username || user.email}</div>
               <span className={`badge badge-${user.role}`}>{user.role}</span>
             </div>
           </div>
