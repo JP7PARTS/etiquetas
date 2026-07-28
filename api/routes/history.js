@@ -56,21 +56,27 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
 
 // GET /api/history/stats  — ranking de uso por SKU (somente admin)
 router.get('/stats', authenticate, requireAdmin, async (req, res) => {
+  const from = req.query.from && req.query.from.trim() ? req.query.from.trim() : null;
+  const to = req.query.to && req.query.to.trim() ? req.query.to.trim() : null;
   try {
     const result = await db.query(`
       SELECT s.sku, s.descricao_curta,
         COALESCE(agg.geracoes, 0)::int AS geracoes,
-        COALESCE(agg.etiquetas, 0)::int AS etiquetas
+        COALESCE(agg.etiquetas, 0)::int AS etiquetas,
+        agg.ultima
       FROM skus s
       LEFT JOIN (
         SELECT UPPER(elem->>'sku') AS sku,
                COUNT(*) AS geracoes,
-               SUM((elem->>'quantity')::int) AS etiquetas
-        FROM print_history, jsonb_array_elements(items) AS elem
+               SUM((elem->>'quantity')::int) AS etiquetas,
+               MAX(ph.created_at) AS ultima
+        FROM print_history ph, jsonb_array_elements(ph.items) AS elem
+        WHERE ($1::date IS NULL OR ph.created_at::date >= $1::date)
+          AND ($2::date IS NULL OR ph.created_at::date <= $2::date)
         GROUP BY UPPER(elem->>'sku')
       ) agg ON agg.sku = UPPER(s.sku)
       ORDER BY etiquetas DESC, geracoes DESC, s.sku ASC
-    `);
+    `, [from, to]);
     res.json(result.rows);
   } catch (err) {
     console.error('GET /history/stats error:', err);
