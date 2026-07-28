@@ -8,6 +8,7 @@ const navItems = [
   { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
   { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
   { id: 'history', label: 'Histórico', icon: '🕑', roles: ['admin'] },
+  { id: 'sku-usage', label: 'Ranking SKUs', icon: '📊', roles: ['admin'] },
 ];
 
 export default function Layout({ user, page, onNavigate, onLogout, children }) {

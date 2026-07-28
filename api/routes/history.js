@@ -54,6 +54,30 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/history/stats  — ranking de uso por SKU (somente admin)
+router.get('/stats', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT s.sku, s.descricao_curta,
+        COALESCE(agg.geracoes, 0)::int AS geracoes,
+        COALESCE(agg.etiquetas, 0)::int AS etiquetas
+      FROM skus s
+      LEFT JOIN (
+        SELECT UPPER(elem->>'sku') AS sku,
+               COUNT(*) AS geracoes,
+               SUM((elem->>'quantity')::int) AS etiquetas
+        FROM print_history, jsonb_array_elements(items) AS elem
+        GROUP BY UPPER(elem->>'sku')
+      ) agg ON agg.sku = UPPER(s.sku)
+      ORDER BY etiquetas DESC, geracoes DESC, s.sku ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /history/stats error:', err);
+    res.status(500).json({ error: 'Erro ao calcular ranking' });
+  }
+});
+
 // DELETE /api/history/:id  — exclui um registro (somente admin)
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
