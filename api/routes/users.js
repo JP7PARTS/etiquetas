@@ -55,11 +55,14 @@ router.post('/', async (req, res) => {
 
 // PUT /api/users/:id  — atualiza papel e, opcionalmente, reseta senha
 router.put('/:id', async (req, res) => {
-  const { role, password, email } = req.body;
+  const { role, password, email, username } = req.body;
   const id = Number(req.params.id);
 
   if (!['admin', 'user'].includes(role)) {
     return res.status(400).json({ error: 'Papel inválido' });
+  }
+  if (!username || !username.trim()) {
+    return res.status(400).json({ error: 'Usuário é obrigatório' });
   }
   // Impede o admin de rebaixar o próprio papel (evita auto-lockout)
   if (id === req.user.id && role !== 'admin') {
@@ -74,8 +77,8 @@ router.put('/:id', async (req, res) => {
   const emailVal = email !== undefined ? (email && email.trim() ? email.toLowerCase().trim() : null) : undefined;
 
   try {
-    const sets = ['role = $1', 'email = $2'];
-    const params = [role, emailVal ?? null];
+    const sets = ['role = $1', 'email = $2', 'username = $3'];
+    const params = [role, emailVal ?? null, username.toLowerCase().trim()];
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       sets.push(`password_hash = $${params.length + 1}`);
@@ -92,7 +95,7 @@ router.put('/:id', async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ error: 'E-mail já está em uso' });
+      return res.status(409).json({ error: 'Usuário ou e-mail já está em uso' });
     }
     console.error('PUT /users/:id error:', err);
     res.status(500).json({ error: 'Erro ao atualizar usuário' });

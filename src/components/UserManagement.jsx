@@ -64,7 +64,7 @@ export default function UserManagement({ user }) {
     setSaving(true);
     try {
       if (modal === 'edit' && editUser) {
-        const payload = { role: form.role, email: form.email };
+        const payload = { role: form.role, email: form.email, username: form.username };
         if (form.password.trim()) payload.password = form.password;
         await api.put(`/users/${editUser.id}`, payload);
         showMessage('Usuário atualizado com sucesso!');
@@ -183,13 +183,9 @@ export default function UserManagement({ user }) {
                 <input
                   id="u-username" name="username" value={form.username} onChange={handleChange}
                   placeholder="operador" maxLength={100} required
-                  disabled={modal === 'edit'}
-                  style={modal === 'edit' ? { background: '#f7fafc' } : {}}
                 />
                 <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  {modal === 'edit'
-                    ? 'O usuário não pode ser alterado após a criação'
-                    : 'Nome de login que aparece no histórico (ex.: carlao)'}
+                  Nome de login que aparece no histórico (ex.: carlao)
                 </div>
               </div>
               <div className="form-group">
