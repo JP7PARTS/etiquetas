@@ -28,7 +28,7 @@ export default function PrintHistory() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
-  const [preset, setPreset] = useState('todos');
+  const [preset, setPreset] = useState('30d');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [operator, setOperator] = useState('');

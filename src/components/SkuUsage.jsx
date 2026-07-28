@@ -24,7 +24,7 @@ export default function SkuUsage() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('etiquetas'); // etiquetas | geracoes | ultima
   const [dir, setDir] = useState('desc');             // desc = mais/mais recente | asc = menos/mais antigo
-  const [preset, setPreset] = useState('todos');      // todos | hoje | 7d | 30d
+  const [preset, setPreset] = useState('30d');        // todos | hoje | 7d | 30d
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
