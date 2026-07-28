@@ -5,6 +5,17 @@ function ymd(d) {
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+function csvField(v) {
+  const s = (v ?? '').toString();
+  return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function saveCSV(content, filename) {
+  const blob = new Blob(['﻿' + content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function SkuUsage() {
   const [rows, setRows] = useState([]);
@@ -50,6 +61,14 @@ export default function SkuUsage() {
   function setPresetClear(p) { setPreset(p); setFromDate(''); setToDate(''); }
   function fmtDate(s) { try { return s ? new Date(s).toLocaleDateString('pt-BR') : '—'; } catch { return '—'; } }
 
+  function exportCSV() {
+    const header = 'sku;descricao;vezes_gerado;etiquetas;ultima_geracao';
+    const lines = filtered.map(r =>
+      [r.sku, r.descricao_curta || '', r.geracoes, r.etiquetas, fmtDate(r.ultima)].map(csvField).join(';')
+    );
+    saveCSV(header + '\n' + lines.join('\n') + '\n', `ranking_skus_${ymd(new Date())}.csv`);
+  }
+
   const q = search.trim().toLowerCase();
   const val = r => sortBy === 'ultima' ? (r.ultima ? new Date(r.ultima).getTime() : 0) : r[sortBy];
   const filtered = rows
@@ -81,6 +100,7 @@ export default function SkuUsage() {
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar SKU ou descrição..." style={{ paddingLeft: '34px' }} />
           </div>
+          <button className="btn-outline" onClick={exportCSV} disabled={loading || filtered.length === 0}>Exportar CSV</button>
           <button className="btn-outline" onClick={load}>Atualizar</button>
         </div>
 
