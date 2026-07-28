@@ -41,6 +41,9 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
+// Nome do operador exibido = nome ATUAL do usuário (via id); se apagado, o texto salvo.
+const OPERADOR = `COALESCE(u.username, ph.user_email)`;
+
 // Monta o WHERE compartilhado (período + operador) a partir dos query params
 function buildFilter(req) {
   const from = req.query.from && req.query.from.trim() ? req.query.from.trim() : null;
@@ -48,9 +51,9 @@ function buildFilter(req) {
   const operator = req.query.operator && req.query.operator.trim() ? req.query.operator.trim() : null;
   const params = [from, to, operator];
   const where = `
-    WHERE ($1::date IS NULL OR created_at::date >= $1::date)
-      AND ($2::date IS NULL OR created_at::date <= $2::date)
-      AND ($3::text IS NULL OR LOWER(user_email) = LOWER($3))`;
+    WHERE ($1::date IS NULL OR ph.created_at::date >= $1::date)
+      AND ($2::date IS NULL OR ph.created_at::date <= $2::date)
+      AND ($3::text IS NULL OR LOWER(${OPERADOR}) = LOWER($3))`;
   return { where, params };
 }
 
@@ -62,8 +65,10 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   try {
     const result = await db.query(
-      `SELECT * FROM print_history ${where}
-       ORDER BY created_at DESC LIMIT $4 OFFSET $5`,
+      `SELECT ph.id, ph.items, ph.total_skus, ph.total_labels, ph.origin, ph.created_at,
+              ${OPERADOR} AS user_email
+       FROM print_history ph LEFT JOIN users u ON u.id = ph.user_id ${where}
+       ORDER BY ph.created_at DESC LIMIT $4 OFFSET $5`,
       [...params, limit, offset]
     );
     res.json(result.rows);
@@ -78,8 +83,8 @@ router.get('/summary', authenticate, requireAdmin, async (req, res) => {
   const { where, params } = buildFilter(req);
   try {
     const result = await db.query(
-      `SELECT COUNT(*)::int AS geracoes, COALESCE(SUM(total_labels), 0)::int AS etiquetas
-       FROM print_history ${where}`,
+      `SELECT COUNT(*)::int AS geracoes, COALESCE(SUM(ph.total_labels), 0)::int AS etiquetas
+       FROM print_history ph LEFT JOIN users u ON u.id = ph.user_id ${where}`,
       params
     );
     res.json(result.rows[0]);
@@ -93,9 +98,11 @@ router.get('/summary', authenticate, requireAdmin, async (req, res) => {
 router.get('/operators', authenticate, requireAdmin, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT DISTINCT user_email FROM print_history WHERE user_email IS NOT NULL ORDER BY user_email ASC`
+      `SELECT DISTINCT ${OPERADOR} AS op
+       FROM print_history ph LEFT JOIN users u ON u.id = ph.user_id
+       WHERE ${OPERADOR} IS NOT NULL ORDER BY op ASC`
     );
-    res.json(result.rows.map(r => r.user_email));
+    res.json(result.rows.map(r => r.op));
   } catch (err) {
     console.error('GET /history/operators error:', err);
     res.status(500).json({ error: 'Erro ao buscar operadores' });
