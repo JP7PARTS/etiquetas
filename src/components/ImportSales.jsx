@@ -271,6 +271,8 @@ export default function ImportSales({ user, onSendToLote }) {
 
   // Contagem da seleção (SKUs normais + itens de carrinhos selecionados, só cadastrados)
   const selNormal = items.filter(i => selected.has(i.code) && i.skuObj);
+  // Para picking: todos os selecionados (cadastrados E não cadastrados)
+  const selForPicking = items.filter(i => selected.has(i.code));
   const selCartItems = carts.filter(c => selCarts.has(c.id)).flatMap(c => c.items.filter(it => it.skuObj));
   const selCount = selNormal.length + selCartItems.length;
   const selUnid = [...selNormal, ...selCartItems].reduce((s, i) => s + Math.min(999, Math.max(1, i.qty)), 0);
@@ -288,12 +290,12 @@ export default function ImportSales({ user, onSendToLote }) {
 
   async function savePicking(e) {
     e.preventDefault();
-    if (selNormal.length === 0) return;
+    if (selForPicking.length === 0) return;
     setPickSaving(true); setPickMsg('');
     try {
-      const items = selNormal.map(i => ({
-        sku: i.code, descricao: i.skuObj.descricao_curta || '',
-        local: i.skuObj.local || '', qty: Math.max(1, i.qty), picked: false,
+      const items = selForPicking.map(i => ({
+        sku: i.code, descricao: i.skuObj?.descricao_curta || '',
+        local: i.skuObj?.local || '', qty: Math.max(1, i.qty), picked: false,
       }));
       await api.post('/picking-lists', { name: pickName.trim(), items });
       setPickName(null);
@@ -382,8 +384,8 @@ export default function ImportSales({ user, onSendToLote }) {
               {mode === 'sem' && (
                 <button className="btn-primary" style={{ padding: '6px 14px' }}
                   onClick={() => { setPickName(`Picking ${new Date().toLocaleDateString('pt-BR')}`); setPickMsg(''); }}
-                  disabled={selNormal.length === 0} title={selNormal.length === 0 ? 'Selecione os itens (ou "Selecionar todos")' : ''}>
-                  🧺 Salvar lista de picking{selNormal.length > 0 ? ` (${selNormal.length})` : ''}
+                  disabled={selForPicking.length === 0} title={selForPicking.length === 0 ? 'Selecione os itens (ou "Selecionar todos")' : ''}>
+                  🧺 Salvar lista de picking{selForPicking.length > 0 ? ` (${selForPicking.length})` : ''}
                 </button>
               )}
             </div>
@@ -456,8 +458,8 @@ export default function ImportSales({ user, onSendToLote }) {
                   {filtered.map(i => (
                     <tr key={i.code} style={!i.skuObj ? { background: '#fffaf0' } : (selected.has(i.code) ? { background: '#ebf8ff' } : undefined)}>
                       <td style={{ textAlign: 'center' }}>
-                        <input type="checkbox" checked={selected.has(i.code)} disabled={!i.skuObj}
-                          onChange={() => toggle(i.code)} style={{ width: '16px', height: '16px', cursor: i.skuObj ? 'pointer' : 'not-allowed' }} />
+                        <input type="checkbox" checked={selected.has(i.code)}
+                          onChange={() => toggle(i.code)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <code style={styles.code}>{i.code}</code>
@@ -576,7 +578,7 @@ export default function ImportSales({ user, onSendToLote }) {
             </div>
             <form onSubmit={savePicking} style={styles.modalBody}>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: 0 }}>
-                {selNormal.length} SKU{selNormal.length !== 1 ? 's' : ''} selecionado{selNormal.length !== 1 ? 's' : ''} vão para a lista.
+                {selForPicking.length} SKU{selForPicking.length !== 1 ? 's' : ''} selecionado{selForPicking.length !== 1 ? 's' : ''} vão para a lista.
               </p>
               <div className="form-group">
                 <label>Nome da lista *</label>

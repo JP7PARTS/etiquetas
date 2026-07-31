@@ -10,10 +10,46 @@ export default function PickingLists({ user }) {
   const [open, setOpen] = useState(null);      // { id, name, items:[...] } aberta
   const [items, setItems] = useState([]);      // itens da lista aberta
   const [dir, setDir] = useState('asc');       // A→F | F→A
-  const [localFilter, setLocalFilter] = useState('');
+  const [localFilter, setLocalFilter] = useState('ALL'); // ALL | __none__ | <local>
+  const [catalog, setCatalog] = useState(new Map()); // code(UPPER) -> skuObj (para "sem cadastro" + auto-atualizar)
   const saveTimer = useRef(null);
 
   useEffect(() => { loadLists(); }, []);
+
+  async function fetchCatalog() {
+    try { const r = await api.get('/skus'); return new Map(r.data.map(s => [s.sku.toUpperCase(), s])); }
+    catch { return new Map(); }
+  }
+
+  // Preenche descrição/local a partir do catálogo (SKU cadastrado depois de salvar a lista)
+  function mergeItems(raw, cat) {
+    let changed = false;
+    const merged = raw.map(it => {
+      const s = cat.get(String(it.sku).toUpperCase());
+      if (!s) return it;
+      const descricao = s.descricao_curta || '';
+      const local = s.local || '';
+      if (descricao !== (it.descricao || '') || local !== (it.local || '')) changed = true;
+      return { ...it, descricao, local };
+    });
+    return { merged, changed };
+  }
+
+  // Recarrega o catálogo ao focar a aba e atualiza a lista aberta (item "sem cadastro" vira normal)
+  useEffect(() => {
+    if (!open) return;
+    const onFocus = async () => {
+      const cat = await fetchCatalog();
+      setCatalog(cat);
+      setItems(prev => {
+        const { merged, changed } = mergeItems(prev, cat);
+        if (changed) api.put(`/picking-lists/${open.id}`, { items: merged }).catch(() => {});
+        return merged;
+      });
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [open]);
 
   async function loadLists() {
     setLoading(true); setError('');
@@ -29,10 +65,14 @@ export default function PickingLists({ user }) {
 
   async function openList(id) {
     try {
-      const res = await api.get(`/picking-lists/${id}`);
+      const [res, cat] = await Promise.all([api.get(`/picking-lists/${id}`), fetchCatalog()]);
+      setCatalog(cat);
+      const raw = Array.isArray(res.data.items) ? res.data.items : [];
+      const { merged, changed } = mergeItems(raw, cat);
       setOpen(res.data);
-      setItems(Array.isArray(res.data.items) ? res.data.items : []);
-      setLocalFilter(''); setDir('asc');
+      setItems(merged);
+      setLocalFilter('ALL'); setDir('asc');
+      if (changed) api.put(`/picking-lists/${id}`, { items: merged }).catch(() => {});
     } catch (err) {
       setError('Erro ao abrir lista: ' + (err.response?.data?.error || err.message));
     }
@@ -83,7 +123,9 @@ export default function PickingLists({ user }) {
     .sort((a, b) => a.localeCompare(b) * (dir === 'asc' ? 1 : -1));
   const semLocal = items.some(it => !(it.local || '').trim());
   const orderedLocais = [...locais, ...(semLocal ? [''] : [])];
-  const shownLocais = localFilter ? orderedLocais.filter(l => l === localFilter) : orderedLocais;
+  const shownLocais = localFilter === 'ALL' ? orderedLocais
+    : localFilter === '__none__' ? ['']
+    : orderedLocais.filter(l => l === localFilter);
   const chips = Array.from(new Set(items.map(it => (it.local || '').trim()).filter(Boolean))).sort();
 
   const total = items.length;
@@ -99,7 +141,7 @@ export default function PickingLists({ user }) {
         rows.push(`<tr>
           <td style="text-align:center;border:1px solid #ccc;width:28px">&#9744;</td>
           <td style="border:1px solid #ccc;padding:4px 8px;font-family:monospace">${it.sku}</td>
-          <td style="border:1px solid #ccc;padding:4px 8px">${(it.descricao || '').replace(/</g, '&lt;')}</td>
+          <td style="border:1px solid #ccc;padding:4px 8px">${(it.descricao || (catalog.has(String(it.sku).toUpperCase()) ? '' : 'sem cadastro')).replace(/</g, '&lt;')}</td>
           <td style="border:1px solid #ccc;padding:4px 8px;text-align:center;font-weight:bold">${it.qty}</td>
         </tr>`);
       }
@@ -206,11 +248,15 @@ export default function PickingLists({ user }) {
           </div>
           <div style={styles.group}>
             <span style={styles.groupLabel}>Filtrar local</span>
-            <button onClick={() => setLocalFilter('')} style={{ ...styles.chip, ...(localFilter === '' ? styles.chipOn : {}) }}>Todos</button>
+            <button onClick={() => setLocalFilter('ALL')} style={{ ...styles.chip, ...(localFilter === 'ALL' ? styles.chipOn : {}) }}>Todos</button>
             {chips.map(l => (
-              <button key={l} onClick={() => setLocalFilter(l === localFilter ? '' : l)}
+              <button key={l} onClick={() => setLocalFilter(l === localFilter ? 'ALL' : l)}
                 style={{ ...styles.chip, ...(localFilter === l ? styles.chipOn : {}) }}>{l}</button>
             ))}
+            {semLocal && (
+              <button onClick={() => setLocalFilter(localFilter === '__none__' ? 'ALL' : '__none__')}
+                style={{ ...styles.chip, ...(localFilter === '__none__' ? styles.chipOn : {}) }}>Sem local</button>
+            )}
           </div>
         </div>
 
@@ -231,15 +277,20 @@ export default function PickingLists({ user }) {
                   {allPicked ? 'Desmarcar todos' : 'Marcar todos deste local'}
                 </button>
               </div>
-              {its.map(({ it, idx }) => (
-                <div key={idx} onClick={() => toggleItem(idx)}
-                  style={{ ...styles.pickRow, ...(it.picked ? styles.pickRowDone : {}) }}>
-                  <input type="checkbox" checked={!!it.picked} readOnly style={{ width: '22px', height: '22px', flexShrink: 0, pointerEvents: 'none' }} />
-                  <span style={styles.pickQty}>{it.qty}×</span>
-                  <code style={styles.code}>{it.sku}</code>
-                  <span style={{ flex: 1, color: 'var(--text-secondary)', textDecoration: it.picked ? 'line-through' : 'none' }}>{it.descricao || ''}</span>
-                </div>
-              ))}
+              {its.map(({ it, idx }) => {
+                const missing = !catalog.has(String(it.sku).toUpperCase());
+                return (
+                  <div key={idx} onClick={() => toggleItem(idx)}
+                    style={{ ...styles.pickRow, ...(it.picked ? styles.pickRowDone : {}) }}>
+                    <input type="checkbox" checked={!!it.picked} readOnly style={{ width: '22px', height: '22px', flexShrink: 0, pointerEvents: 'none' }} />
+                    <span style={styles.pickQty}>{it.qty}×</span>
+                    <code style={styles.code}>{it.sku}</code>
+                    <span style={{ flex: 1, color: 'var(--text-secondary)', textDecoration: it.picked ? 'line-through' : 'none' }}>
+                      {missing ? <span style={styles.semTag}>sem cadastro</span> : (it.descricao || '')}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -264,4 +315,5 @@ const styles = {
   pickRowDone: { background: '#f0fff4', opacity: 0.7 },
   pickQty: { fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: '34px' },
   code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: '#2b6cb0' },
+  semTag: { fontSize: '11px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px' },
 };
