@@ -38,8 +38,13 @@ export default function GenerateFromSKU({ seed, onSeedConsumed }) {
     if (!seed || seed.length === 0) return;
     setRows(prev => {
       const next = prev.map(r => ({ ...r }));
-      seed.forEach(({ sku, qty }) => {
-        const ex = next.find(r => r.selected && r.selected.sku.toUpperCase() === sku.sku.toUpperCase());
+      seed.forEach(({ sku, qty, cart }) => {
+        if (cart) {
+          // Item de carrinho: linha própria, nunca mescla
+          next.push({ ...newRow(sku), quantity: Math.min(999, Math.max(1, qty)), cart });
+          return;
+        }
+        const ex = next.find(r => r.selected && !r.cart && r.selected.sku.toUpperCase() === sku.sku.toUpperCase());
         if (ex) ex.quantity = Math.min(999, (parseInt(ex.quantity, 10) || 0) + qty);
         else next.push({ ...newRow(sku), quantity: Math.min(999, Math.max(1, qty)) });
       });
@@ -94,18 +99,22 @@ export default function GenerateFromSKU({ seed, onSeedConsumed }) {
     setResult(null);
   }
 
-  // Ordena o lote por SKU (A→Z) ou por quantidade; clicar de novo inverte a direção
+  // Ordena o lote por SKU (A→Z) ou por quantidade; clicar de novo inverte a direção.
+  // Linhas de carrinho ficam agrupadas ao final (mantêm o vínculo).
   function sortLote(key) {
     const dir = sortState.key === key && sortState.dir === 'asc' ? 'desc' : 'asc';
     const mult = dir === 'asc' ? 1 : -1;
-    setRows(prev => [...prev].sort((a, b) => {
-      if (!a.selected) return 1;
-      if (!b.selected) return -1;
-      if (key === 'qty') {
-        return ((normalizeQuantity(a.quantity)) - (normalizeQuantity(b.quantity))) * mult;
-      }
-      return a.selected.sku.localeCompare(b.selected.sku) * mult;
-    }));
+    setRows(prev => {
+      const normal = prev.filter(r => !r.cart);
+      const cartRows = prev.filter(r => r.cart);
+      normal.sort((a, b) => {
+        if (!a.selected) return 1;
+        if (!b.selected) return -1;
+        if (key === 'qty') return ((normalizeQuantity(a.quantity)) - (normalizeQuantity(b.quantity))) * mult;
+        return a.selected.sku.localeCompare(b.selected.sku) * mult;
+      });
+      return [...normal, ...cartRows];
+    });
     setSortState({ key, dir });
     setResult(null);
   }
@@ -153,7 +162,7 @@ export default function GenerateFromSKU({ seed, onSeedConsumed }) {
     setRows(prev => {
       const next = prev.map(r => ({ ...r }));
       importMatched.forEach(({ sku, qty }) => {
-        const ex = next.find(r => r.selected && r.selected.sku.toUpperCase() === sku.sku.toUpperCase());
+        const ex = next.find(r => r.selected && !r.cart && r.selected.sku.toUpperCase() === sku.sku.toUpperCase());
         if (ex) ex.quantity = Math.min(999, (parseInt(ex.quantity, 10) || 0) + qty);
         else next.push({ ...newRow(sku), quantity: qty });
       });
@@ -373,11 +382,12 @@ export default function GenerateFromSKU({ seed, onSeedConsumed }) {
                       <span style={{width: '30px'}}></span>
                     </div>
                     {rows.map(row => (
-                      <div key={row.id} style={styles.loteRow}>
+                      <div key={row.id} style={{...styles.loteRow, ...(row.cart ? styles.cartRow : {})}}>
                         <div style={styles.loteRowContent}>
                           <span style={{flex: 1}}>
                             {row.selected ? (
                               <>
+                                {row.cart && <span style={styles.cartTag}>🛒 {row.cart}</span>}
                                 <code style={styles.skuCodeInline}>{row.selected.sku}</code>
                                 <span style={{fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px'}}>
                                   {(row.useAlt && row.selected.descricao_curta_2)
@@ -709,6 +719,21 @@ const styles = {
   loteRow: {
     borderBottom: '1px solid var(--border)',
     padding: '8px 12px',
+  },
+  cartRow: {
+    background: '#f5f8ff',
+    borderLeft: '3px solid #2b4c8c',
+  },
+  cartTag: {
+    display: 'inline-block',
+    marginRight: '8px',
+    fontSize: '10.5px',
+    fontWeight: 700,
+    color: '#2b4c8c',
+    background: '#dbe8ff',
+    padding: '2px 8px',
+    borderRadius: '10px',
+    whiteSpace: 'nowrap',
   },
   loteRowContent: {
     display: 'flex',
