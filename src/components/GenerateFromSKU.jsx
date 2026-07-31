@@ -21,9 +21,14 @@ export default function GenerateFromSKU() {
   const [sortState, setSortState] = useState({ key: null, dir: 'asc' });
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadSKUs();
+    // Recarrega o catálogo ao voltar o foco para a aba (pega SKUs recém-cadastrados)
+    const onFocus = () => loadSKUs(true);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   // Locais únicos para chips de filtro
@@ -43,15 +48,15 @@ export default function GenerateFromSKU() {
     return matchLocal && matchText;
   });
 
-  async function loadSKUs() {
-    setLoading(true);
+  async function loadSKUs(silent = false) {
+    if (silent) setRefreshing(true); else setLoading(true);
     try {
       const res = await api.get('/skus');
       setSkus(res.data);
     } catch (err) {
-      setError('Erro ao carregar SKUs: ' + (err.response?.data?.error || err.message));
+      if (!silent) setError('Erro ao carregar SKUs: ' + (err.response?.data?.error || err.message));
     } finally {
-      setLoading(false);
+      if (silent) setRefreshing(false); else setLoading(false);
     }
   }
 
@@ -187,7 +192,12 @@ export default function GenerateFromSKU() {
         {/* TABELA (ESQUERDA) */}
         <div style={styles.tablePanel}>
           <div className="card" style={{height: '100%', display: 'flex', flexDirection: 'column'}}>
-            <h3 style={styles.panelTitle}>Catálogo de SKUs</h3>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px'}}>
+              <h3 style={{...styles.panelTitle, margin: 0}}>Catálogo de SKUs</h3>
+              <button type="button" onClick={() => loadSKUs(true)} disabled={refreshing || loading} style={styles.toolBtn}>
+                {refreshing ? 'Atualizando...' : 'Atualizar'}
+              </button>
+            </div>
 
             {/* Busca + Filtro */}
             <div style={styles.searchSection}>
@@ -478,8 +488,13 @@ export default function GenerateFromSKU() {
                   </div>
                   {importNotFound.length > 0 && (
                     <div>
-                      <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>
-                        Não estão no catálogo (cadastre em "Gerenciar SKUs"):
+                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px'}}>
+                        <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>
+                          Não estão no catálogo (cadastre em "Gerenciar SKUs"):
+                        </span>
+                        <button type="button" onClick={() => loadSKUs(true)} disabled={refreshing} style={{...styles.toolBtn, padding: '4px 10px', flexShrink: 0}}>
+                          {refreshing ? 'Atualizando...' : 'Atualizar catálogo'}
+                        </button>
                       </div>
                       <div style={{display: 'flex', flexWrap: 'wrap', gap: '5px'}}>
                         {importNotFound.map((c, i) => (
