@@ -43,6 +43,17 @@ CREATE TABLE IF NOT EXISTS print_history (
 CREATE INDEX IF NOT EXISTS idx_print_history_created_at ON print_history (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_print_history_user_id ON print_history (user_id);
 
+-- Solicitações de cadastro de SKU (operador pede, admin cadastra)
+CREATE TABLE IF NOT EXISTS sku_requests (
+  id SERIAL PRIMARY KEY,
+  sku VARCHAR(100) NOT NULL UNIQUE,
+  titulo VARCHAR(300),
+  local VARCHAR(20),
+  requested_by INTEGER,
+  requested_by_name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (username, email, password_hash, role)

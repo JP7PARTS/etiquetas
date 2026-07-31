@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ChangePasswordModal from './ChangePasswordModal.jsx';
+import api from '../utils/api.js';
 
 const navItems = [
   { id: 'generate-sku', label: 'Etiquetas produtos', icon: '🏷️', roles: ['admin', 'user'] },
@@ -7,6 +8,7 @@ const navItems = [
   { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
   { id: 'import-sales', label: 'Importar Vendas', icon: '📥', roles: ['admin', 'user'] },
   { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
+  { id: 'sku-requests', label: 'Solicitações de SKU', icon: '📨', roles: ['admin'] },
   { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
   { id: 'history', label: 'Histórico', icon: '🕑', roles: ['admin'] },
   { id: 'sku-usage', label: 'Ranking SKUs', icon: '📊', roles: ['admin'] },
@@ -15,8 +17,15 @@ const navItems = [
 export default function Layout({ user, page, onNavigate, onLogout, children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
+  const [reqCount, setReqCount] = useState(0);
 
   const visibleItems = navItems.filter(item => item.roles.includes(user.role));
+
+  // Contador de solicitações de SKU pendentes (admin) — atualiza ao navegar
+  useEffect(() => {
+    if (user.role !== 'admin') return;
+    api.get('/sku-requests/count').then(r => setReqCount(r.data.count || 0)).catch(() => {});
+  }, [user.role, page]);
 
   return (
     <div style={styles.root}>
@@ -49,7 +58,10 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
               }}
             >
               <span style={styles.navIcon}>{item.icon}</span>
-              {item.label}
+              <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
+              {item.id === 'sku-requests' && reqCount > 0 && (
+                <span style={styles.navBadge}>{reqCount}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -207,6 +219,20 @@ const styles = {
   navIcon: {
     fontSize: '16px',
     flexShrink: 0,
+  },
+  navBadge: {
+    flexShrink: 0,
+    minWidth: '20px',
+    height: '20px',
+    padding: '0 6px',
+    borderRadius: '10px',
+    background: '#e53e3e',
+    color: '#fff',
+    fontSize: '11px',
+    fontWeight: 700,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sidebarFooter: {
     padding: '14px 12px',

@@ -9,6 +9,7 @@ import UserManagement from './components/UserManagement.jsx';
 import PrintHistory from './components/PrintHistory.jsx';
 import SkuUsage from './components/SkuUsage.jsx';
 import ImportSales from './components/ImportSales.jsx';
+import SkuRequests from './components/SkuRequests.jsx';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -54,6 +55,8 @@ export default function App() {
     content = <PrintHistory />;
   } else if (page === 'sku-usage' && user.role === 'admin') {
     content = <SkuUsage />;
+  } else if (page === 'sku-requests' && user.role === 'admin') {
+    content = <SkuRequests />;
   } else if (page === 'import-sales') {
     content = <ImportSales user={user} onSendToLote={items => { setLoteSeed(items); setPage('generate-sku'); }} />;
   } else if (page === 'generate-custom') {

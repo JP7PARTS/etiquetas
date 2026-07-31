@@ -9,6 +9,7 @@ const labelsRoutes = require('./routes/labels');
 const warningsRoutes = require('./routes/warnings');
 const usersRoutes = require('./routes/users');
 const historyRoutes = require('./routes/history');
+const skuRequestsRoutes = require('./routes/skuRequests');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/labels', labelsRoutes);
 app.use('/api/warnings', warningsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/sku-requests', skuRequestsRoutes);
 
 // 404 handler for /api routes
 app.use('/api/*', (req, res) => {

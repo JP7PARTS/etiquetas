@@ -45,6 +45,10 @@ export default function ImportSales({ user, onSendToLote }) {
   const [skuForm, setSkuForm] = useState(null);  // null | {sku, descricao_curta, ...}
   const [savingSku, setSavingSku] = useState(false);
   const [skuErr, setSkuErr] = useState('');
+  const [reqForm, setReqForm] = useState(null);  // null | {sku, titulo, local} (solicitação do operador)
+  const [reqSaving, setReqSaving] = useState(false);
+  const [reqErr, setReqErr] = useState('');
+  const [requested, setRequested] = useState(new Set()); // SKUs já solicitados nesta sessão
   const inputRef = useRef(null);
   const backdropDown = useRef(false);
 
@@ -52,6 +56,20 @@ export default function ImportSales({ user, onSendToLote }) {
     const res = await api.get('/skus');
     const byCode = new Map(res.data.map(s => [s.sku.toUpperCase(), s]));
     setParsedRows(prev => prev.map(r => ({ ...r, skuObj: byCode.get(r.code.toUpperCase()) || null })));
+  }
+
+  async function sendRequest(e) {
+    e.preventDefault();
+    setReqSaving(true); setReqErr('');
+    try {
+      await api.post('/sku-requests', reqForm);
+      setRequested(prev => new Set(prev).add(reqForm.sku.toUpperCase()));
+      setReqForm(null);
+    } catch (err) {
+      setReqErr(err.response?.data?.error || 'Erro ao enviar solicitação');
+    } finally {
+      setReqSaving(false);
+    }
   }
 
   async function saveSku(e) {
@@ -189,28 +207,35 @@ export default function ImportSales({ user, onSendToLote }) {
     parsedRows.map(r => (r.skuObj?.local || '').trim()).filter(Boolean)
   )).sort();
 
+  const itemMatches = it =>
+    (!q || it.code.toLowerCase().includes(q) || (it.skuObj?.descricao_curta || '').toLowerCase().includes(q)) &&
+    (!localFilter || (it.skuObj?.local || '').trim() === localFilter) &&
+    (!onlyMissing || !it.skuObj);
+
   const filtered = items
-    .filter(i => !q || i.code.toLowerCase().includes(q) || (i.skuObj?.descricao_curta || '').toLowerCase().includes(q))
-    .filter(i => !localFilter || (i.skuObj?.local || '').trim() === localFilter)
-    .filter(i => !onlyMissing || !i.skuObj)
+    .filter(itemMatches)
     .sort((a, b) => sortBy === 'qty' ? (b.qty - a.qty) : a.code.localeCompare(b.code));
 
-  // Carrinhos exibidos (quando "só não cadastrados", mostra apenas os itens pendentes)
-  const cartsView = carts
-    .map(c => ({ ...c, items: onlyMissing ? c.items.filter(it => !it.skuObj) : c.items }))
-    .filter(c => c.items.length > 0);
+  // Carrinho aparece se ALGUM item dele casar com o filtro; então mostra o carrinho COMPLETO
+  const cartsView = carts.filter(c => c.items.some(itemMatches));
 
   const totalUnid = items.reduce((s, i) => s + i.qty, 0) + carts.reduce((s, c) => s + c.items.reduce((a, it) => a + it.qty, 0), 0);
-  const naoCadastrados = items.filter(i => !i.skuObj).length + carts.reduce((s, c) => s + c.items.filter(it => !it.skuObj).length, 0);
+  // Contador de não cadastrados reflete o filtro atual
+  const naoCadastrados = filtered.filter(i => !i.skuObj).length + cartsView.reduce((s, c) => s + c.items.filter(it => !it.skuObj).length, 0);
 
   const descCell = it => it.skuObj
     ? (it.skuObj.descricao_curta || '—')
     : (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
         <span style={styles.naoTag}>não cadastrado</span>
-        {isAdmin && (
+        {isAdmin ? (
           <button className="btn-outline" style={{ padding: '3px 10px', fontSize: '12px' }}
             onClick={() => { setSkuForm({ ...emptySku, sku: it.code }); setSkuErr(''); }}>Cadastrar</button>
+        ) : requested.has(it.code.toUpperCase()) ? (
+          <span style={{ fontSize: '12px', color: '#276749', fontWeight: 600 }}>Solicitado ✓</span>
+        ) : (
+          <button className="btn-outline" style={{ padding: '3px 10px', fontSize: '12px' }}
+            onClick={() => { setReqForm({ sku: it.code, titulo: '', local: '' }); setReqErr(''); }}>Solicitar</button>
         )}
       </span>
     );
@@ -423,6 +448,39 @@ export default function ImportSales({ user, onSendToLote }) {
                 <button type="button" className="btn-secondary" onClick={() => setSkuForm(null)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={savingSku}>
                   {savingSku ? 'Salvando...' : 'Cadastrar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {reqForm && (
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setReqForm(null))}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Solicitar cadastro ao admin</h3>
+              <button type="button" onClick={() => setReqForm(null)} style={styles.modalClose}>✕</button>
+            </div>
+            <form onSubmit={sendRequest} style={styles.modalBody}>
+              {reqErr && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{reqErr}</div>}
+              <div className="form-group">
+                <label>SKU</label>
+                <input value={reqForm.sku} readOnly style={{ background: '#f7fafc' }} />
+              </div>
+              <div className="form-group">
+                <label>Título do produto (opcional)</label>
+                <input value={reqForm.titulo} onChange={e => setReqForm(f => ({ ...f, titulo: e.target.value }))}
+                  placeholder="Ex.: Pedaleira BM F30" maxLength={300} autoFocus />
+              </div>
+              <div className="form-group">
+                <label>Localização (opcional)</label>
+                <input value={reqForm.local} onChange={e => setReqForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div style={styles.modalFooter}>
+                <button type="button" className="btn-secondary" onClick={() => setReqForm(null)}>Cancelar</button>
+                <button type="submit" className="btn-primary" disabled={reqSaving}>
+                  {reqSaving ? 'Enviando...' : 'Enviar solicitação'}
                 </button>
               </div>
             </form>

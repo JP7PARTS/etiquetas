@@ -84,6 +84,8 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       'INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null]
     );
+    // Cadastrar resolve automaticamente uma eventual solicitação pendente
+    await db.query('DELETE FROM sku_requests WHERE UPPER(sku) = UPPER($1)', [sku.trim()]).catch(() => {});
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') {
