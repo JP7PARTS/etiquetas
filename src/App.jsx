@@ -55,7 +55,7 @@ export default function App() {
   } else if (page === 'sku-usage' && user.role === 'admin') {
     content = <SkuUsage />;
   } else if (page === 'import-sales') {
-    content = <ImportSales onSendToLote={items => { setLoteSeed(items); setPage('generate-sku'); }} />;
+    content = <ImportSales user={user} onSendToLote={items => { setLoteSeed(items); setPage('generate-sku'); }} />;
   } else if (page === 'generate-custom') {
     content = <GenerateCustom />;
   } else if (page === 'warning-labels') {

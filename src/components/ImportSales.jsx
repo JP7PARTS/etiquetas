@@ -1,6 +1,14 @@
 import React, { useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import api from '../utils/api.js';
+import { backdropHandlers } from '../utils/backdrop.js';
+
+function nowLocal() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const emptySku = { sku: '', descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '' };
 
 const MESES = {
   janeiro: 0, fevereiro: 1, 'março': 2, marco: 2, abril: 3, maio: 4, junho: 5,
@@ -20,7 +28,8 @@ function fmtDT(d) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export default function ImportSales({ onSendToLote }) {
+export default function ImportSales({ user, onSendToLote }) {
+  const isAdmin = user?.role === 'admin';
   const [fileName, setFileName] = useState('');
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
@@ -30,8 +39,35 @@ export default function ImportSales({ onSendToLote }) {
   const [selected, setSelected] = useState(new Set());     // SKUs normais
   const [selCarts, setSelCarts] = useState(new Set());     // ids de carrinhos
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('qty');  // qty | sku
+  const [sortBy, setSortBy] = useState('sku');  // sku | qty
+  const [localFilter, setLocalFilter] = useState('');
+  const [onlyMissing, setOnlyMissing] = useState(false);
+  const [skuForm, setSkuForm] = useState(null);  // null | {sku, descricao_curta, ...}
+  const [savingSku, setSavingSku] = useState(false);
+  const [skuErr, setSkuErr] = useState('');
   const inputRef = useRef(null);
+  const backdropDown = useRef(false);
+
+  async function refreshCatalog() {
+    const res = await api.get('/skus');
+    const byCode = new Map(res.data.map(s => [s.sku.toUpperCase(), s]));
+    setParsedRows(prev => prev.map(r => ({ ...r, skuObj: byCode.get(r.code.toUpperCase()) || null })));
+  }
+
+  async function saveSku(e) {
+    e.preventDefault();
+    setSavingSku(true); setSkuErr('');
+    try {
+      await api.post('/skus', skuForm);
+      await refreshCatalog();
+      setSkuForm(null);
+    } catch (err) {
+      if (err.response?.status === 409) { await refreshCatalog(); setSkuForm(null); }
+      else setSkuErr(err.response?.data?.error || 'Erro ao cadastrar SKU');
+    } finally {
+      setSavingSku(false);
+    }
+  }
 
   function qtyOf(v) { const n = parseInt(Number(v), 10); return isNaN(n) ? 0 : n; }
 
@@ -149,12 +185,35 @@ export default function ImportSales({ onSendToLote }) {
   function clearSel() { setSelected(new Set()); setSelCarts(new Set()); }
 
   const q = search.trim().toLowerCase();
+  const locais = Array.from(new Set(
+    parsedRows.map(r => (r.skuObj?.local || '').trim()).filter(Boolean)
+  )).sort();
+
   const filtered = items
     .filter(i => !q || i.code.toLowerCase().includes(q) || (i.skuObj?.descricao_curta || '').toLowerCase().includes(q))
+    .filter(i => !localFilter || (i.skuObj?.local || '').trim() === localFilter)
+    .filter(i => !onlyMissing || !i.skuObj)
     .sort((a, b) => sortBy === 'qty' ? (b.qty - a.qty) : a.code.localeCompare(b.code));
+
+  // Carrinhos exibidos (quando "só não cadastrados", mostra apenas os itens pendentes)
+  const cartsView = carts
+    .map(c => ({ ...c, items: onlyMissing ? c.items.filter(it => !it.skuObj) : c.items }))
+    .filter(c => c.items.length > 0);
 
   const totalUnid = items.reduce((s, i) => s + i.qty, 0) + carts.reduce((s, c) => s + c.items.reduce((a, it) => a + it.qty, 0), 0);
   const naoCadastrados = items.filter(i => !i.skuObj).length + carts.reduce((s, c) => s + c.items.filter(it => !it.skuObj).length, 0);
+
+  const descCell = it => it.skuObj
+    ? (it.skuObj.descricao_curta || '—')
+    : (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+        <span style={styles.naoTag}>não cadastrado</span>
+        {isAdmin && (
+          <button className="btn-outline" style={{ padding: '3px 10px', fontSize: '12px' }}
+            onClick={() => { setSkuForm({ ...emptySku, sku: it.code }); setSkuErr(''); }}>Cadastrar</button>
+        )}
+      </span>
+    );
 
   // Contagem da seleção (SKUs normais + itens de carrinhos selecionados, só cadastrados)
   const selNormal = items.filter(i => selected.has(i.code) && i.skuObj);
@@ -198,6 +257,7 @@ export default function ImportSales({ onSendToLote }) {
               <input type="datetime-local" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={styles.dt} />
               <span style={styles.groupLabel}>até</span>
               <input type="datetime-local" value={dateTo} onChange={e => setDateTo(e.target.value)} style={styles.dt} />
+              <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => setDateTo(nowLocal())} title="Usar a data/hora atual">Agora</button>
               {(dateFrom || dateTo) && (
                 <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => { setDateFrom(''); setDateTo(''); }}>Usar tudo</button>
               )}
@@ -228,10 +288,31 @@ export default function ImportSales({ onSendToLote }) {
               </div>
               <div style={styles.group}>
                 <span style={styles.groupLabel}>Ordenar</span>
-                <button onClick={() => setSortBy('qty')} style={{ ...styles.chip, ...(sortBy === 'qty' ? styles.chipOn : {}) }}>Qtde</button>
                 <button onClick={() => setSortBy('sku')} style={{ ...styles.chip, ...(sortBy === 'sku' ? styles.chipOn : {}) }}>SKU</button>
+                <button onClick={() => setSortBy('qty')} style={{ ...styles.chip, ...(sortBy === 'qty' ? styles.chipOn : {}) }}>Qtde</button>
               </div>
             </div>
+
+            {(locais.length > 0 || naoCadastrados > 0) && (
+              <div style={styles.toolbar}>
+                <div style={styles.group}>
+                  {locais.length > 0 && <span style={styles.groupLabel}>Local</span>}
+                  {locais.length > 0 && (
+                    <button onClick={() => setLocalFilter('')} style={{ ...styles.chip, ...(localFilter === '' ? styles.chipOn : {}) }}>Todos</button>
+                  )}
+                  {locais.map(l => (
+                    <button key={l} onClick={() => setLocalFilter(l === localFilter ? '' : l)}
+                      style={{ ...styles.chip, ...(localFilter === l ? styles.chipOn : {}) }}>{l}</button>
+                  ))}
+                </div>
+                {naoCadastrados > 0 && (
+                  <button onClick={() => setOnlyMissing(m => !m)}
+                    style={{ ...styles.chip, ...(onlyMissing ? styles.chipOn : {}) }}>
+                    {onlyMissing ? '✓ ' : ''}Só não cadastrados ({naoCadastrados})
+                  </button>
+                )}
+              </div>
+            )}
 
             <div style={styles.selBar}>
               <button className="btn-outline" style={{ padding: '5px 12px' }} onClick={selectAllCadastrados}>Selecionar todos (cadastrados)</button>
@@ -250,7 +331,7 @@ export default function ImportSales({ onSendToLote }) {
                 </thead>
                 <tbody>
                   {/* Carrinhos primeiro, agrupados e destacados */}
-                  {carts.map(c => {
+                  {cartsView.map(c => {
                     const printable = c.items.some(it => it.skuObj);
                     const on = selCarts.has(c.id);
                     return c.items.map((it, k) => (
@@ -265,9 +346,7 @@ export default function ImportSales({ onSendToLote }) {
                           {k === 0 && <span style={styles.cartTag}>🛒 {c.label}</span>}
                           <code style={styles.code}>{it.code}</code>
                         </td>
-                        <td style={{ color: 'var(--text-secondary)' }}>
-                          {it.skuObj ? (it.skuObj.descricao_curta || '—') : <span style={styles.naoTag}>não cadastrado</span>}
-                        </td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{descCell(it)}</td>
                         <td style={{ textAlign: 'center', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{it.qty}</td>
                       </tr>
                     ));
@@ -280,9 +359,7 @@ export default function ImportSales({ onSendToLote }) {
                           onChange={() => toggle(i.code)} style={{ width: '16px', height: '16px', cursor: i.skuObj ? 'pointer' : 'not-allowed' }} />
                       </td>
                       <td><code style={styles.code}>{i.code}</code></td>
-                      <td style={{ color: 'var(--text-secondary)' }}>
-                        {i.skuObj ? (i.skuObj.descricao_curta || '—') : <span style={styles.naoTag}>não cadastrado</span>}
-                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{descCell(i)}</td>
                       <td style={{ textAlign: 'center', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{i.qty}</td>
                     </tr>
                   ))}
@@ -311,6 +388,47 @@ export default function ImportSales({ onSendToLote }) {
           </div>
         )}
       </div>
+
+      {skuForm && (
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setSkuForm(null))}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Cadastrar SKU</h3>
+              <button type="button" onClick={() => setSkuForm(null)} style={styles.modalClose}>✕</button>
+            </div>
+            <form onSubmit={saveSku} style={styles.modalBody}>
+              {skuErr && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{skuErr}</div>}
+              <div className="form-group">
+                <label>SKU *</label>
+                <input value={skuForm.sku} onChange={e => setSkuForm(f => ({ ...f, sku: e.target.value }))}
+                  required maxLength={100} style={{ textTransform: 'uppercase' }} />
+              </div>
+              <div className="form-group">
+                <label>Descrição curta</label>
+                <input value={skuForm.descricao_curta} onChange={e => setSkuForm(f => ({ ...f, descricao_curta: e.target.value }))} maxLength={200} />
+              </div>
+              <div className="form-group">
+                <label>Descrição curta 2 (alternativa)</label>
+                <input value={skuForm.descricao_curta_2} onChange={e => setSkuForm(f => ({ ...f, descricao_curta_2: e.target.value }))} maxLength={200} />
+              </div>
+              <div className="form-group">
+                <label>Descrição longa</label>
+                <input value={skuForm.descricao_longa} onChange={e => setSkuForm(f => ({ ...f, descricao_longa: e.target.value }))} maxLength={400} />
+              </div>
+              <div className="form-group">
+                <label>Localização</label>
+                <input value={skuForm.local} onChange={e => setSkuForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div style={styles.modalFooter}>
+                <button type="button" className="btn-secondary" onClick={() => setSkuForm(null)}>Cancelar</button>
+                <button type="submit" className="btn-primary" disabled={savingSku}>
+                  {savingSku ? 'Salvando...' : 'Cadastrar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -331,5 +449,11 @@ const styles = {
   code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: '#2b6cb0' },
   naoTag: { fontSize: '11px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px' },
   cartTag: { display: 'inline-block', marginRight: '8px', fontSize: '10.5px', fontWeight: 700, color: '#2b4c8c', background: '#dbe8ff', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
+  modalCard: { background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
+  modalHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' },
+  modalClose: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' },
+  modalBody: { padding: '16px 20px', overflowY: 'auto' },
+  modalFooter: { display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '10px', borderTop: '1px solid var(--border)', marginTop: '4px' },
   footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', paddingTop: '14px', marginTop: '4px', borderTop: '1px solid var(--border)', flexWrap: 'wrap' },
 };
