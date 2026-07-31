@@ -91,6 +91,7 @@ export default function GenerateFromSKU() {
 
   function parseImport(text) {
     const map = new Map(); // UPPER(sku) -> { code, qty }
+    let ignoredZero = 0;
     text.split(/\r?\n/).forEach(line => {
       const t = line.trim();
       if (!t) return;
@@ -98,18 +99,24 @@ export default function GenerateFromSKU() {
       if (parts.length < 2) parts = t.split(/\s+/).filter(Boolean);
       if (parts.length === 0) return;
       const code = parts[0];
-      let qty = 1;
+      let qty = 1;           // default quando não há número na linha
+      let explicit = false;
       for (let i = parts.length - 1; i >= 1; i--) {
-        if (/^\d+$/.test(parts[i])) { qty = Math.max(1, Math.min(parseInt(parts[i], 10), 999)); break; }
+        if (/^\d+$/.test(parts[i])) { qty = parseInt(parts[i], 10); explicit = true; break; }
       }
+      // Quantidade 0 explícita = não vendeu → ignora o SKU
+      if (explicit && qty <= 0) { ignoredZero++; return; }
+      qty = Math.max(1, Math.min(qty, 999));
       const key = code.toUpperCase();
       if (map.has(key)) map.get(key).qty = Math.min(999, map.get(key).qty + qty);
       else map.set(key, { code, qty });
     });
-    return map;
+    return { map, ignoredZero };
   }
 
-  const importParsed = showImport ? parseImport(importText) : new Map();
+  const { map: importParsed, ignoredZero: importIgnoredZero } = showImport
+    ? parseImport(importText)
+    : { map: new Map(), ignoredZero: 0 };
   const importMatched = [];
   const importNotFound = [];
   importParsed.forEach(({ code, qty }) => {
@@ -467,6 +474,7 @@ export default function GenerateFromSKU() {
                   <div style={{fontWeight: 700, marginBottom: importNotFound.length ? '8px' : 0}}>
                     <span style={{color: '#276749'}}>{importMatched.length} encontrado{importMatched.length !== 1 ? 's' : ''}</span>
                     {importNotFound.length > 0 && <span style={{color: '#c53030'}}> · {importNotFound.length} não encontrado{importNotFound.length !== 1 ? 's' : ''}</span>}
+                    {importIgnoredZero > 0 && <span style={{color: 'var(--text-muted)'}}> · {importIgnoredZero} ignorado{importIgnoredZero !== 1 ? 's' : ''} (qtde 0)</span>}
                   </div>
                   {importNotFound.length > 0 && (
                     <div>
