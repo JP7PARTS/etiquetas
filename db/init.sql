@@ -54,6 +54,17 @@ CREATE TABLE IF NOT EXISTS sku_requests (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Listas de picking (geradas do Importar Vendas; abertas no tablet para separar produtos)
+CREATE TABLE IF NOT EXISTS picking_lists (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  created_by INTEGER,
+  created_by_name VARCHAR(100),
+  items JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (username, email, password_hash, role)

@@ -39,9 +39,14 @@ export default function ImportSales({ user, onSendToLote }) {
   const [selected, setSelected] = useState(new Set());     // SKUs normais
   const [selCarts, setSelCarts] = useState(new Set());     // ids de carrinhos
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('sku');  // sku | qty
+  const [sortBy, setSortBy] = useState('sku');  // sku | qty | local
+  const [sortDir, setSortDir] = useState('asc'); // asc | desc
+  const [mode, setMode] = useState('com');      // com | sem (carrinho)
   const [localFilter, setLocalFilter] = useState('');
   const [onlyMissing, setOnlyMissing] = useState(false);
+  const [pickName, setPickName] = useState(null); // null | string (modal salvar picking)
+  const [pickSaving, setPickSaving] = useState(false);
+  const [pickMsg, setPickMsg] = useState('');
   const [skuForm, setSkuForm] = useState(null);  // null | {sku, descricao_curta, ...}
   const [savingSku, setSavingSku] = useState(false);
   const [skuErr, setSkuErr] = useState('');
@@ -173,7 +178,8 @@ export default function ImportSales({ user, onSendToLote }) {
     const cartMap = new Map();
     for (const r of parsedRows) {
       if (!inRange(r.saleDate)) continue;
-      if (r.cartId) {
+      // Modo "sem carrinho": tudo entra na soma por SKU (inclusive itens de carrinho)
+      if (r.cartId && mode === 'com') {
         if (!cartMap.has(r.cartId)) cartMap.set(r.cartId, []);
         cartMap.get(r.cartId).push(r);
       } else {
@@ -189,7 +195,7 @@ export default function ImportSales({ user, onSendToLote }) {
       })),
       detMin: mn, detMax: mx,
     };
-  }, [parsedRows, dateFrom, dateTo]);
+  }, [parsedRows, dateFrom, dateTo, mode]);
 
   function toggle(code) {
     setSelected(prev => {
@@ -230,12 +236,13 @@ export default function ImportSales({ user, onSendToLote }) {
     (!localFilter || (it.skuObj?.local || '').trim() === localFilter) &&
     (!onlyMissing || !it.skuObj);
 
+  const dir = sortDir === 'asc' ? 1 : -1;
   const filtered = items
     .filter(itemMatches)
     .sort((a, b) => {
-      if (sortBy === 'qty') return b.qty - a.qty;
-      if (sortBy === 'local') return (a.skuObj?.local || '').localeCompare(b.skuObj?.local || '') || a.code.localeCompare(b.code);
-      return a.code.localeCompare(b.code);
+      if (sortBy === 'qty') return (a.qty - b.qty) * dir;
+      if (sortBy === 'local') return ((a.skuObj?.local || '').localeCompare(b.skuObj?.local || '') || a.code.localeCompare(b.code)) * dir;
+      return a.code.localeCompare(b.code) * dir;
     });
 
   // Carrinho aparece se ALGUM item dele casar com o filtro; então mostra o carrinho COMPLETO
@@ -279,6 +286,26 @@ export default function ImportSales({ user, onSendToLote }) {
     onSendToLote(payload);
   }
 
+  async function savePicking(e) {
+    e.preventDefault();
+    if (selNormal.length === 0) return;
+    setPickSaving(true); setPickMsg('');
+    try {
+      const items = selNormal.map(i => ({
+        sku: i.code, descricao: i.skuObj.descricao_curta || '',
+        local: i.skuObj.local || '', qty: Math.max(1, i.qty), picked: false,
+      }));
+      await api.post('/picking-lists', { name: pickName.trim(), items });
+      setPickName(null);
+      setPickMsg('✅ Lista de picking salva! Veja em "Listas de Picking".');
+      setTimeout(() => setPickMsg(''), 5000);
+    } catch (err) {
+      setPickMsg(err.response?.data?.error || 'Erro ao salvar lista');
+    } finally {
+      setPickSaving(false);
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -287,6 +314,7 @@ export default function ImportSales({ user, onSendToLote }) {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
+      {pickMsg && <div className="alert alert-success">{pickMsg}</div>}
 
       <div className="card">
         <div style={styles.uploadRow}>
@@ -338,7 +366,26 @@ export default function ImportSales({ user, onSendToLote }) {
                 <button onClick={() => setSortBy('sku')} style={{ ...styles.chip, ...(sortBy === 'sku' ? styles.chipOn : {}) }}>SKU</button>
                 <button onClick={() => setSortBy('qty')} style={{ ...styles.chip, ...(sortBy === 'qty' ? styles.chipOn : {}) }}>Qtde</button>
                 <button onClick={() => setSortBy('local')} style={{ ...styles.chip, ...(sortBy === 'local' ? styles.chipOn : {}) }}>Local</button>
+                <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} style={styles.chip}
+                  title={sortDir === 'asc' ? 'Crescente (menor→maior / A→Z)' : 'Decrescente (maior→menor / Z→A)'}>
+                  {sortDir === 'asc' ? '↑' : '↓'}
+                </button>
               </div>
+            </div>
+
+            <div style={styles.toolbar}>
+              <div style={styles.group}>
+                <span style={styles.groupLabel}>Modo</span>
+                <button onClick={() => setMode('com')} style={{ ...styles.chip, ...(mode === 'com' ? styles.chipOn : {}) }}>Com carrinho 🛒</button>
+                <button onClick={() => setMode('sem')} style={{ ...styles.chip, ...(mode === 'sem' ? styles.chipOn : {}) }}>Sem carrinho (soma tudo)</button>
+              </div>
+              {mode === 'sem' && (
+                <button className="btn-primary" style={{ padding: '6px 14px' }}
+                  onClick={() => { setPickName(`Picking ${new Date().toLocaleDateString('pt-BR')}`); setPickMsg(''); }}
+                  disabled={selNormal.length === 0} title={selNormal.length === 0 ? 'Selecione os itens (ou "Selecionar todos")' : ''}>
+                  🧺 Salvar lista de picking{selNormal.length > 0 ? ` (${selNormal.length})` : ''}
+                </button>
+              )}
             </div>
 
             {(locais.length > 0 || naoCadastrados > 0) && (
@@ -378,26 +425,32 @@ export default function ImportSales({ user, onSendToLote }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Carrinhos primeiro, agrupados e destacados */}
+                  {/* Carrinhos: cabeçalho + itens abaixo */}
                   {cartsView.map(c => {
                     const printable = c.items.some(it => it.skuObj);
                     const on = selCarts.has(c.id);
-                    return c.items.map((it, k) => (
-                      <tr key={`c${c.id}-${k}`} style={{ background: on ? '#e6f0ff' : '#f5f8ff' }}>
-                        <td style={{ textAlign: 'center' }}>
-                          {k === 0 && (
+                    return (
+                      <React.Fragment key={`cart-${c.id}`}>
+                        <tr style={{ background: on ? '#dbe8ff' : '#eef3ff' }}>
+                          <td style={{ textAlign: 'center' }}>
                             <input type="checkbox" checked={on} disabled={!printable}
                               onChange={() => toggleCart(c.id)} style={{ width: '16px', height: '16px', cursor: printable ? 'pointer' : 'not-allowed' }} />
-                          )}
-                        </td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          {k === 0 && <span style={styles.cartTag}>🛒 {c.label}</span>}
-                          <code style={styles.code}>{it.code}</code>
-                        </td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{descCell(it)}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{it.qty}</td>
-                      </tr>
-                    ));
+                          </td>
+                          <td colSpan={3}><span style={styles.cartTag}>🛒 {c.label}</span></td>
+                        </tr>
+                        {c.items.map((it, k) => (
+                          <tr key={`c${c.id}-${k}`} style={{ background: on ? '#eef3ff' : '#f7faff' }}>
+                            <td></td>
+                            <td style={{ whiteSpace: 'nowrap', paddingLeft: '24px' }}>
+                              <code style={styles.code}>{it.code}</code>
+                              {it.skuObj?.local && <span style={styles.localTag}>{it.skuObj.local}</span>}
+                            </td>
+                            <td style={{ color: 'var(--text-secondary)' }}>{descCell(it)}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{it.qty}</td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
                   })}
                   {/* SKUs normais */}
                   {filtered.map(i => (
@@ -507,6 +560,32 @@ export default function ImportSales({ user, onSendToLote }) {
                 <button type="button" className="btn-secondary" onClick={() => setReqForm(null)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={reqSaving}>
                   {reqSaving ? 'Enviando...' : 'Enviar solicitação'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {pickName !== null && (
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setPickName(null))}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Salvar lista de picking</h3>
+              <button type="button" onClick={() => setPickName(null)} style={styles.modalClose}>✕</button>
+            </div>
+            <form onSubmit={savePicking} style={styles.modalBody}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: 0 }}>
+                {selNormal.length} SKU{selNormal.length !== 1 ? 's' : ''} selecionado{selNormal.length !== 1 ? 's' : ''} vão para a lista.
+              </p>
+              <div className="form-group">
+                <label>Nome da lista *</label>
+                <input value={pickName} onChange={e => setPickName(e.target.value)} required maxLength={200} autoFocus />
+              </div>
+              <div style={styles.modalFooter}>
+                <button type="button" className="btn-secondary" onClick={() => setPickName(null)}>Cancelar</button>
+                <button type="submit" className="btn-primary" disabled={pickSaving || !pickName.trim()}>
+                  {pickSaving ? 'Salvando...' : 'Salvar lista'}
                 </button>
               </div>
             </form>

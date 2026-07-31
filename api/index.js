@@ -10,6 +10,7 @@ const warningsRoutes = require('./routes/warnings');
 const usersRoutes = require('./routes/users');
 const historyRoutes = require('./routes/history');
 const skuRequestsRoutes = require('./routes/skuRequests');
+const pickingListsRoutes = require('./routes/pickingLists');
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use('/api/warnings', warningsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/sku-requests', skuRequestsRoutes);
+app.use('/api/picking-lists', pickingListsRoutes);
 
 // 404 handler for /api routes
 app.use('/api/*', (req, res) => {

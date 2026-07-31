@@ -10,6 +10,7 @@ const navSections = [
       { id: 'warning-labels', label: 'Etiquetas de Aviso', icon: '⚠️', roles: ['admin', 'user'] },
       { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
       { id: 'import-sales', label: 'Importar Vendas', icon: '📥', roles: ['admin', 'user'] },
+      { id: 'picking', label: 'Listas de Picking', icon: '🧺', roles: ['admin', 'user'] },
     ],
   },
   {
