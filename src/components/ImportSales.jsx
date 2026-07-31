@@ -197,8 +197,17 @@ export default function ImportSales({ user, onSendToLote }) {
     });
   }
   function selectAllCadastrados() {
-    setSelected(new Set(items.filter(i => i.skuObj).map(i => i.code)));
-    setSelCarts(new Set(carts.filter(c => c.items.some(it => it.skuObj)).map(c => c.id)));
+    // Marca apenas os visíveis no filtro atual, somando à seleção (permite acumular por corredor)
+    setSelected(prev => {
+      const n = new Set(prev);
+      filtered.filter(i => i.skuObj).forEach(i => n.add(i.code));
+      return n;
+    });
+    setSelCarts(prev => {
+      const n = new Set(prev);
+      cartsView.filter(c => c.items.some(it => it.skuObj)).forEach(c => n.add(c.id));
+      return n;
+    });
   }
   function clearSel() { setSelected(new Set()); setSelCarts(new Set()); }
 
@@ -214,7 +223,11 @@ export default function ImportSales({ user, onSendToLote }) {
 
   const filtered = items
     .filter(itemMatches)
-    .sort((a, b) => sortBy === 'qty' ? (b.qty - a.qty) : a.code.localeCompare(b.code));
+    .sort((a, b) => {
+      if (sortBy === 'qty') return b.qty - a.qty;
+      if (sortBy === 'local') return (a.skuObj?.local || '').localeCompare(b.skuObj?.local || '') || a.code.localeCompare(b.code);
+      return a.code.localeCompare(b.code);
+    });
 
   // Carrinho aparece se ALGUM item dele casar com o filtro; então mostra o carrinho COMPLETO
   const cartsView = carts.filter(c => c.items.some(itemMatches));
@@ -315,6 +328,7 @@ export default function ImportSales({ user, onSendToLote }) {
                 <span style={styles.groupLabel}>Ordenar</span>
                 <button onClick={() => setSortBy('sku')} style={{ ...styles.chip, ...(sortBy === 'sku' ? styles.chipOn : {}) }}>SKU</button>
                 <button onClick={() => setSortBy('qty')} style={{ ...styles.chip, ...(sortBy === 'qty' ? styles.chipOn : {}) }}>Qtde</button>
+                <button onClick={() => setSortBy('local')} style={{ ...styles.chip, ...(sortBy === 'local' ? styles.chipOn : {}) }}>Local</button>
               </div>
             </div>
 
@@ -383,7 +397,10 @@ export default function ImportSales({ user, onSendToLote }) {
                         <input type="checkbox" checked={selected.has(i.code)} disabled={!i.skuObj}
                           onChange={() => toggle(i.code)} style={{ width: '16px', height: '16px', cursor: i.skuObj ? 'pointer' : 'not-allowed' }} />
                       </td>
-                      <td><code style={styles.code}>{i.code}</code></td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <code style={styles.code}>{i.code}</code>
+                        {i.skuObj?.local && <span style={styles.localTag}>{i.skuObj.local}</span>}
+                      </td>
                       <td style={{ color: 'var(--text-secondary)' }}>{descCell(i)}</td>
                       <td style={{ textAlign: 'center', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{i.qty}</td>
                     </tr>
@@ -507,6 +524,7 @@ const styles = {
   code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: '#2b6cb0' },
   naoTag: { fontSize: '11px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px' },
   cartTag: { display: 'inline-block', marginRight: '8px', fontSize: '10.5px', fontWeight: 700, color: '#2b4c8c', background: '#dbe8ff', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
+  localTag: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: '#276749', background: '#e6fffa', padding: '2px 7px', borderRadius: '4px', fontFamily: 'monospace' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
   modalCard: { background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
   modalHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' },
