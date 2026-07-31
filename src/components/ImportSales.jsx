@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import api from '../utils/api.js';
 import { backdropHandlers } from '../utils/backdrop.js';
@@ -55,8 +55,17 @@ export default function ImportSales({ user, onSendToLote }) {
   async function refreshCatalog() {
     const res = await api.get('/skus');
     const byCode = new Map(res.data.map(s => [s.sku.toUpperCase(), s]));
-    setParsedRows(prev => prev.map(r => ({ ...r, skuObj: byCode.get(r.code.toUpperCase()) || null })));
+    setParsedRows(prev => prev.length
+      ? prev.map(r => ({ ...r, skuObj: byCode.get(r.code.toUpperCase()) || null }))
+      : prev);
   }
+
+  // Ao voltar o foco para a aba, re-checa o catálogo (pega SKUs cadastrados enquanto a tela ficou aberta)
+  useEffect(() => {
+    const onFocus = () => { refreshCatalog().catch(() => {}); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
 
   async function sendRequest(e) {
     e.preventDefault();
