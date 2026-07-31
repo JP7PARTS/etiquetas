@@ -64,7 +64,7 @@ export default function App() {
   } else if (page === 'warning-labels') {
     content = <WarningLabels user={user} />;
   } else {
-    content = <GenerateFromSKU seed={loteSeed} onSeedConsumed={() => setLoteSeed(null)} />;
+    content = <GenerateFromSKU user={user} seed={loteSeed} onSeedConsumed={() => setLoteSeed(null)} />;
   }
 
   return (

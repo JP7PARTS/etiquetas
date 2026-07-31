@@ -9,7 +9,8 @@ function newRow(sku = null) {
   return { id: rowSeq++, selected: sku, search: sku ? sku.sku : '', quantity: 1, useAlt: false };
 }
 
-export default function GenerateFromSKU({ seed, onSeedConsumed }) {
+export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
+  const isAdmin = user?.role === 'admin';
   const [skus, setSkus] = useState([]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +25,43 @@ export default function GenerateFromSKU({ seed, onSeedConsumed }) {
   const [importText, setImportText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const backdropDown = useRef(false);
+  // Solicitar/Cadastrar SKU a partir da busca sem resultado
+  const [reqForm, setReqForm] = useState(null);      // operador: { sku, titulo, local }
+  const [reqSaving, setReqSaving] = useState(false);
+  const [reqErr, setReqErr] = useState('');
+  const [reqDone, setReqDone] = useState('');        // SKU solicitado (feedback)
+  const [newSku, setNewSku] = useState(null);        // admin: { sku, descricao_curta, ... }
+  const [newSaving, setNewSaving] = useState(false);
+  const [newErr, setNewErr] = useState('');
+
+  async function sendSkuRequest(e) {
+    e.preventDefault();
+    setReqSaving(true); setReqErr('');
+    try {
+      await api.post('/sku-requests', reqForm);
+      setReqDone(reqForm.sku.trim().toUpperCase());
+      setReqForm(null);
+    } catch (err) {
+      setReqErr(err.response?.data?.error || 'Erro ao enviar solicitação');
+    } finally {
+      setReqSaving(false);
+    }
+  }
+
+  async function createSku(e) {
+    e.preventDefault();
+    setNewSaving(true); setNewErr('');
+    try {
+      await api.post('/skus', newSku);
+      await loadSKUs(true);
+      setNewSku(null);
+    } catch (err) {
+      if (err.response?.status === 409) { await loadSKUs(true); setNewSku(null); }
+      else setNewErr(err.response?.data?.error || 'Erro ao cadastrar SKU');
+    } finally {
+      setNewSaving(false);
+    }
+  }
 
   useEffect(() => {
     loadSKUs();
@@ -278,6 +316,21 @@ export default function GenerateFromSKU({ seed, onSeedConsumed }) {
               <div style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
                 <div style={{textAlign: 'center', color: 'var(--text-muted)'}}>
                   <p>{tableSearch || localFilter ? 'Nenhum SKU encontrado' : 'Nenhum SKU disponível'}</p>
+                  {tableSearch.trim() && reqDone === tableSearch.trim().toUpperCase() ? (
+                    <p style={{ color: '#276749', fontWeight: 600, marginTop: '8px' }}>✅ Solicitação enviada ao admin</p>
+                  ) : tableSearch.trim() && (
+                    isAdmin ? (
+                      <button type="button" className="btn-primary" style={{ marginTop: '10px' }}
+                        onClick={() => { setNewSku({ sku: tableSearch.trim().toUpperCase(), descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '' }); setNewErr(''); }}>
+                        ➕ Cadastrar SKU
+                      </button>
+                    ) : (
+                      <button type="button" className="btn-primary" style={{ marginTop: '10px' }}
+                        onClick={() => { setReqForm({ sku: tableSearch.trim().toUpperCase(), titulo: '', local: '' }); setReqErr(''); }}>
+                        📨 Solicitar inclusão do SKU
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             ) : (
@@ -541,6 +594,77 @@ export default function GenerateFromSKU({ seed, onSeedConsumed }) {
                 Adicionar {importMatched.length > 0 ? importMatched.length : ''} ao lote
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Operador: solicitar inclusão de SKU */}
+      {reqForm && (
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setReqForm(null))}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Solicitar inclusão de SKU</h3>
+              <button type="button" onClick={() => setReqForm(null)} style={styles.modalClose}>✕</button>
+            </div>
+            <form onSubmit={sendSkuRequest} style={styles.modalBody}>
+              {reqErr && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{reqErr}</div>}
+              <div className="form-group">
+                <label>SKU *</label>
+                <input value={reqForm.sku} onChange={e => setReqForm(f => ({ ...f, sku: e.target.value }))}
+                  required maxLength={100} style={{ textTransform: 'uppercase' }} autoFocus />
+              </div>
+              <div className="form-group">
+                <label>Título do produto (opcional)</label>
+                <input value={reqForm.titulo} onChange={e => setReqForm(f => ({ ...f, titulo: e.target.value }))} placeholder="Ex.: Antena Shark Carbono" maxLength={300} />
+              </div>
+              <div className="form-group">
+                <label>Localização (opcional)</label>
+                <input value={reqForm.local} onChange={e => setReqForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div style={styles.modalFooter}>
+                <button type="button" className="btn-secondary" onClick={() => setReqForm(null)}>Cancelar</button>
+                <button type="submit" className="btn-primary" disabled={reqSaving}>{reqSaving ? 'Enviando...' : 'Enviar solicitação'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin: cadastrar SKU direto */}
+      {newSku && (
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setNewSku(null))}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Cadastrar SKU</h3>
+              <button type="button" onClick={() => setNewSku(null)} style={styles.modalClose}>✕</button>
+            </div>
+            <form onSubmit={createSku} style={styles.modalBody}>
+              {newErr && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{newErr}</div>}
+              <div className="form-group">
+                <label>SKU *</label>
+                <input value={newSku.sku} onChange={e => setNewSku(f => ({ ...f, sku: e.target.value }))} required maxLength={100} style={{ textTransform: 'uppercase' }} />
+              </div>
+              <div className="form-group">
+                <label>Descrição curta</label>
+                <input value={newSku.descricao_curta} onChange={e => setNewSku(f => ({ ...f, descricao_curta: e.target.value }))} maxLength={200} autoFocus />
+              </div>
+              <div className="form-group">
+                <label>Descrição curta 2 (alternativa)</label>
+                <input value={newSku.descricao_curta_2} onChange={e => setNewSku(f => ({ ...f, descricao_curta_2: e.target.value }))} maxLength={200} />
+              </div>
+              <div className="form-group">
+                <label>Descrição longa</label>
+                <input value={newSku.descricao_longa} onChange={e => setNewSku(f => ({ ...f, descricao_longa: e.target.value }))} maxLength={400} />
+              </div>
+              <div className="form-group">
+                <label>Localização</label>
+                <input value={newSku.local} onChange={e => setNewSku(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div style={styles.modalFooter}>
+                <button type="button" className="btn-secondary" onClick={() => setNewSku(null)}>Cancelar</button>
+                <button type="submit" className="btn-primary" disabled={newSaving}>{newSaving ? 'Salvando...' : 'Cadastrar'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
