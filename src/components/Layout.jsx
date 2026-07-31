@@ -33,6 +33,7 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
     .map(sec => ({ ...sec, items: sec.items.filter(item => item.roles.includes(user.role)) }))
     .filter(sec => sec.items.length > 0);
   const showTitles = visibleSections.length > 1;
+  const allItems = [...navSections.flatMap(sec => sec.items), requestsItem];
 
   // Contador de solicitações de SKU pendentes (admin) — atualiza ao navegar
   useEffect(() => {
@@ -140,7 +141,7 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
             </svg>
           </button>
           <span style={styles.topbarTitle}>
-            {visibleItems.find(i => i.id === page)?.label || 'Etiquetas ZPL'}
+            {allItems.find(i => i.id === page)?.label || 'Etiquetas ZPL'}
           </span>
         </header>
 
