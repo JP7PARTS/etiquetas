@@ -18,6 +18,9 @@ export default function GenerateFromSKU() {
   const [copiedOnGenerate, setCopiedOnGenerate] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('');
+  const [sortState, setSortState] = useState({ key: null, dir: 'asc' });
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
 
   useEffect(() => {
     loadSKUs();
@@ -65,6 +68,69 @@ export default function GenerateFromSKU() {
   function removeRow(id) {
     setRows(rows => rows.filter(r => r.id !== id));
     setResult(null);
+  }
+
+  // Ordena o lote por SKU (A→Z) ou por quantidade; clicar de novo inverte a direção
+  function sortLote(key) {
+    const dir = sortState.key === key && sortState.dir === 'asc' ? 'desc' : 'asc';
+    const mult = dir === 'asc' ? 1 : -1;
+    setRows(prev => [...prev].sort((a, b) => {
+      if (!a.selected) return 1;
+      if (!b.selected) return -1;
+      if (key === 'qty') {
+        return ((normalizeQuantity(a.quantity)) - (normalizeQuantity(b.quantity))) * mult;
+      }
+      return a.selected.sku.localeCompare(b.selected.sku) * mult;
+    }));
+    setSortState({ key, dir });
+    setResult(null);
+  }
+
+  // --- Importar lista colada da planilha ---
+  const skuByCode = new Map(skus.map(s => [s.sku.toUpperCase(), s]));
+
+  function parseImport(text) {
+    const map = new Map(); // UPPER(sku) -> { code, qty }
+    text.split(/\r?\n/).forEach(line => {
+      const t = line.trim();
+      if (!t) return;
+      let parts = t.split(/[\t;,]+/).map(x => x.trim()).filter(Boolean);
+      if (parts.length < 2) parts = t.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return;
+      const code = parts[0];
+      let qty = 1;
+      for (let i = parts.length - 1; i >= 1; i--) {
+        if (/^\d+$/.test(parts[i])) { qty = Math.max(1, Math.min(parseInt(parts[i], 10), 999)); break; }
+      }
+      const key = code.toUpperCase();
+      if (map.has(key)) map.get(key).qty = Math.min(999, map.get(key).qty + qty);
+      else map.set(key, { code, qty });
+    });
+    return map;
+  }
+
+  const importParsed = showImport ? parseImport(importText) : new Map();
+  const importMatched = [];
+  const importNotFound = [];
+  importParsed.forEach(({ code, qty }) => {
+    const s = skuByCode.get(code.toUpperCase());
+    if (s) importMatched.push({ sku: s, qty });
+    else importNotFound.push(code);
+  });
+
+  function applyImport() {
+    setRows(prev => {
+      const next = prev.map(r => ({ ...r }));
+      importMatched.forEach(({ sku, qty }) => {
+        const ex = next.find(r => r.selected && r.selected.sku.toUpperCase() === sku.sku.toUpperCase());
+        if (ex) ex.quantity = Math.min(999, (parseInt(ex.quantity, 10) || 0) + qty);
+        else next.push({ ...newRow(sku), quantity: qty });
+      });
+      return next;
+    });
+    setResult(null);
+    setShowImport(false);
+    setImportText('');
   }
 
   const selectedRows = rows.filter(r => r.selected);
@@ -229,13 +295,30 @@ export default function GenerateFromSKU() {
         {/* LOTE (DIREITA) */}
         <div style={styles.lotePanel}>
           <div className="card" style={{height: '100%', display: 'flex', flexDirection: 'column'}}>
-            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px'}}>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '8px', flexWrap: 'wrap'}}>
               <h3 style={{...styles.panelTitle, margin: 0}}>Seu Lote</h3>
-              {rows.length > 0 && (
-                <button type="button" onClick={() => { setRows([]); setResult(null); }} style={styles.clearBtn}>
-                  Limpar lista
+              <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
+                <button type="button" onClick={() => setShowImport(true)} style={styles.toolBtn}>
+                  Importar lista
                 </button>
-              )}
+                {rows.length > 1 && (
+                  <>
+                    <button type="button" onClick={() => sortLote('sku')}
+                      style={{...styles.toolBtn, ...(sortState.key === 'sku' ? styles.toolBtnActive : {})}}>
+                      {sortState.key === 'sku' && sortState.dir === 'desc' ? 'Z→A' : 'A→Z'}
+                    </button>
+                    <button type="button" onClick={() => sortLote('qty')}
+                      style={{...styles.toolBtn, ...(sortState.key === 'qty' ? styles.toolBtnActive : {})}}>
+                      Qtde {sortState.key === 'qty' && sortState.dir === 'asc' ? '↑' : '↓'}
+                    </button>
+                  </>
+                )}
+                {rows.length > 0 && (
+                  <button type="button" onClick={() => { setRows([]); setResult(null); }} style={styles.clearBtn}>
+                    Limpar lista
+                  </button>
+                )}
+              </div>
             </div>
 
             <form onSubmit={handleGenerate} style={{display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0}}>
@@ -358,6 +441,56 @@ export default function GenerateFromSKU() {
           count={result.count}
           totalLabels={result.totalLabels}
         />
+      )}
+
+      {showImport && (
+        <div style={styles.modalOverlay} onClick={() => setShowImport(false)}>
+          <div style={styles.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={{margin: 0, fontSize: '16px'}}>Importar lista</h3>
+              <button type="button" onClick={() => setShowImport(false)} style={styles.modalClose}>✕</button>
+            </div>
+            <div style={styles.modalBody}>
+              <p style={{fontSize: '13px', color: 'var(--text-secondary)', marginTop: 0}}>
+                Cole da planilha as colunas <b>SKU</b> e <b>quantidade</b> (um por linha). Pode selecionar as duas colunas no Excel e colar aqui.
+              </p>
+              <textarea
+                value={importText}
+                onChange={e => setImportText(e.target.value)}
+                placeholder={'SPO11PREBM\t1\nSPO14PREAU\t5\nSPO16PREVS\t3'}
+                rows={8}
+                style={styles.importArea}
+                autoFocus
+              />
+              {importText.trim() && (
+                <div style={styles.importPreview}>
+                  <div style={{fontWeight: 700, marginBottom: importNotFound.length ? '8px' : 0}}>
+                    <span style={{color: '#276749'}}>{importMatched.length} encontrado{importMatched.length !== 1 ? 's' : ''}</span>
+                    {importNotFound.length > 0 && <span style={{color: '#c53030'}}> · {importNotFound.length} não encontrado{importNotFound.length !== 1 ? 's' : ''}</span>}
+                  </div>
+                  {importNotFound.length > 0 && (
+                    <div>
+                      <div style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px'}}>
+                        Não estão no catálogo (cadastre em "Gerenciar SKUs"):
+                      </div>
+                      <div style={{display: 'flex', flexWrap: 'wrap', gap: '5px'}}>
+                        {importNotFound.map((c, i) => (
+                          <code key={i} style={styles.notFoundChip}>{c}</code>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={styles.modalFooter}>
+              <button type="button" className="btn-secondary" onClick={() => setShowImport(false)}>Cancelar</button>
+              <button type="button" className="btn-primary" onClick={applyImport} disabled={importMatched.length === 0}>
+                Adicionar {importMatched.length > 0 ? importMatched.length : ''} ao lote
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -606,5 +739,52 @@ const styles = {
     fontSize: '12.5px',
     fontWeight: '600',
     cursor: 'pointer',
+  },
+  toolBtn: {
+    background: '#fff',
+    color: 'var(--text-secondary)',
+    border: '1px solid var(--border)',
+    borderRadius: '6px',
+    padding: '5px 12px',
+    fontSize: '12.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  toolBtnActive: {
+    background: 'var(--btn-primary)',
+    borderColor: 'var(--btn-primary)',
+    color: '#fff',
+  },
+  modalOverlay: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px',
+  },
+  modalCard: {
+    background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '460px',
+    maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+  },
+  modalHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '16px 20px', borderBottom: '1px solid var(--border)',
+  },
+  modalClose: {
+    background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)',
+  },
+  modalBody: { padding: '16px 20px', overflowY: 'auto' },
+  modalFooter: {
+    display: 'flex', gap: '8px', justifyContent: 'flex-end',
+    padding: '14px 20px', borderTop: '1px solid var(--border)',
+  },
+  importArea: {
+    width: '100%', fontFamily: 'monospace', fontSize: '13px', padding: '10px',
+    border: '1px solid var(--border)', borderRadius: '8px', resize: 'vertical', boxSizing: 'border-box',
+  },
+  importPreview: {
+    marginTop: '12px', padding: '12px', background: '#f7fafc',
+    border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px',
+  },
+  notFoundChip: {
+    background: '#fff5f5', color: '#c53030', border: '1px solid #fed7d7',
+    padding: '2px 7px', borderRadius: '4px', fontSize: '12px', fontFamily: 'monospace',
   },
 };
