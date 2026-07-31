@@ -1,13 +1,32 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import api from '../utils/api.js';
+
+const MESES = {
+  janeiro: 0, fevereiro: 1, 'março': 2, marco: 2, abril: 3, maio: 4, junho: 5,
+  julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+};
+function parseSaleDate(v) {
+  if (!v) return null;
+  const m = String(v).match(/(\d{1,2}) de (\S+) de (\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const mi = MESES[m[2].toLowerCase()];
+  if (mi == null) return null;
+  return new Date(Number(m[3]), mi, Number(m[1]), Number(m[4]), Number(m[5]));
+}
+function fmtDT(d) {
+  if (!d) return '—';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 export default function ImportSales({ onSendToLote }) {
   const [fileName, setFileName] = useState('');
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
-  const [items, setItems] = useState([]);      // [{ code, qty, skuObj|null }] (não-carrinho)
-  const [carts, setCarts] = useState([]);      // [{ id, label, items:[{code, qty, skuObj|null}] }]
+  const [parsedRows, setParsedRows] = useState([]); // [{ code, qty, cartId|null, saleDate:Date|null, skuObj }]
+  const [dateFrom, setDateFrom] = useState('');     // datetime-local
+  const [dateTo, setDateTo] = useState('');
   const [selected, setSelected] = useState(new Set());     // SKUs normais
   const [selCarts, setSelCarts] = useState(new Set());     // ids de carrinhos
   const [search, setSearch] = useState('');
@@ -19,7 +38,8 @@ export default function ImportSales({ onSendToLote }) {
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setParsing(true); setError(''); setItems([]); setCarts([]); setSelected(new Set()); setSelCarts(new Set());
+    setParsing(true); setError(''); setParsedRows([]); setSelected(new Set()); setSelCarts(new Set());
+    setDateFrom(''); setDateTo('');
     setFileName(file.name);
     try {
       const buf = await file.arrayBuffer();
@@ -34,11 +54,12 @@ export default function ImportSales({ onSendToLote }) {
       const ciUn = header.indexOf('Unidades');
       const ciPac = header.indexOf('Pacote de diversos produtos');
       const ciComp = header.indexOf('Comprador');
+      const ciData = header.indexOf('Data da venda');
       if (ciUn < 0) throw new Error('Não encontrei a coluna "Unidades" na planilha.');
 
-      const agg = new Map();     // UPPER(sku) -> { code, qty }  (vendas normais)
-      const cartList = [];       // { id, items:[{code, qty}] }
-      let curCart = null;
+      const rows = [];       // achatado: { code, qty, cartId|null, saleDate }
+      let curCartId = null;
+      let cartSeq = 0;
       for (let i = hdrIdx + 1; i < matrix.length; i++) {
         const row = matrix[i];
         if (!Array.isArray(row)) continue;
@@ -47,34 +68,22 @@ export default function ImportSales({ onSendToLote }) {
         const pac = ciPac >= 0 ? String(row[ciPac] ?? '').trim() : '';
         const comp = ciComp >= 0 ? String(row[ciComp] ?? '').trim() : '';
         const q = qtyOf(row[ciUn]) || 1;
+        const saleDate = ciData >= 0 ? parseSaleDate(row[ciData]) : null;
 
-        if (!code) {
-          // Linha separadora "Pacote de N produtos" → inicia um carrinho
-          curCart = { id: cartList.length + 1, items: [] };
-          cartList.push(curCart);
+        if (!code) { curCartId = ++cartSeq; continue; }              // separador → inicia carrinho
+        if (curCartId && pac === 'Sim' && !comp) {                    // item de carrinho
+          rows.push({ code, qty: q, cartId: curCartId, saleDate });
           continue;
         }
-        if (curCart && pac === 'Sim' && !comp) {
-          // Item de carrinho (herda o comprador em branco)
-          curCart.items.push({ code, qty: q });
-          continue;
-        }
-        // Venda normal → encerra qualquer carrinho aberto e soma no total
-        curCart = null;
-        const key = code.toUpperCase();
-        if (agg.has(key)) agg.get(key).qty += q;
-        else agg.set(key, { code, qty: q });
+        curCartId = null;                                            // venda normal
+        rows.push({ code, qty: q, cartId: null, saleDate });
       }
-      const validCarts = cartList.filter(c => c.items.length > 0);
-      if (agg.size === 0 && validCarts.length === 0) throw new Error('Nenhum SKU encontrado nas linhas da planilha.');
+      if (rows.length === 0) throw new Error('Nenhum SKU encontrado nas linhas da planilha.');
 
       // Cruza com o catálogo
       const res = await api.get('/skus');
       const byCode = new Map(res.data.map(s => [s.sku.toUpperCase(), s]));
-      const attach = ({ code, qty }) => ({ code, qty, skuObj: byCode.get(code.toUpperCase()) || null });
-
-      setItems(Array.from(agg.values()).map(attach));
-      setCarts(validCarts.map(c => ({ id: c.id, label: `Carrinho ${c.id}`, items: c.items.map(attach) })));
+      setParsedRows(rows.map(r => ({ ...r, skuObj: byCode.get(r.code.toUpperCase()) || null })));
     } catch (err) {
       setError(err.message || 'Erro ao ler a planilha');
       setFileName('');
@@ -83,6 +92,41 @@ export default function ImportSales({ onSendToLote }) {
       if (inputRef.current) inputRef.current.value = '';
     }
   }
+
+  // Deriva itens normais + carrinhos a partir das linhas, aplicando o filtro de data/hora
+  const { items, carts, detMin, detMax } = useMemo(() => {
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo) : null;
+    const active = !!(from || to);
+    const inRange = d => {
+      if (!d) return !active;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    };
+    let mn = null, mx = null;
+    for (const r of parsedRows) if (r.saleDate) { if (!mn || r.saleDate < mn) mn = r.saleDate; if (!mx || r.saleDate > mx) mx = r.saleDate; }
+    const agg = new Map();
+    const cartMap = new Map();
+    for (const r of parsedRows) {
+      if (!inRange(r.saleDate)) continue;
+      if (r.cartId) {
+        if (!cartMap.has(r.cartId)) cartMap.set(r.cartId, []);
+        cartMap.get(r.cartId).push(r);
+      } else {
+        const k = r.code.toUpperCase();
+        if (agg.has(k)) agg.get(k).qty += r.qty;
+        else agg.set(k, { code: r.code, qty: r.qty, skuObj: r.skuObj });
+      }
+    }
+    return {
+      items: Array.from(agg.values()),
+      carts: Array.from(cartMap.entries()).map(([id, its]) => ({
+        id, label: `Carrinho ${id}`, items: its.map(r => ({ code: r.code, qty: r.qty, skuObj: r.skuObj })),
+      })),
+      detMin: mn, detMax: mx,
+    };
+  }, [parsedRows, dateFrom, dateTo]);
 
   function toggle(code) {
     setSelected(prev => {
@@ -147,7 +191,26 @@ export default function ImportSales({ onSendToLote }) {
           {fileName && !parsing && <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{fileName}</span>}
         </div>
 
-        {(items.length > 0 || carts.length > 0) && (
+        {parsedRows.length > 0 && (
+          <div style={styles.filterBar}>
+            <div style={styles.group}>
+              <span style={styles.groupLabel}>De</span>
+              <input type="datetime-local" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={styles.dt} />
+              <span style={styles.groupLabel}>até</span>
+              <input type="datetime-local" value={dateTo} onChange={e => setDateTo(e.target.value)} style={styles.dt} />
+              {(dateFrom || dateTo) && (
+                <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => { setDateFrom(''); setDateTo(''); }}>Usar tudo</button>
+              )}
+            </div>
+            {detMin && (
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                Vendas na planilha: {fmtDT(detMin)} → {fmtDT(detMax)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {(items.length > 0 || carts.length > 0) ? (
           <>
             <div style={styles.summary}>
               <b>{items.length}</b> SKUs · <b>{totalUnid}</b> unidades vendidas
@@ -236,9 +299,13 @@ export default function ImportSales({ onSendToLote }) {
               </button>
             </div>
           </>
-        )}
+        ) : parsedRows.length > 0 ? (
+          <div className="empty-state" style={{ marginTop: '8px' }}>
+            <p>Nenhuma venda no período selecionado.</p>
+          </div>
+        ) : null}
 
-        {items.length === 0 && carts.length === 0 && !parsing && (
+        {parsedRows.length === 0 && !parsing && (
           <div className="empty-state" style={{ marginTop: '8px' }}>
             <p>Escolha a planilha de vendas (.xlsx) para começar.</p>
           </div>
@@ -250,6 +317,8 @@ export default function ImportSales({ onSendToLote }) {
 
 const styles = {
   uploadRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' },
+  filterBar: { display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' },
+  dt: { padding: '5px 8px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12.5px' },
   summary: { padding: '10px 14px', background: '#f7fafc', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '14px', fontSize: '14px', color: 'var(--text-secondary)' },
   toolbar: { display: 'flex', gap: '12px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' },
   searchWrapper: { flex: 1, minWidth: '200px', position: 'relative' },
