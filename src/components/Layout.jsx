@@ -5,6 +5,7 @@ const navItems = [
   { id: 'generate-sku', label: 'Etiquetas produtos', icon: '🏷️', roles: ['admin', 'user'] },
   { id: 'warning-labels', label: 'Etiquetas de Aviso', icon: '⚠️', roles: ['admin', 'user'] },
   { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
+  { id: 'import-sales', label: 'Importar Vendas', icon: '📥', roles: ['admin', 'user'] },
   { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
   { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
   { id: 'history', label: 'Histórico', icon: '🕑', roles: ['admin'] },

@@ -9,7 +9,7 @@ function newRow(sku = null) {
   return { id: rowSeq++, selected: sku, search: sku ? sku.sku : '', quantity: 1, useAlt: false };
 }
 
-export default function GenerateFromSKU() {
+export default function GenerateFromSKU({ seed, onSeedConsumed }) {
   const [skus, setSkus] = useState([]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +32,23 @@ export default function GenerateFromSKU() {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, []);
+
+  // Recebe SKUs vindos da tela "Importar Vendas" e mescla no lote
+  useEffect(() => {
+    if (!seed || seed.length === 0) return;
+    setRows(prev => {
+      const next = prev.map(r => ({ ...r }));
+      seed.forEach(({ sku, qty }) => {
+        const ex = next.find(r => r.selected && r.selected.sku.toUpperCase() === sku.sku.toUpperCase());
+        if (ex) ex.quantity = Math.min(999, (parseInt(ex.quantity, 10) || 0) + qty);
+        else next.push({ ...newRow(sku), quantity: Math.min(999, Math.max(1, qty)) });
+      });
+      return next;
+    });
+    setResult(null);
+    if (onSeedConsumed) onSeedConsumed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
 
   // Locais únicos para chips de filtro
   const locais = Array.from(

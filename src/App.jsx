@@ -8,6 +8,7 @@ import WarningLabels from './components/WarningLabels.jsx';
 import UserManagement from './components/UserManagement.jsx';
 import PrintHistory from './components/PrintHistory.jsx';
 import SkuUsage from './components/SkuUsage.jsx';
+import ImportSales from './components/ImportSales.jsx';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -19,6 +20,7 @@ export default function App() {
     }
   });
   const [page, setPage] = useState('generate-sku');
+  const [loteSeed, setLoteSeed] = useState(null);
 
   useEffect(() => {
     // Validate token still exists
@@ -52,12 +54,14 @@ export default function App() {
     content = <PrintHistory />;
   } else if (page === 'sku-usage' && user.role === 'admin') {
     content = <SkuUsage />;
+  } else if (page === 'import-sales') {
+    content = <ImportSales onSendToLote={items => { setLoteSeed(items); setPage('generate-sku'); }} />;
   } else if (page === 'generate-custom') {
     content = <GenerateCustom />;
   } else if (page === 'warning-labels') {
     content = <WarningLabels user={user} />;
   } else {
-    content = <GenerateFromSKU />;
+    content = <GenerateFromSKU seed={loteSeed} onSeedConsumed={() => setLoteSeed(null)} />;
   }
 
   return (
