@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import api from '../utils/api.js';
+import { backdropHandlers } from '../utils/backdrop.js';
 
 export default function ChangePasswordModal({ onClose }) {
+  const backdropDown = useRef(false);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -27,7 +29,7 @@ export default function ChangePasswordModal({ onClose }) {
   }
 
   return (
-    <div style={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+    <div style={styles.overlay} {...backdropHandlers(backdropDown, onClose)}>
       <div style={styles.modal}>
         <div style={styles.header}>
           <h2 style={styles.title}>Trocar senha</h2>

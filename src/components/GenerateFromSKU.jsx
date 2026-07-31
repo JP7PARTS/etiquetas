@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
 import ZPLOutput from './ZPLOutput.jsx';
 import { normalizeQuantity, copyZPL } from '../utils/zpl.js';
+import { backdropHandlers } from '../utils/backdrop.js';
 
 let rowSeq = 1;
 function newRow(sku = null) {
@@ -22,6 +23,7 @@ export default function GenerateFromSKU() {
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const backdropDown = useRef(false);
 
   useEffect(() => {
     loadSKUs();
@@ -461,7 +463,7 @@ export default function GenerateFromSKU() {
       )}
 
       {showImport && (
-        <div style={styles.modalOverlay} onClick={() => setShowImport(false)}>
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setShowImport(false))}>
           <div style={styles.modalCard} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h3 style={{margin: 0, fontSize: '16px'}}>Importar lista</h3>

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
+import { backdropHandlers } from '../utils/backdrop.js';
 
 const emptyForm = { username: '', email: '', password: '', role: 'user' };
 
 export default function UserManagement({ user }) {
+  const backdropDown = useRef(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -167,7 +169,7 @@ export default function UserManagement({ user }) {
 
       {/* Create/Edit Modal */}
       {modal && (
-        <div style={styles.modalOverlay} onClick={e => e.target === e.currentTarget && closeModal()}>
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, closeModal)}>
           <div style={styles.modal}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>{modal === 'edit' ? 'Editar usuário' : 'Novo usuário'}</h2>
@@ -234,7 +236,7 @@ export default function UserManagement({ user }) {
 
       {/* Delete Confirmation */}
       {deleteConfirm && (
-        <div style={styles.modalOverlay} onClick={e => e.target === e.currentTarget && setDeleteConfirm(null)}>
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setDeleteConfirm(null))}>
           <div style={{ ...styles.modal, maxWidth: '420px' }}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>Confirmar exclusão</h2>

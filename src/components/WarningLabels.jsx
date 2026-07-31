@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
 import { copyZPL } from '../utils/zpl.js';
+import { backdropHandlers } from '../utils/backdrop.js';
 
 const emptyForm = { nome: '', zpl: '' };
 
@@ -33,6 +34,7 @@ function applyPrintOffset(zpl, dy) {
 
 export default function WarningLabels({ user }) {
   const isAdmin = user?.role === 'admin';
+  const backdropDown = useRef(false);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -315,7 +317,7 @@ export default function WarningLabels({ user }) {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div style={styles.modalOverlay} onClick={e => e.target === e.currentTarget && setDeleteConfirm(null)}>
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setDeleteConfirm(null))}>
           <div style={{...styles.modal, maxWidth:'420px'}}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>Confirmar Exclusão</h2>
