@@ -2,30 +2,57 @@ import React, { useState, useEffect } from 'react';
 import ChangePasswordModal from './ChangePasswordModal.jsx';
 import api from '../utils/api.js';
 
-const navItems = [
-  { id: 'generate-sku', label: 'Etiquetas produtos', icon: '🏷️', roles: ['admin', 'user'] },
-  { id: 'warning-labels', label: 'Etiquetas de Aviso', icon: '⚠️', roles: ['admin', 'user'] },
-  { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
-  { id: 'import-sales', label: 'Importar Vendas', icon: '📥', roles: ['admin', 'user'] },
-  { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
-  { id: 'sku-requests', label: 'Solicitações de SKU', icon: '📨', roles: ['admin'] },
-  { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
-  { id: 'history', label: 'Histórico', icon: '🕑', roles: ['admin'] },
-  { id: 'sku-usage', label: 'Ranking SKUs', icon: '📊', roles: ['admin'] },
+const navSections = [
+  {
+    title: 'Geral',
+    items: [
+      { id: 'generate-sku', label: 'Etiquetas produtos', icon: '🏷️', roles: ['admin', 'user'] },
+      { id: 'warning-labels', label: 'Etiquetas de Aviso', icon: '⚠️', roles: ['admin', 'user'] },
+      { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
+      { id: 'import-sales', label: 'Importar Vendas', icon: '📥', roles: ['admin', 'user'] },
+    ],
+  },
+  {
+    title: 'Admin',
+    items: [
+      { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
+      { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
+      { id: 'history', label: 'Histórico', icon: '🕑', roles: ['admin'] },
+      { id: 'sku-usage', label: 'Ranking SKUs', icon: '📊', roles: ['admin'] },
+    ],
+  },
 ];
+const requestsItem = { id: 'sku-requests', label: 'Solicitações de SKU', icon: '📨' };
 
 export default function Layout({ user, page, onNavigate, onLogout, children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
   const [reqCount, setReqCount] = useState(0);
 
-  const visibleItems = navItems.filter(item => item.roles.includes(user.role));
+  const visibleSections = navSections
+    .map(sec => ({ ...sec, items: sec.items.filter(item => item.roles.includes(user.role)) }))
+    .filter(sec => sec.items.length > 0);
+  const showTitles = visibleSections.length > 1;
 
   // Contador de solicitações de SKU pendentes (admin) — atualiza ao navegar
   useEffect(() => {
     if (user.role !== 'admin') return;
     api.get('/sku-requests/count').then(r => setReqCount(r.data.count || 0)).catch(() => {});
   }, [user.role, page]);
+
+  function renderNavButton(item, isRequests = false) {
+    return (
+      <button
+        key={item.id}
+        onClick={() => { onNavigate(item.id); setSidebarOpen(false); }}
+        style={{ ...styles.navItem, ...(page === item.id ? styles.navItemActive : {}) }}
+      >
+        <span style={styles.navIcon}>{item.icon}</span>
+        <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
+        {isRequests && reqCount > 0 && <span style={styles.navBadge}>{reqCount}</span>}
+      </button>
+    );
+  }
 
   return (
     <div style={styles.root}>
@@ -48,22 +75,17 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
         </div>
 
         <nav style={styles.nav}>
-          {visibleItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => { onNavigate(item.id); setSidebarOpen(false); }}
-              style={{
-                ...styles.navItem,
-                ...(page === item.id ? styles.navItemActive : {}),
-              }}
-            >
-              <span style={styles.navIcon}>{item.icon}</span>
-              <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
-              {item.id === 'sku-requests' && reqCount > 0 && (
-                <span style={styles.navBadge}>{reqCount}</span>
-              )}
-            </button>
+          {visibleSections.map(sec => (
+            <div key={sec.title} style={styles.navSection}>
+              {showTitles && <div style={styles.navSectionTitle}>{sec.title}</div>}
+              {sec.items.map(item => renderNavButton(item))}
+            </div>
           ))}
+          {user.role === 'admin' && reqCount > 0 && (
+            <div style={styles.navFooterGroup}>
+              {renderNavButton(requestsItem, true)}
+            </div>
+          )}
         </nav>
 
         <div style={styles.sidebarFooter}>
@@ -219,6 +241,26 @@ const styles = {
   navIcon: {
     fontSize: '16px',
     flexShrink: 0,
+  },
+  navSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    marginBottom: '10px',
+  },
+  navSectionTitle: {
+    fontSize: '10.5px',
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.38)',
+    padding: '4px 12px',
+    marginTop: '2px',
+  },
+  navFooterGroup: {
+    marginTop: 'auto',
+    paddingTop: '10px',
+    borderTop: '1px solid rgba(255,255,255,0.08)',
   },
   navBadge: {
     flexShrink: 0,
