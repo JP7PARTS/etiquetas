@@ -135,6 +135,13 @@ export default function ImportSales({ user, onSendToLote }) {
     }
   }
 
+  function clearImport() {
+    setParsedRows([]); setFileName(''); setDateFrom(''); setDateTo('');
+    setSelected(new Set()); setSelCarts(new Set()); setSearch('');
+    setLocalFilter(''); setOnlyMissing(false); setCancelCount(0); setError('');
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
   function qtyOf(v) { const n = parseInt(Number(v), 10); return isNaN(n) ? 0 : n; }
 
   async function handleFile(e) {
@@ -371,6 +378,11 @@ export default function ImportSales({ user, onSendToLote }) {
           </button>
           <input ref={inputRef} type="file" accept=".xlsx,.xls" onChange={handleFile} style={{ display: 'none' }} />
           {fileName && !parsing && <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{fileName}</span>}
+          {parsedRows.length > 0 && !parsing && (
+            <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={clearImport} title="Limpar a planilha importada">
+              Remover planilha
+            </button>
+          )}
         </div>
 
         {parsedRows.length > 0 && (
