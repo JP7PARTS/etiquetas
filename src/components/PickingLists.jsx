@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
+import { backdropHandlers } from '../utils/backdrop.js';
 
 function fmtDate(s) { try { return new Date(s).toLocaleString('pt-BR'); } catch { return s; } }
 
+const emptySku = { sku: '', descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '' };
+
 export default function PickingLists({ user }) {
+  const isAdmin = user?.role === 'admin';
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -13,7 +17,15 @@ export default function PickingLists({ user }) {
   const [localFilter, setLocalFilter] = useState('ALL'); // ALL | __none__ | <local>
   const [onlyPending, setOnlyPending] = useState(false); // só não pegos
   const [catalog, setCatalog] = useState(new Map()); // code(UPPER) -> skuObj (para "sem cadastro" + auto-atualizar)
+  const [skuForm, setSkuForm] = useState(null);   // admin: cadastrar SKU direto
+  const [savingSku, setSavingSku] = useState(false);
+  const [skuErr, setSkuErr] = useState('');
+  const [reqForm, setReqForm] = useState(null);   // operador: solicitar cadastro
+  const [reqSaving, setReqSaving] = useState(false);
+  const [reqErr, setReqErr] = useState('');
+  const [requested, setRequested] = useState(new Set()); // SKUs já solicitados nesta sessão
   const saveTimer = useRef(null);
+  const backdropDown = useRef(false);
 
   useEffect(() => { loadLists(); }, []);
 
@@ -36,21 +48,53 @@ export default function PickingLists({ user }) {
     return { merged, changed };
   }
 
-  // Recarrega o catálogo ao focar a aba e atualiza a lista aberta (item "sem cadastro" vira normal)
+  // Recarrega o catálogo e re-mescla a lista aberta (item "sem cadastro" vira normal ao ser cadastrado)
+  async function refreshCatalogMerge() {
+    if (!open) return;
+    const cat = await fetchCatalog();
+    setCatalog(cat);
+    setItems(prev => {
+      const { merged, changed } = mergeItems(prev, cat);
+      if (changed) api.put(`/picking-lists/${open.id}`, { items: merged }).catch(() => {});
+      return merged;
+    });
+  }
+
   useEffect(() => {
     if (!open) return;
-    const onFocus = async () => {
-      const cat = await fetchCatalog();
-      setCatalog(cat);
-      setItems(prev => {
-        const { merged, changed } = mergeItems(prev, cat);
-        if (changed) api.put(`/picking-lists/${open.id}`, { items: merged }).catch(() => {});
-        return merged;
-      });
-    };
+    const onFocus = () => { refreshCatalogMerge().catch(() => {}); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [open]);
+
+  async function saveSku(e) {
+    e.preventDefault();
+    setSavingSku(true); setSkuErr('');
+    try {
+      await api.post('/skus', skuForm);
+      await refreshCatalogMerge();
+      setSkuForm(null);
+    } catch (err) {
+      if (err.response?.status === 409) { await refreshCatalogMerge(); setSkuForm(null); }
+      else setSkuErr(err.response?.data?.error || 'Erro ao cadastrar SKU');
+    } finally {
+      setSavingSku(false);
+    }
+  }
+
+  async function sendRequest(e) {
+    e.preventDefault();
+    setReqSaving(true); setReqErr('');
+    try {
+      await api.post('/sku-requests', reqForm);
+      setRequested(prev => new Set(prev).add(reqForm.sku.toUpperCase()));
+      setReqForm(null);
+    } catch (err) {
+      setReqErr(err.response?.data?.error || 'Erro ao enviar solicitação');
+    } finally {
+      setReqSaving(false);
+    }
+  }
 
   async function loadLists() {
     setLoading(true); setError('');
@@ -295,6 +339,21 @@ export default function PickingLists({ user }) {
                     <span style={{ flex: 1, color: 'var(--text-secondary)', textDecoration: it.picked ? 'line-through' : 'none' }}>
                       {missing ? <span style={styles.semTag}>sem cadastro</span> : (it.descricao || '')}
                     </span>
+                    {missing && (
+                      requested.has(String(it.sku).toUpperCase()) ? (
+                        <span style={styles.reqDone}>Solicitado ✓</span>
+                      ) : isAdmin ? (
+                        <button className="btn-outline" style={styles.rowBtn}
+                          onClick={e => { e.stopPropagation(); setSkuErr(''); setSkuForm({ ...emptySku, sku: it.sku, local: it.local || '' }); }}>
+                          Cadastrar
+                        </button>
+                      ) : (
+                        <button className="btn-outline" style={styles.rowBtn}
+                          onClick={e => { e.stopPropagation(); setReqErr(''); setReqForm({ sku: it.sku, titulo: it.descricao || '', local: it.local || '' }); }}>
+                          Solicitar
+                        </button>
+                      )
+                    )}
                   </div>
                 );
               })}
@@ -302,6 +361,80 @@ export default function PickingLists({ user }) {
           );
         })}
       </div>
+
+      {skuForm && (
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setSkuForm(null))}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Cadastrar SKU</h3>
+              <button type="button" onClick={() => setSkuForm(null)} style={styles.modalClose}>✕</button>
+            </div>
+            <form onSubmit={saveSku} style={styles.modalBody}>
+              {skuErr && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{skuErr}</div>}
+              <div className="form-group">
+                <label>SKU *</label>
+                <input value={skuForm.sku} onChange={e => setSkuForm(f => ({ ...f, sku: e.target.value }))}
+                  required maxLength={100} style={{ textTransform: 'uppercase' }} />
+              </div>
+              <div className="form-group">
+                <label>Descrição curta</label>
+                <input value={skuForm.descricao_curta} onChange={e => setSkuForm(f => ({ ...f, descricao_curta: e.target.value }))} maxLength={200} />
+              </div>
+              <div className="form-group">
+                <label>Descrição curta 2 (alternativa)</label>
+                <input value={skuForm.descricao_curta_2} onChange={e => setSkuForm(f => ({ ...f, descricao_curta_2: e.target.value }))} maxLength={200} />
+              </div>
+              <div className="form-group">
+                <label>Descrição longa</label>
+                <input value={skuForm.descricao_longa} onChange={e => setSkuForm(f => ({ ...f, descricao_longa: e.target.value }))} maxLength={400} />
+              </div>
+              <div className="form-group">
+                <label>Localização</label>
+                <input value={skuForm.local} onChange={e => setSkuForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div style={styles.modalFooter}>
+                <button type="button" className="btn-secondary" onClick={() => setSkuForm(null)}>Cancelar</button>
+                <button type="submit" className="btn-primary" disabled={savingSku}>
+                  {savingSku ? 'Salvando...' : 'Cadastrar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {reqForm && (
+        <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setReqForm(null))}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Solicitar cadastro ao admin</h3>
+              <button type="button" onClick={() => setReqForm(null)} style={styles.modalClose}>✕</button>
+            </div>
+            <form onSubmit={sendRequest} style={styles.modalBody}>
+              {reqErr && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{reqErr}</div>}
+              <div className="form-group">
+                <label>SKU</label>
+                <input value={reqForm.sku} readOnly style={{ background: '#f7fafc' }} />
+              </div>
+              <div className="form-group">
+                <label>Título do produto (opcional)</label>
+                <input value={reqForm.titulo} onChange={e => setReqForm(f => ({ ...f, titulo: e.target.value }))}
+                  placeholder="Ex.: Pedaleira BM F30" maxLength={300} autoFocus />
+              </div>
+              <div className="form-group">
+                <label>Localização (opcional)</label>
+                <input value={reqForm.local} onChange={e => setReqForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div style={styles.modalFooter}>
+                <button type="button" className="btn-secondary" onClick={() => setReqForm(null)}>Cancelar</button>
+                <button type="submit" className="btn-primary" disabled={reqSaving}>
+                  {reqSaving ? 'Enviando...' : 'Enviar solicitação'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -323,4 +456,12 @@ const styles = {
   pickQty: { fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: '34px' },
   code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: '#2b6cb0' },
   semTag: { fontSize: '11px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px' },
+  rowBtn: { padding: '4px 12px', fontSize: '12.5px', flexShrink: 0 },
+  reqDone: { fontSize: '12px', fontWeight: 700, color: '#276749', flexShrink: 0 },
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
+  modalCard: { background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
+  modalHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' },
+  modalClose: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' },
+  modalBody: { padding: '16px 20px', overflowY: 'auto' },
+  modalFooter: { display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '10px', borderTop: '1px solid var(--border)', marginTop: '4px' },
 };
