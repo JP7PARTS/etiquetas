@@ -63,18 +63,26 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   const items = Array.isArray(req.body.items) ? req.body.items : null;
   const name = req.body.name !== undefined ? String(req.body.name).trim() : null;
+  const expected = req.body.expected_updated_at || null; // controle de concorrência (opcional)
   if (!items && name === null) return res.status(400).json({ error: 'Nada para atualizar' });
   try {
+    // Se o cliente enviou o token de versão, atualiza só se ninguém mexeu depois
     const result = await db.query(
       `UPDATE picking_lists SET
          items = COALESCE($1, items),
          name = COALESCE($2, name),
          updated_at = NOW()
-       WHERE id = $3 RETURNING id`,
-      [items ? JSON.stringify(items) : null, name || null, req.params.id]
+       WHERE id = $3 AND ($4::timestamp IS NULL OR updated_at = $4::timestamp)
+       RETURNING id, updated_at`,
+      [items ? JSON.stringify(items) : null, name || null, req.params.id, expected]
     );
-    if (!result.rows[0]) return res.status(404).json({ error: 'Lista não encontrada' });
-    res.json({ message: 'Atualizado' });
+    if (!result.rows[0]) {
+      // Distingue "não existe" de "conflito de versão"
+      const cur = await db.query('SELECT updated_at FROM picking_lists WHERE id = $1', [req.params.id]);
+      if (!cur.rows[0]) return res.status(404).json({ error: 'Lista não encontrada' });
+      return res.status(409).json({ error: 'Lista atualizada em outro dispositivo', current_updated_at: cur.rows[0].updated_at });
+    }
+    res.json({ message: 'Atualizado', updated_at: result.rows[0].updated_at });
   } catch (err) {
     console.error('PUT /picking-lists/:id error:', err);
     res.status(500).json({ error: 'Erro ao atualizar lista' });

@@ -24,8 +24,10 @@ export default function PickingLists({ user }) {
   const [reqSaving, setReqSaving] = useState(false);
   const [reqErr, setReqErr] = useState('');
   const [requested, setRequested] = useState(new Set()); // SKUs já solicitados nesta sessão
+  const [tab, setTab] = useState('ativas'); // ativas | concluidas (lista de listas)
   const saveTimer = useRef(null);
   const backdropDown = useRef(false);
+  const lastUpdatedAt = useRef(null); // token de versão da lista aberta (controle de concorrência)
 
   useEffect(() => { loadLists(); }, []);
 
@@ -48,6 +50,19 @@ export default function PickingLists({ user }) {
     return { merged, changed };
   }
 
+  // Salva itens com controle de versão. Em 409 (outro dispositivo alterou), recarrega a lista.
+  async function savePut(id, next) {
+    try {
+      const res = await api.put(`/picking-lists/${id}`, { items: next, expected_updated_at: lastUpdatedAt.current });
+      if (res.data?.updated_at) lastUpdatedAt.current = res.data.updated_at;
+    } catch (err) {
+      if (err.response?.status === 409) {
+        alert('Esta lista foi atualizada em outro dispositivo. Recarregando o progresso mais recente.');
+        openList(id);
+      }
+    }
+  }
+
   // Recarrega o catálogo e re-mescla a lista aberta (item "sem cadastro" vira normal ao ser cadastrado)
   async function refreshCatalogMerge() {
     if (!open) return;
@@ -55,7 +70,7 @@ export default function PickingLists({ user }) {
     setCatalog(cat);
     setItems(prev => {
       const { merged, changed } = mergeItems(prev, cat);
-      if (changed) api.put(`/picking-lists/${open.id}`, { items: merged }).catch(() => {});
+      if (changed) savePut(open.id, merged);
       return merged;
     });
   }
@@ -114,10 +129,11 @@ export default function PickingLists({ user }) {
       setCatalog(cat);
       const raw = Array.isArray(res.data.items) ? res.data.items : [];
       const { merged, changed } = mergeItems(raw, cat);
+      lastUpdatedAt.current = res.data.updated_at || null;
       setOpen(res.data);
       setItems(merged);
       setLocalFilter('ALL'); setDir('asc'); setOnlyPending(false);
-      if (changed) api.put(`/picking-lists/${id}`, { items: merged }).catch(() => {});
+      if (changed) savePut(id, merged);
     } catch (err) {
       setError('Erro ao abrir lista: ' + (err.response?.data?.error || err.message));
     }
@@ -125,14 +141,12 @@ export default function PickingLists({ user }) {
 
   function persist(next) {
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      api.put(`/picking-lists/${open.id}`, { items: next }).catch(() => {});
-    }, 500);
+    saveTimer.current = setTimeout(() => { savePut(open.id, next); }, 500);
   }
 
   function backToList() {
     clearTimeout(saveTimer.current);
-    if (open) api.put(`/picking-lists/${open.id}`, { items }).catch(() => {});
+    if (open) savePut(open.id, items);
     setOpen(null);
     loadLists();
   }
@@ -175,6 +189,9 @@ export default function PickingLists({ user }) {
 
   const total = items.length;
   const pegos = items.filter(it => it.picked).length;
+  const qtyOf = it => Math.max(1, parseInt(it.qty, 10) || 1);
+  const pecasTotal = items.reduce((s, it) => s + qtyOf(it), 0);
+  const pecasPegas = items.filter(it => it.picked).reduce((s, it) => s + qtyOf(it), 0);
 
   function print() {
     const rows = [];
@@ -204,6 +221,10 @@ export default function PickingLists({ user }) {
   }
 
   // ================= LISTA DE LISTAS =================
+  const isDone = l => Number(l.total) > 0 && Number(l.pegos) >= Number(l.total);
+  const doneLists = lists.filter(isDone);
+  const activeLists = lists.filter(l => !isDone(l));
+  const shownLists = tab === 'concluidas' ? doneLists : activeLists;
   if (!open) {
     return (
       <div>
@@ -213,14 +234,17 @@ export default function PickingLists({ user }) {
         </div>
         {error && <div className="alert alert-error">{error}</div>}
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-              {loading ? 'Carregando...' : `${lists.length} lista${lists.length !== 1 ? 's' : ''}`}
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button onClick={() => setTab('ativas')} style={{ ...styles.chip, ...(tab === 'ativas' ? styles.chipOn : {}) }}>Ativas ({activeLists.length})</button>
+              <button onClick={() => setTab('concluidas')} style={{ ...styles.chip, ...(tab === 'concluidas' ? styles.chipOn : {}) }}>Concluídas ({doneLists.length})</button>
+            </div>
             <button className="btn-outline" onClick={loadLists}>Atualizar</button>
           </div>
-          {loading ? null : lists.length === 0 ? (
-            <div className="empty-state"><p>Nenhuma lista salva ainda. Crie uma em "Importar Vendas" (modo Sem carrinho → Salvar lista de picking).</p></div>
+          {loading ? null : shownLists.length === 0 ? (
+            <div className="empty-state"><p>{lists.length === 0
+              ? 'Nenhuma lista salva ainda. Crie uma em "Importar Vendas" (modo Sem carrinho → Salvar lista de picking).'
+              : tab === 'ativas' ? 'Nenhuma lista ativa — todas foram concluídas.' : 'Nenhuma lista concluída ainda.'}</p></div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table>
@@ -231,7 +255,7 @@ export default function PickingLists({ user }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {lists.map(l => {
+                  {shownLists.map(l => {
                     const pct = l.total > 0 ? Math.round((l.pegos / l.total) * 100) : 0;
                     return (
                       <tr key={l.id}>
@@ -281,7 +305,10 @@ export default function PickingLists({ user }) {
           <div style={styles.progWrapBig}>
             <div style={{ ...styles.progFill, width: `${total ? Math.round(pegos / total * 100) : 0}%`, background: pegos === total && total > 0 ? '#38a169' : 'var(--btn-primary)' }} />
           </div>
-          <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '4px' }}>{pegos} de {total} pegos</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '4px' }}>
+            {pegos} de {total} itens
+            <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> · {pecasPegas}/{pecasTotal} peças</span>
+          </div>
         </div>
 
         {/* Controles: direção + filtro de local */}
@@ -322,7 +349,7 @@ export default function PickingLists({ user }) {
           return (
             <div key={l || 'sem'} style={styles.localGroup}>
               <div style={styles.localHeader}>
-                <span style={styles.localTitle}>📍 {l || 'Sem local'} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({its.filter(x => x.it.picked).length}/{its.length})</span></span>
+                <span style={styles.localTitle}>📍 {l || 'Sem local'} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({its.filter(x => x.it.picked).length}/{its.length} itens · {its.reduce((s, x) => s + qtyOf(x.it), 0)} peças)</span></span>
                 <button className="btn-outline" style={{ padding: '4px 10px', fontSize: '12.5px' }}
                   onClick={() => markLocal(l, !allPicked)}>
                   {allPicked ? 'Desmarcar todos' : 'Marcar todos deste local'}

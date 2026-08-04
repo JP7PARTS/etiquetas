@@ -1,5 +1,4 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import api from '../utils/api.js';
 import { backdropHandlers } from '../utils/backdrop.js';
 
@@ -57,6 +56,7 @@ export default function ImportSales({ user, onSendToLote }) {
   const [requested, setRequested] = useState(new Set()); // SKUs já solicitados nesta sessão
   const inputRef = useRef(null);
   const backdropDown = useRef(false);
+  const hydrated = useRef(false);
 
   async function refreshCatalog() {
     const res = await api.get('/skus');
@@ -72,6 +72,39 @@ export default function ImportSales({ user, onSendToLote }) {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, []);
+
+  // Restaura a última importação (sobrevive a F5 e à navegação dentro do app)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('importSales:v1');
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (Array.isArray(s.parsedRows) && s.parsedRows.length) {
+          setParsedRows(s.parsedRows.map(r => ({ ...r, saleDate: r.saleDate ? new Date(r.saleDate) : null })));
+          setFileName(s.fileName || '');
+          setDateFrom(s.dateFrom || ''); setDateTo(s.dateTo || '');
+          setSelected(new Set(s.selected || [])); setSelCarts(new Set(s.selCarts || []));
+          setSearch(s.search || ''); setSortBy(s.sortBy || 'sku'); setSortDir(s.sortDir || 'asc');
+          setMode(s.mode || 'com'); setLocalFilter(s.localFilter || ''); setOnlyMissing(!!s.onlyMissing);
+          setCancelCount(s.cancelCount || 0);
+        }
+      }
+    } catch { /* ignora snapshot inválido */ }
+    hydrated.current = true;
+  }, []);
+
+  // Salva o estado da importação a cada mudança (depois de reidratar)
+  useEffect(() => {
+    if (!hydrated.current) return;
+    try {
+      if (parsedRows.length === 0) { sessionStorage.removeItem('importSales:v1'); return; }
+      sessionStorage.setItem('importSales:v1', JSON.stringify({
+        fileName, parsedRows, dateFrom, dateTo,
+        selected: [...selected], selCarts: [...selCarts],
+        search, sortBy, sortDir, mode, localFilter, onlyMissing, cancelCount,
+      }));
+    } catch { /* cota cheia — ignora */ }
+  }, [parsedRows, fileName, dateFrom, dateTo, selected, selCarts, search, sortBy, sortDir, mode, localFilter, onlyMissing, cancelCount]);
 
   async function sendRequest(e) {
     e.preventDefault();
@@ -111,6 +144,7 @@ export default function ImportSales({ user, onSendToLote }) {
     setDateFrom(''); setDateTo(''); setCancelCount(0);
     setFileName(file.name);
     try {
+      const XLSX = await import('xlsx'); // carregado sob demanda (não pesa no bundle inicial)
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
