@@ -11,6 +11,7 @@ export default function PickingLists({ user }) {
   const [items, setItems] = useState([]);      // itens da lista aberta
   const [dir, setDir] = useState('asc');       // A→F | F→A
   const [localFilter, setLocalFilter] = useState('ALL'); // ALL | __none__ | <local>
+  const [onlyPending, setOnlyPending] = useState(false); // só não pegos
   const [catalog, setCatalog] = useState(new Map()); // code(UPPER) -> skuObj (para "sem cadastro" + auto-atualizar)
   const saveTimer = useRef(null);
 
@@ -71,7 +72,7 @@ export default function PickingLists({ user }) {
       const { merged, changed } = mergeItems(raw, cat);
       setOpen(res.data);
       setItems(merged);
-      setLocalFilter('ALL'); setDir('asc');
+      setLocalFilter('ALL'); setDir('asc'); setOnlyPending(false);
       if (changed) api.put(`/picking-lists/${id}`, { items: merged }).catch(() => {});
     } catch (err) {
       setError('Erro ao abrir lista: ' + (err.response?.data?.error || err.message));
@@ -258,13 +259,19 @@ export default function PickingLists({ user }) {
                 style={{ ...styles.chip, ...(localFilter === '__none__' ? styles.chipOn : {}) }}>Sem local</button>
             )}
           </div>
+          <div style={styles.group}>
+            <button onClick={() => setOnlyPending(v => !v)}
+              style={{ ...styles.chip, ...(onlyPending ? styles.chipOn : {}) }}>
+              {onlyPending ? '✓ ' : ''}Só faltantes ({total - pegos})
+            </button>
+          </div>
         </div>
 
         {/* Grupos por local */}
         {shownLocais.map(l => {
           const its = items
             .map((it, idx) => ({ it, idx }))
-            .filter(x => (x.it.local || '') === l)
+            .filter(x => (x.it.local || '') === l && (!onlyPending || !x.it.picked))
             .sort((a, b) => a.it.sku.localeCompare(b.it.sku));
           if (its.length === 0) return null;
           const allPicked = its.every(x => x.it.picked);
