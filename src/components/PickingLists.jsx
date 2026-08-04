@@ -140,9 +140,9 @@ export default function PickingLists({ user }) {
       for (const it of its.sort((a, b) => a.sku.localeCompare(b.sku))) {
         rows.push(`<tr>
           <td style="text-align:center;border:1px solid #ccc;width:28px">&#9744;</td>
-          <td style="border:1px solid #ccc;padding:4px 8px;font-family:monospace">${it.sku}</td>
+          <td style="border:1px solid #ccc;padding:4px 8px;font-family:monospace;white-space:nowrap">${it.sku}</td>
+          <td style="border:1px solid #ccc;padding:4px 8px;text-align:center;font-weight:bold;width:48px">${it.qty}</td>
           <td style="border:1px solid #ccc;padding:4px 8px">${(it.descricao || (catalog.has(String(it.sku).toUpperCase()) ? '' : 'sem cadastro')).replace(/</g, '&lt;')}</td>
-          <td style="border:1px solid #ccc;padding:4px 8px;text-align:center;font-weight:bold">${it.qty}</td>
         </tr>`);
       }
     }
@@ -151,7 +151,7 @@ export default function PickingLists({ user }) {
       <table style="border-collapse:collapse;width:100%;font-size:13px">
         <thead><tr>
           <th style="border:1px solid #ccc">✓</th><th style="border:1px solid #ccc">SKU</th>
-          <th style="border:1px solid #ccc">Descrição</th><th style="border:1px solid #ccc">Qtde</th>
+          <th style="border:1px solid #ccc">Qtde</th><th style="border:1px solid #ccc">Descrição</th>
         </tr></thead><tbody>${rows.join('')}</tbody>
       </table></body></html>`;
     const w = window.open('', '_blank');

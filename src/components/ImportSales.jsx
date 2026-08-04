@@ -47,6 +47,7 @@ export default function ImportSales({ user, onSendToLote }) {
   const [pickName, setPickName] = useState(null); // null | string (modal salvar picking)
   const [pickSaving, setPickSaving] = useState(false);
   const [pickMsg, setPickMsg] = useState('');
+  const [cancelCount, setCancelCount] = useState(0); // pedidos cancelados ignorados
   const [skuForm, setSkuForm] = useState(null);  // null | {sku, descricao_curta, ...}
   const [savingSku, setSavingSku] = useState(false);
   const [skuErr, setSkuErr] = useState('');
@@ -107,7 +108,7 @@ export default function ImportSales({ user, onSendToLote }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setParsing(true); setError(''); setParsedRows([]); setSelected(new Set()); setSelCarts(new Set());
-    setDateFrom(''); setDateTo('');
+    setDateFrom(''); setDateTo(''); setCancelCount(0);
     setFileName(file.name);
     try {
       const buf = await file.arrayBuffer();
@@ -123,11 +124,14 @@ export default function ImportSales({ user, onSendToLote }) {
       const ciPac = header.indexOf('Pacote de diversos produtos');
       const ciComp = header.indexOf('Comprador');
       const ciData = header.indexOf('Data da venda');
+      const ciEstado = header.indexOf('Estado');
       if (ciUn < 0) throw new Error('Não encontrei a coluna "Unidades" na planilha.');
 
       const rows = [];       // achatado: { code, qty, cartId|null, saleDate }
       let curCartId = null;
+      let curCartCancel = false;
       let cartSeq = 0;
+      let cancelados = 0;
       for (let i = hdrIdx + 1; i < matrix.length; i++) {
         const row = matrix[i];
         if (!Array.isArray(row)) continue;
@@ -137,16 +141,21 @@ export default function ImportSales({ user, onSendToLote }) {
         const comp = ciComp >= 0 ? String(row[ciComp] ?? '').trim() : '';
         const q = qtyOf(row[ciUn]) || 1;
         const saleDate = ciData >= 0 ? parseSaleDate(row[ciData]) : null;
+        const estado = ciEstado >= 0 ? String(row[ciEstado] ?? '') : '';
+        const cancelled = /cancel/i.test(estado);
 
-        if (!code) { curCartId = ++cartSeq; continue; }              // separador → inicia carrinho
+        if (!code) { curCartId = ++cartSeq; curCartCancel = cancelled; continue; } // separador → inicia carrinho
         if (curCartId && pac === 'Sim' && !comp) {                    // item de carrinho
+          if (curCartCancel || cancelled) { cancelados++; continue; } // carrinho/pedido cancelado → ignora
           rows.push({ code, qty: q, cartId: curCartId, saleDate });
           continue;
         }
         curCartId = null;                                            // venda normal
+        if (cancelled) { cancelados++; continue; }                   // pedido cancelado → ignora
         rows.push({ code, qty: q, cartId: null, saleDate });
       }
-      if (rows.length === 0) throw new Error('Nenhum SKU encontrado nas linhas da planilha.');
+      if (rows.length === 0) throw new Error('Nenhum SKU válido na planilha (todos cancelados?).');
+      setCancelCount(cancelados);
 
       // Cruza com o catálogo
       const res = await api.get('/skus');
@@ -212,10 +221,10 @@ export default function ImportSales({ user, onSendToLote }) {
     });
   }
   function selectAllCadastrados() {
-    // Marca apenas os visíveis no filtro atual, somando à seleção (permite acumular por corredor)
+    // Marca todos os visíveis no filtro atual (cadastrados E não cadastrados), somando à seleção
     setSelected(prev => {
       const n = new Set(prev);
-      filtered.filter(i => i.skuObj).forEach(i => n.add(i.code));
+      filtered.forEach(i => n.add(i.code));
       return n;
     });
     setSelCarts(prev => {
@@ -230,10 +239,13 @@ export default function ImportSales({ user, onSendToLote }) {
   const locais = Array.from(new Set(
     parsedRows.map(r => (r.skuObj?.local || '').trim()).filter(Boolean)
   )).sort();
+  const hasSemLocal = items.some(i => !(i.skuObj?.local || '').trim());
 
   const itemMatches = it =>
     (!q || it.code.toLowerCase().includes(q) || (it.skuObj?.descricao_curta || '').toLowerCase().includes(q)) &&
-    (!localFilter || (it.skuObj?.local || '').trim() === localFilter) &&
+    (localFilter === '__none__'
+      ? !(it.skuObj?.local || '').trim()
+      : (!localFilter || (it.skuObj?.local || '').trim() === localFilter)) &&
     (!onlyMissing || !it.skuObj);
 
   const dir = sortDir === 'asc' ? 1 : -1;
@@ -352,6 +364,7 @@ export default function ImportSales({ user, onSendToLote }) {
             <div style={styles.summary}>
               <b>{items.length}</b> SKUs · <b>{totalUnid}</b> unidades vendidas
               {carts.length > 0 && <span> · <b>{carts.length}</b> carrinho{carts.length !== 1 ? 's' : ''} 🛒</span>}
+              {cancelCount > 0 && <span style={{ color: 'var(--text-muted)' }}> · {cancelCount} cancelado{cancelCount !== 1 ? 's' : ''} ignorado{cancelCount !== 1 ? 's' : ''}</span>}
               {naoCadastrados > 0 && <span style={{ color: '#c53030' }}> · {naoCadastrados} não cadastrado{naoCadastrados !== 1 ? 's' : ''}</span>}
             </div>
 
@@ -390,17 +403,21 @@ export default function ImportSales({ user, onSendToLote }) {
               )}
             </div>
 
-            {(locais.length > 0 || naoCadastrados > 0) && (
+            {(locais.length > 0 || hasSemLocal || naoCadastrados > 0) && (
               <div style={styles.toolbar}>
                 <div style={styles.group}>
-                  {locais.length > 0 && <span style={styles.groupLabel}>Local</span>}
-                  {locais.length > 0 && (
+                  {(locais.length > 0 || hasSemLocal) && <span style={styles.groupLabel}>Local</span>}
+                  {(locais.length > 0 || hasSemLocal) && (
                     <button onClick={() => setLocalFilter('')} style={{ ...styles.chip, ...(localFilter === '' ? styles.chipOn : {}) }}>Todos</button>
                   )}
                   {locais.map(l => (
                     <button key={l} onClick={() => setLocalFilter(l === localFilter ? '' : l)}
                       style={{ ...styles.chip, ...(localFilter === l ? styles.chipOn : {}) }}>{l}</button>
                   ))}
+                  {hasSemLocal && (
+                    <button onClick={() => setLocalFilter(localFilter === '__none__' ? '' : '__none__')}
+                      style={{ ...styles.chip, ...(localFilter === '__none__' ? styles.chipOn : {}) }}>Sem local</button>
+                  )}
                 </div>
                 {naoCadastrados > 0 && (
                   <button onClick={() => setOnlyMissing(m => !m)}
@@ -412,7 +429,7 @@ export default function ImportSales({ user, onSendToLote }) {
             )}
 
             <div style={styles.selBar}>
-              <button className="btn-outline" style={{ padding: '5px 12px' }} onClick={selectAllCadastrados}>Selecionar todos (cadastrados)</button>
+              <button className="btn-outline" style={{ padding: '5px 12px' }} onClick={selectAllCadastrados}>Selecionar todos</button>
               <button className="btn-outline" style={{ padding: '5px 12px' }} onClick={clearSel}>Limpar seleção</button>
             </div>
 
