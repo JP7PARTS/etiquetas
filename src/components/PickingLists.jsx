@@ -50,17 +50,12 @@ export default function PickingLists({ user }) {
     return { merged, changed };
   }
 
-  // Salva itens com controle de versão. Em 409 (outro dispositivo alterou), recarrega a lista.
+  // Salva itens (best-effort). Controle de conflito desativado por enquanto.
   async function savePut(id, next) {
     try {
-      const res = await api.put(`/picking-lists/${id}`, { items: next, expected_updated_at: lastUpdatedAt.current });
+      const res = await api.put(`/picking-lists/${id}`, { items: next });
       if (res.data?.updated_at) lastUpdatedAt.current = res.data.updated_at;
-    } catch (err) {
-      if (err.response?.status === 409) {
-        alert('Esta lista foi atualizada em outro dispositivo. Recarregando o progresso mais recente.');
-        openList(id);
-      }
-    }
+    } catch { /* ignora falha de rede */ }
   }
 
   // Recarrega o catálogo e re-mescla a lista aberta (item "sem cadastro" vira normal ao ser cadastrado)
