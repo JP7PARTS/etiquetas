@@ -191,11 +191,15 @@ export default function PickingLists({ user }) {
 
   function print() {
     const rows = [];
-    for (const l of orderedLocais) {
-      const its = items.filter(it => (it.local || '') === l);
+    for (const l of shownLocais) {
+      const its = items
+        .filter(it => (it.local || '') === l && (!onlyPending || !it.picked))
+        .sort((a, b) => itemSort === 'qty'
+          ? (qtyOf(b) - qtyOf(a)) || a.sku.localeCompare(b.sku)
+          : a.sku.localeCompare(b.sku));
       if (its.length === 0) continue;
       rows.push(`<tr><td colspan="4" style="background:#eee;font-weight:bold;padding:6px 8px">Local: ${l || 'Sem local'}</td></tr>`);
-      for (const it of its.sort((a, b) => a.sku.localeCompare(b.sku))) {
+      for (const it of its) {
         rows.push(`<tr>
           <td style="text-align:center;border:1px solid #ccc;width:28px">&#9744;</td>
           <td style="border:1px solid #ccc;padding:4px 8px;font-family:monospace;white-space:nowrap">${it.sku}</td>
