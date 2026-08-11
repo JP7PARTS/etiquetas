@@ -383,11 +383,6 @@ export default function ImportSales({ user, onSendToLote }) {
               Remover planilha
             </button>
           )}
-          {parsedRows.length > 0 && !parsing && (dateFrom || dateTo) && (
-            <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => { setDateFrom(''); setDateTo(''); }} title="Remover o filtro de data/hora">
-              Usar data completa
-            </button>
-          )}
         </div>
 
         {parsedRows.length > 0 && (
@@ -398,6 +393,9 @@ export default function ImportSales({ user, onSendToLote }) {
               <span style={styles.groupLabel}>até</span>
               <input type="datetime-local" value={dateTo} onChange={e => setDateTo(e.target.value)} style={styles.dt} />
               <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => setDateTo(nowLocal())} title="Usar a data/hora atual">Agora</button>
+              {(dateFrom || dateTo) && (
+                <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => { setDateFrom(''); setDateTo(''); }} title="Remover o filtro de data/hora">Usar data completa</button>
+              )}
             </div>
             {detMin && (
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
