@@ -16,6 +16,7 @@ export default function PickingLists({ user }) {
   const [dir, setDir] = useState('asc');       // A→F | F→A
   const [localFilter, setLocalFilter] = useState('ALL'); // ALL | __none__ | <local>
   const [onlyPending, setOnlyPending] = useState(false); // só não pegos
+  const [itemSort, setItemSort] = useState('sku'); // sku | qty (dentro de cada corredor)
   const [catalog, setCatalog] = useState(new Map()); // code(UPPER) -> skuObj (para "sem cadastro" + auto-atualizar)
   const [skuForm, setSkuForm] = useState(null);   // admin: cadastrar SKU direto
   const [savingSku, setSavingSku] = useState(false);
@@ -326,6 +327,11 @@ export default function PickingLists({ user }) {
             )}
           </div>
           <div style={styles.group}>
+            <span style={styles.groupLabel}>Ordenar</span>
+            <button onClick={() => setItemSort('sku')} style={{ ...styles.chip, ...(itemSort === 'sku' ? styles.chipOn : {}) }}>SKU</button>
+            <button onClick={() => setItemSort('qty')} style={{ ...styles.chip, ...(itemSort === 'qty' ? styles.chipOn : {}) }}>Qtde</button>
+          </div>
+          <div style={styles.group}>
             <button onClick={() => setOnlyPending(v => !v)}
               style={{ ...styles.chip, ...(onlyPending ? styles.chipOn : {}) }}>
               {onlyPending ? '✓ ' : ''}Só faltantes ({total - pegos})
@@ -338,7 +344,9 @@ export default function PickingLists({ user }) {
           const its = items
             .map((it, idx) => ({ it, idx }))
             .filter(x => (x.it.local || '') === l && (!onlyPending || !x.it.picked))
-            .sort((a, b) => a.it.sku.localeCompare(b.it.sku));
+            .sort((a, b) => itemSort === 'qty'
+              ? (qtyOf(b.it) - qtyOf(a.it)) || a.it.sku.localeCompare(b.it.sku)
+              : a.it.sku.localeCompare(b.it.sku));
           if (its.length === 0) return null;
           const allPicked = its.every(x => x.it.picked);
           return (
