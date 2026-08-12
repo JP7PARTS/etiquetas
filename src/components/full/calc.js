@@ -47,10 +47,11 @@ function calcMelhores(perfBySku, ranking) {
 }
 
 // vendas: { 7, 15, 30 } (parseVendas); desempenho opcional (parseDesempenho)
-export function computeReposicao({ resumo, vendas, cross, desempenho, params }) {
+export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params }) {
   const regra = params?.regra || 'MAX';
   const diasCobertura = params?.diasCobertura || 30;
   const ranking = params?.ranking || { metodo: 'topN', topN: 50 };
+  const excl = excluidos instanceof Set ? excluidos : new Set(excluidos || []);
   const periodos = [7, 15, 30];
 
   const anuncioToCml = new Map();
@@ -60,10 +61,10 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, params }) 
     if (p.sku) skusFull.add(p.sku);
   }
 
-  return _run({ resumo, vendas, cross, desempenho, params: { regra, diasCobertura, ranking }, anuncioToCml, skusFull, periodos });
+  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking }, anuncioToCml, skusFull, periodos });
 }
 
-function _run({ resumo, vendas, cross, desempenho, params, anuncioToCml, skusFull, periodos }) {
+function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull, periodos }) {
   const { regra, diasCobertura, ranking } = params;
   const demCmlFull = new Map();   // cml -> {7,15,30} canal full
   const mlCheck = new Map();      // cml -> valida+media 30d full
@@ -120,6 +121,13 @@ function _run({ resumo, vendas, cross, desempenho, params, anuncioToCml, skusFul
   const melhores = calcMelhores(perfBySku, ranking);
   const perf = (sku) => perfBySku.get(sku) || { un: 0, receita: 0, conv: 0 };
 
+  // Posição no ranking (top 1, 2, 3…) pelos percentis de qtd+valor(+conversão)
+  const entriesM = [...perfBySku.entries()];
+  const pu = percentis(entriesM, p => p.un), pr = percentis(entriesM, p => p.receita), pc = percentis(entriesM, p => p.conv || 0);
+  const scoreOf = (sku) => (pu.get(sku) || 0) + (pr.get(sku) || 0) + (ranking?.metodo === 'score' ? (pc.get(sku) || 0) : 0);
+  const rankPosMap = new Map();
+  [...melhores].sort((a, b) => scoreOf(b) - scoreOf(a)).forEach((sku, i) => rankPosMap.set(sku, i + 1));
+
   // ---- Linhas do Full (Resumo) ----
   let rows = resumo.map(p => {
     const d = demCmlFull.get(p.codigoMl) || { 7: 0, 15: 0, 30: 0 };
@@ -132,7 +140,8 @@ function _run({ resumo, vendas, cross, desempenho, params, anuncioToCml, skusFul
     const melhor = melhores.has(p.sku);
     const vendeFull = d[30] > 0;
     let decisao;
-    if (p.semanas != null && p.semanas >= 10 && !melhor) decisao = 'Avaliar saída';
+    if (excl.has(p.sku)) decisao = 'Não enviar';
+    else if (p.semanas != null && p.semanas >= 10 && !melhor) decisao = 'Avaliar saída';
     else if (melhor || vendeFull) decisao = 'Manter';
     else if (estoque > 0) decisao = 'Avaliar saída';
     else decisao = 'Ignorar';
@@ -141,8 +150,8 @@ function _run({ resumo, vendas, cross, desempenho, params, anuncioToCml, skusFul
       vel7: vel[7], vel15: vel[15], vel30: vel[30], velEsc,
       un30: d[30], un30ml: p.un30, estoque, semanas: p.semanas,
       crossSku: cross?.map?.get((p.sku || '').toUpperCase()) || 0,
-      sugestao, final: decisao === 'Avaliar saída' || decisao === 'Ignorar' ? 0 : sugestao,
-      melhor, perf: perf(p.sku), decisao, alertas: [],
+      sugestao, final: (decisao === 'Manter') ? sugestao : 0,
+      melhor, rankPos: rankPosMap.get(p.sku) || null, perf: perf(p.sku), decisao, alertas: [],
     };
   });
 
@@ -157,14 +166,14 @@ function _run({ resumo, vendas, cross, desempenho, params, anuncioToCml, skusFul
     const melhor = melhores.has(sku);
     const sugestaoBruta = Math.max(0, Math.ceil(velEsc * diasCobertura));
     const sugestao = Math.min(sugestaoBruta, crossSku);
-    const decisao = melhor && crossSku > 0 ? 'Promover' : 'Ignorar';
+    const decisao = excl.has(sku) ? 'Não enviar' : (melhor && crossSku > 0 ? 'Promover' : 'Ignorar');
     const orf = orfas.lista.find(o => o.sku === sku);
     rows.push({
       key: 'cross:' + sku, origem: 'cross', codigoMl: '', sku, produto: orf?.titulo || sku,
       vel7: vel[7], vel15: vel[15], vel30: vel[30], velEsc,
       un30: d[30], un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
-      melhor, perf: perf(sku), decisao, alertas: [],
+      melhor, rankPos: rankPosMap.get(sku) || null, perf: perf(sku), decisao, alertas: [],
     });
   }
 
@@ -204,7 +213,7 @@ function _run({ resumo, vendas, cross, desempenho, params, anuncioToCml, skusFul
     meta: {
       regra, diasCobertura, ranking, span: spanByP, orfas,
       temDesempenho: !!desempenho?.bySku,
-      decisoes: { Manter: conta('Manter'), Promover: conta('Promover'), 'Avaliar saída': conta('Avaliar saída'), Ignorar: conta('Ignorar') },
+      decisoes: { Manter: conta('Manter'), Promover: conta('Promover'), 'Avaliar saída': conta('Avaliar saída'), Ignorar: conta('Ignorar'), 'Não enviar': conta('Não enviar') },
       validacao: { divergentes, comparaveis, pct, ok: pct <= 5 },
       totalTravado: rows.reduce((s, r) => s + r.final, 0),
       linhasComEnvio: rows.filter(r => r.final > 0).length,

@@ -90,6 +90,14 @@ CREATE TABLE IF NOT EXISTS full_notes (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- SKUs que nunca devem ir pro Full (ex.: grandes demais, só vendem no cross)
+CREATE TABLE IF NOT EXISTS full_excluidos (
+  sku VARCHAR(100) PRIMARY KEY,
+  motivo VARCHAR(200),
+  created_by_name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (username, email, password_hash, role)

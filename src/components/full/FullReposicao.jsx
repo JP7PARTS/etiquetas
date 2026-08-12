@@ -19,6 +19,7 @@ const DEC_STYLE = {
   'Promover': { bg: '#c6f6d5', fg: '#22543d' },
   'Avaliar saída': { bg: '#feebc8', fg: '#7b341e' },
   'Ignorar': { bg: '#e2e8f0', fg: '#4a5568' },
+  'Não enviar': { bg: '#fed7d7', fg: '#822727' },
 };
 
 // resumo já parseado. vendas = {7,15,30} (7/15 podem ser null), cross, desempenho opcionais.
@@ -30,7 +31,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
   const [historico, setHistorico] = useState({}); // codigoMl -> total enviado
   const [notes, setNotes] = useState({});         // codigoMl -> nota
-  const [sort, setSort] = useState({ key: 'sugestao', dir: 'desc' });
+  const [sort, setSort] = useState({ key: 'rank', dir: 'asc' });
+  const [excluidos, setExcluidos] = useState(new Set());
   const [busca, setBusca] = useState('');
   const [showOrfas, setShowOrfas] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,34 +47,50 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const map = {}; (r.data || []).forEach(x => { map[x.codigo_ml] = x.note || ''; });
       setNotes(map);
     }).catch(() => {});
+    carregarExcluidos();
   }, []);
 
+  function carregarExcluidos() {
+    api.get('/full/excluidos').then(r => setExcluidos(new Set((r.data || []).map(x => x.sku)))).catch(() => {});
+  }
+  async function excluir(sku) {
+    setExcluidos(prev => new Set(prev).add(sku)); // otimista
+    try { await api.post('/full/excluidos', { sku, motivo: 'tamanho' }); } catch { carregarExcluidos(); }
+  }
+  async function restaurar(sku) {
+    setExcluidos(prev => { const n = new Set(prev); n.delete(sku); return n; });
+    try { await api.delete(`/full/excluidos/${encodeURIComponent(sku)}`); } catch { carregarExcluidos(); }
+  }
+
   const { rows, meta } = useMemo(
-    () => computeReposicao({ resumo, vendas, cross, desempenho, params: { regra, diasCobertura: dias, ranking: rank } }),
-    [resumo, vendas, cross, desempenho, regra, dias, rank]
+    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank } }),
+    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank]
   );
 
-  const finalOf = (r) => (overrides[r.codigoMl] != null ? overrides[r.codigoMl] : r.final);
+  const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : r.final);
 
   const view = useMemo(() => {
     const q = busca.trim().toLowerCase();
     let arr = rows;
-    if (decFiltro !== 'Todos') arr = arr.filter(r => r.decisao === decFiltro);
+    // "Todos" oculta os "Não enviar"; o chip "Não enviar" mostra só eles
+    if (decFiltro === 'Todos') arr = arr.filter(r => r.decisao !== 'Não enviar');
+    else arr = arr.filter(r => r.decisao === decFiltro);
     if (q) arr = arr.filter(r => r.sku.toLowerCase().includes(q) || (r.produto || '').toLowerCase().includes(q) || r.codigoMl.toLowerCase().includes(q));
     const key = sort.key, mul = sort.dir === 'asc' ? 1 : -1;
-    const val = (r) => key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'sku' ? r.sku : r.velEsc;
+    const val = (r) => key === 'rank' ? (r.rankPos ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'sku' ? r.sku : r.velEsc;
     return [...arr].sort((a, b) => {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
   }, [rows, busca, sort, overrides, decFiltro]);
 
-  const totalFinal = rows.reduce((s, r) => s + finalOf(r), 0);
-  const linhasEnvio = rows.filter(r => finalOf(r) > 0).length;
+  // Totais respeitam o filtro atual (view)
+  const totalFinal = view.reduce((s, r) => s + finalOf(r), 0);
+  const linhasEnvio = view.filter(r => finalOf(r) > 0).length;
 
-  function setFinal(cml, v) {
+  function setFinal(key, v) {
     const q = Math.max(0, parseInt(v, 10) || 0);
-    setOverrides(prev => ({ ...prev, [cml]: q }));
+    setOverrides(prev => ({ ...prev, [key]: q }));
   }
   function saveNote(cml, text) {
     setNotes(prev => ({ ...prev, [cml]: text }));
@@ -182,12 +200,17 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       {/* Filtro por decisão */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
         <span style={styles.label}>Decisão</span>
-        <button onClick={() => setDecFiltro('Todos')} style={{ ...styles.chip, ...(decFiltro === 'Todos' ? styles.chipOn : {}) }}>Todos ({rows.length})</button>
+        <button onClick={() => setDecFiltro('Todos')} style={{ ...styles.chip, ...(decFiltro === 'Todos' ? styles.chipOn : {}) }}>Todos ({rows.length - (meta.decisoes['Não enviar'] || 0)})</button>
         {DECISOES.map(d => (
           <button key={d} onClick={() => setDecFiltro(d)} style={{ ...styles.chip, ...(decFiltro === d ? styles.chipOn : {}) }}>
             {d} ({meta.decisoes[d] || 0})
           </button>
         ))}
+        {(meta.decisoes['Não enviar'] || 0) > 0 && (
+          <button onClick={() => setDecFiltro('Não enviar')} style={{ ...styles.chip, ...(decFiltro === 'Não enviar' ? styles.chipOn : {}) }}>
+            🚫 Não enviar ({meta.decisoes['Não enviar']})
+          </button>
+        )}
       </div>
 
       {/* Barra de ação */}
@@ -203,6 +226,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         <table style={{ fontSize: '13px' }}>
           <thead>
             <tr>
+              {th('rank', 'Rank', { textAlign: 'right' })}
               {th('sku', 'SKU')}
               <th>Produto</th>
               <th>Decisão</th>
@@ -214,12 +238,13 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <th style={{ textAlign: 'right' }}>Enviar</th>
               <th>Alertas</th>
               <th style={{ textAlign: 'right' }}>Últ. envios</th>
-              <th>Anotação</th>
+              <th>Ação</th>
             </tr>
           </thead>
           <tbody>
             {view.map(r => (
               <tr key={r.key}>
+                <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankPos ? 'var(--text-primary)' : 'var(--text-muted)' }}>{r.rankPos ? '#' + r.rankPos : '—'}</td>
                 <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{r.sku}</td>
                 <td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.produto}>{r.produto}</td>
                 <td>
@@ -231,7 +256,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700 }}>{int(r.sugestao)}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <input type="number" min="0" value={finalOf(r)} onChange={e => setFinal(r.codigoMl, e.target.value)}
+                  <input type="number" min="0" value={finalOf(r)} onChange={e => setFinal(r.key, e.target.value)}
                     style={{ width: '64px', padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '6px' }} />
                 </td>
                 <td>
@@ -242,11 +267,11 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                     })}
                   </div>
                 </td>
-                <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{historico[r.codigoMl] ? int(historico[r.codigoMl]) : '—'}</td>
+                <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{r.codigoMl && historico[r.codigoMl] ? int(historico[r.codigoMl]) : '—'}</td>
                 <td>
-                  <input defaultValue={notes[r.codigoMl] || ''} placeholder="—"
-                    onBlur={e => { if (e.target.value !== (notes[r.codigoMl] || '')) saveNote(r.codigoMl, e.target.value); }}
-                    style={{ width: '140px', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12px' }} />
+                  {r.decisao === 'Não enviar'
+                    ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} onClick={() => restaurar(r.sku)}>↩ voltar</button>
+                    : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Não enviar ao Full (ex.: tamanho)" onClick={() => excluir(r.sku)}>🚫 não enviar</button>}
                 </td>
               </tr>
             ))}
