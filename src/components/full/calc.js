@@ -1,131 +1,211 @@
-// Motor de reposição do Full (puro, sem React). Recebe os relatórios já
-// parseados e devolve uma linha por Código ML com velocidade, sugestão de
-// envio, trava do cross e alertas. Ver ENVIO_FULL_SPEC §4.
-//
-// NOTA: a reconciliação de anúncios migrados (§4.5) ainda NÃO entra aqui —
-// as vendas cujo anúncio não casa com nenhum grupo são contadas como
-// "órfãs" e devolvidas à parte (nunca somem em silêncio).
+// Motor de reposição + sortimento do Full (puro, sem React).
+// - Reposição do que está no Full: baseada nas vendas do canal Full.
+// - Promoção: SKU que vende no cross e não está no Full → sugerir enviar
+//   (quantidade pela velocidade do cross), se for "melhor anúncio".
+// - Decisão por linha: Manter | Promover | Avaliar saída | Ignorar.
+// Reconciliação de anúncios migrados (§4.5) ainda não entra: vendas órfãs
+// (anúncio sem grupo) cujo SKU está no Full continuam à parte.
 
 const median = (arr) => {
-  const a = [...arr].sort((x, y) => x - y);
-  const n = a.length;
+  const a = [...arr].sort((x, y) => x - y); const n = a.length;
   if (!n) return 0;
   return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2;
 };
-const agg = (vels, regra) => {
-  if (regra === 'MEDIA') return vels.reduce((s, v) => s + v, 0) / vels.length;
-  if (regra === 'MEDIANA') return median(vels);
-  return Math.max(...vels); // MAX (padrão)
-};
+const aggreg = (vels, regra) =>
+  regra === 'MEDIA' ? vels.reduce((s, v) => s + v, 0) / vels.length :
+  regra === 'MEDIANA' ? median(vels) : Math.max(...vels);
 
-// vendas: { 7: parseVendas(), 15: ..., 30: ... }
-export function computeReposicao({ resumo, vendas, cross, params }) {
+// Rank percentílico (0..1) de cada SKU numa métrica
+function percentis(entries, get) {
+  const sorted = [...entries].sort((a, b) => get(a[1]) - get(b[1]));
+  const n = sorted.length;
+  const rank = new Map();
+  sorted.forEach(([sku], i) => rank.set(sku, n > 1 ? i / (n - 1) : 1));
+  return rank;
+}
+
+// Conjunto de SKUs "melhores" conforme o método escolhido
+function calcMelhores(perfBySku, ranking) {
+  const entries = [...perfBySku.entries()];
+  const metodo = ranking?.metodo || 'topN';
+  const topN = ranking?.topN || 50;
+  const set = new Set();
+  if (metodo === 'cortes') {
+    const cu = ranking?.corteUn || 20, cr = ranking?.corteRs || 500;
+    for (const [sku, p] of entries) if (p.un >= cu || p.receita >= cr) set.add(sku);
+  } else if (metodo === 'score') {
+    const pu = percentis(entries, p => p.un), pr = percentis(entries, p => p.receita), pc = percentis(entries, p => p.conv || 0);
+    const score = entries.map(([sku]) => [sku, pu.get(sku) + pr.get(sku) + pc.get(sku)]);
+    score.sort((a, b) => b[1] - a[1]);
+    score.slice(0, topN).forEach(([sku]) => set.add(sku));
+  } else { // topN: união dos top N por quantidade e por valor
+    const byUn = [...entries].sort((a, b) => b[1].un - a[1].un).slice(0, topN);
+    const byRs = [...entries].sort((a, b) => b[1].receita - a[1].receita).slice(0, topN);
+    byUn.forEach(([sku]) => set.add(sku)); byRs.forEach(([sku]) => set.add(sku));
+  }
+  return set;
+}
+
+// vendas: { 7, 15, 30 } (parseVendas); desempenho opcional (parseDesempenho)
+export function computeReposicao({ resumo, vendas, cross, desempenho, params }) {
   const regra = params?.regra || 'MAX';
   const diasCobertura = params?.diasCobertura || 30;
+  const ranking = params?.ranking || { metodo: 'topN', topN: 50 };
   const periodos = [7, 15, 30];
 
-  // Índice anúncio -> Código ML (a partir do Resumo)
   const anuncioToCml = new Map();
-  for (const p of resumo) for (const a of (p.anuncios || [])) anuncioToCml.set(String(a).trim(), p.codigoMl);
+  const skusFull = new Set();
+  for (const p of resumo) {
+    for (const a of (p.anuncios || [])) anuncioToCml.set(String(a).trim(), p.codigoMl);
+    if (p.sku) skusFull.add(p.sku);
+  }
 
-  // Demanda por Código ML e por período; órfãs à parte
-  const demanda = new Map();   // cml -> { 7, 15, 30 }  (valida+devolucao+mediacao)
-  const mlCheck = new Map();   // cml -> { 30 }         (valida+mediacao, p/ validação §4.7)
+  return _run({ resumo, vendas, cross, desempenho, params: { regra, diasCobertura, ranking }, anuncioToCml, skusFull, periodos });
+}
+
+function _run({ resumo, vendas, cross, desempenho, params, anuncioToCml, skusFull, periodos }) {
+  const { regra, diasCobertura, ranking } = params;
+  const demCmlFull = new Map();   // cml -> {7,15,30} canal full
+  const mlCheck = new Map();      // cml -> valida+media 30d full
+  const demSkuCross = new Map();  // sku -> {7,15,30} canal cross
+  const receitaSku = new Map();   // sku -> receita 30d (fallback de ranking)
+  const unSku = new Map();        // sku -> un 30d todas as vendas (fallback)
   const orfas = { 7: 0, 15: 0, 30: 0, lista: [] };
   const spanByP = {};
+  const temP = {}; // períodos com dados (o cliente pode mandar só o de 30d)
 
   for (const p of periodos) {
     const v = vendas[p];
+    temP[p] = !!(v && v.linhas && v.linhas.length);
     spanByP[p] = v?.span || 0;
     const orfasP = new Map();
     for (const l of (v?.linhas || [])) {
       if (l.classe === 'cancelamento') continue;
+      if (p === 30) {
+        unSku.set(l.sku, (unSku.get(l.sku) || 0) + l.un);
+        receitaSku.set(l.sku, (receitaSku.get(l.sku) || 0) + (l.receita || 0));
+      }
       const cml = anuncioToCml.get(String(l.anuncio).trim());
-      if (!cml) { // órfã
-        orfas[p] += l.un;
-        if (p === 30) {
-          const k = `${l.anuncio}|${l.sku}`;
-          const prev = orfasP.get(k) || { anuncio: l.anuncio, sku: l.sku, titulo: l.titulo, un: 0 };
-          prev.un += l.un; orfasP.set(k, prev);
+      if (cml) {
+        if (l.canal === 'full') {
+          if (!demCmlFull.has(cml)) demCmlFull.set(cml, { 7: 0, 15: 0, 30: 0 });
+          demCmlFull.get(cml)[p] += l.un;
+          if (p === 30 && l.classe !== 'devolucao') mlCheck.set(cml, (mlCheck.get(cml) || 0) + l.un);
         }
         continue;
       }
-      if (!demanda.has(cml)) demanda.set(cml, { 7: 0, 15: 0, 30: 0 });
-      demanda.get(cml)[p] += l.un;
-      if (p === 30 && l.classe !== 'devolucao') {
-        mlCheck.set(cml, (mlCheck.get(cml) || 0) + l.un);
+      // órfã (anúncio sem grupo no Full)
+      orfas[p] += l.un;
+      if (l.canal === 'cross') {
+        if (!demSkuCross.has(l.sku)) demSkuCross.set(l.sku, { 7: 0, 15: 0, 30: 0 });
+        demSkuCross.get(l.sku)[p] += l.un;
+      }
+      if (p === 30) {
+        const k = `${l.anuncio}|${l.sku}`;
+        const prev = orfasP.get(k) || { anuncio: l.anuncio, sku: l.sku, titulo: l.titulo, un: 0, inFull: skusFull.has(l.sku) };
+        prev.un += l.un; orfasP.set(k, prev);
       }
     }
     if (p === 30) orfas.lista = [...orfasP.values()].sort((a, b) => b.un - a.un);
   }
 
-  // Linhas por Código ML
+  // Ranking de "melhores" por SKU
+  const perfBySku = new Map();
+  if (desempenho?.bySku) {
+    for (const [sku, o] of desempenho.bySku) perfBySku.set(sku, { un: o.un, receita: o.receita, conv: o.conv || 0 });
+  } else {
+    for (const sku of new Set([...unSku.keys(), ...receitaSku.keys()]))
+      perfBySku.set(sku, { un: unSku.get(sku) || 0, receita: receitaSku.get(sku) || 0, conv: 0 });
+  }
+  const melhores = calcMelhores(perfBySku, ranking);
+  const perf = (sku) => perfBySku.get(sku) || { un: 0, receita: 0, conv: 0 };
+
+  // ---- Linhas do Full (Resumo) ----
   let rows = resumo.map(p => {
-    const d = demanda.get(p.codigoMl) || { 7: 0, 15: 0, 30: 0 };
+    const d = demCmlFull.get(p.codigoMl) || { 7: 0, 15: 0, 30: 0 };
     const vel = {};
-    for (const per of periodos) vel[per] = spanByP[per] > 0 ? d[per] / spanByP[per] : 0;
-    const velEsc = agg([vel[7], vel[15], vel[30]], regra);
+    for (const per of periodos) vel[per] = temP[per] && spanByP[per] > 0 ? d[per] / spanByP[per] : 0;
+    const velArr = periodos.filter(per => temP[per]).map(per => vel[per]);
+    const velEsc = velArr.length ? aggreg(velArr, regra) : 0;
     const estoque = p.estoqueFull || 0;
     const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura - estoque));
-    const coberturaDias = velEsc > 0 ? estoque / velEsc : null;
+    const melhor = melhores.has(p.sku);
+    const vendeFull = d[30] > 0;
+    let decisao;
+    if (p.semanas != null && p.semanas >= 10 && !melhor) decisao = 'Avaliar saída';
+    else if (melhor || vendeFull) decisao = 'Manter';
+    else if (estoque > 0) decisao = 'Avaliar saída';
+    else decisao = 'Ignorar';
     return {
-      codigoMl: p.codigoMl, sku: p.sku, produto: p.produto,
+      key: p.codigoMl, origem: 'full', codigoMl: p.codigoMl, sku: p.sku, produto: p.produto,
       vel7: vel[7], vel15: vel[15], vel30: vel[30], velEsc,
-      un7: d[7], un15: d[15], un30: d[30],
-      un30ml: p.un30, // número oficial do ML (validação)
-      estoque, coberturaDias,
+      un30: d[30], un30ml: p.un30, estoque, semanas: p.semanas,
       crossSku: cross?.map?.get((p.sku || '').toUpperCase()) || 0,
-      sugestao,
-      final: sugestao,   // trava do cross ajusta abaixo
-      alertas: [],
+      sugestao, final: decisao === 'Avaliar saída' || decisao === 'Ignorar' ? 0 : sugestao,
+      melhor, perf: perf(p.sku), decisao, alertas: [],
     };
   });
 
-  // Trava do cross (§4.9): por SKU, a soma pedida não passa do estoque do armazém
-  const bySku = new Map();
-  for (const r of rows) {
-    if (!bySku.has(r.sku)) bySku.set(r.sku, []);
-    bySku.get(r.sku).push(r);
+  // ---- Candidatos do cross (não estão no Full) ----
+  for (const [sku, d] of demSkuCross) {
+    if (skusFull.has(sku)) continue; // migrado (SKU está no Full) — fica para a reconciliação
+    const vel = {};
+    for (const per of periodos) vel[per] = temP[per] && spanByP[per] > 0 ? d[per] / spanByP[per] : 0;
+    const velArr = periodos.filter(per => temP[per]).map(per => vel[per]);
+    const velEsc = velArr.length ? aggreg(velArr, regra) : 0;
+    const crossSku = cross?.map?.get((sku || '').toUpperCase()) || 0;
+    const melhor = melhores.has(sku);
+    const sugestaoBruta = Math.max(0, Math.ceil(velEsc * diasCobertura));
+    const sugestao = Math.min(sugestaoBruta, crossSku);
+    const decisao = melhor && crossSku > 0 ? 'Promover' : 'Ignorar';
+    const orf = orfas.lista.find(o => o.sku === sku);
+    rows.push({
+      key: 'cross:' + sku, origem: 'cross', codigoMl: '', sku, produto: orf?.titulo || sku,
+      vel7: vel[7], vel15: vel[15], vel30: vel[30], velEsc,
+      un30: d[30], un30ml: null, estoque: 0, semanas: null,
+      crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
+      melhor, perf: perf(sku), decisao, alertas: [],
+    });
   }
-  for (const [sku, group] of bySku) {
-    const disp0 = group[0].crossSku;
-    const somaSug = group.reduce((s, r) => s + r.sugestao, 0);
-    if (somaSug <= disp0) continue; // cabe
-    // aloca priorizando maior velocidade até esgotar o cross
-    let restante = disp0;
+
+  // Trava do cross por SKU (soma pedida não passa do estoque do armazém)
+  const bySku = new Map();
+  for (const r of rows) { if (!bySku.has(r.sku)) bySku.set(r.sku, []); bySku.get(r.sku).push(r); }
+  for (const [, group] of bySku) {
+    const disp = group[0].crossSku;
+    const soma = group.reduce((s, r) => s + r.final, 0);
+    if (soma <= disp) continue;
+    let restante = disp;
     for (const r of [...group].sort((a, b) => b.velEsc - a.velEsc)) {
-      const dar = Math.min(r.sugestao, restante);
-      r.final = dar; restante -= dar;
-      r.estouraCross = true;
+      const dar = Math.min(r.final, restante); r.final = dar; restante -= dar; r.estouraCross = true;
     }
   }
 
-  // Alertas (§4.10)
+  // Alertas
   for (const r of rows) {
     if (r.estouraCross) r.alertas.push('estoura cross');
-    if (r.velEsc > 0 && r.estoque === 0) r.alertas.push('sem estoque full');
-    if (r.un7 === 0 && r.un15 === 0 && r.un30 === 0) r.alertas.push('sem venda');
-    if (r.vel30 > 0 && r.vel7 < 0.5 * r.vel30) r.alertas.push('caindo forte');
-    if (r.vel30 > 0 && r.vel7 > 1.5 * r.vel30) r.alertas.push('subindo forte');
+    if (r.origem === 'full' && r.velEsc > 0 && r.estoque === 0) r.alertas.push('sem estoque full');
+    if (temP[7] && temP[30] && r.vel30 > 0 && r.vel7 < 0.5 * r.vel30) r.alertas.push('caindo forte');
+    if (temP[7] && temP[30] && r.vel30 > 0 && r.vel7 > 1.5 * r.vel30) r.alertas.push('subindo forte');
   }
 
-  // Validação vs ML (§4.7): nosso valida+mediacao(30d) vs "Vendas 30 dias" do Resumo
+  // Validação vs ML (§4.7) — só linhas do Full
   let divergentes = 0, comparaveis = 0;
   for (const r of rows) {
-    if (r.un30ml == null) continue;
+    if (r.origem !== 'full' || r.un30ml == null) continue;
     comparaveis++;
-    const nosso = mlCheck.get(r.codigoMl) || 0;
-    if (Math.abs(nosso - r.un30ml) > 2) divergentes++;
+    if (Math.abs((mlCheck.get(r.codigoMl) || 0) - r.un30ml) > 2) divergentes++;
   }
-  const pctDiverg = comparaveis ? (divergentes / comparaveis) * 100 : 0;
+  const pct = comparaveis ? (divergentes / comparaveis) * 100 : 0;
+  const conta = (dec) => rows.filter(r => r.decisao === dec).length;
 
   return {
     rows,
     meta: {
-      regra, diasCobertura, span: spanByP,
-      orfas,
-      validacao: { divergentes, comparaveis, pct: pctDiverg, ok: pctDiverg <= 5 },
-      totalSugerido: rows.reduce((s, r) => s + r.sugestao, 0),
+      regra, diasCobertura, ranking, span: spanByP, orfas,
+      temDesempenho: !!desempenho?.bySku,
+      decisoes: { Manter: conta('Manter'), Promover: conta('Promover'), 'Avaliar saída': conta('Avaliar saída'), Ignorar: conta('Ignorar') },
+      validacao: { divergentes, comparaveis, pct, ok: pct <= 5 },
       totalTravado: rows.reduce((s, r) => s + r.final, 0),
       linhasComEnvio: rows.filter(r => r.final > 0).length,
     },

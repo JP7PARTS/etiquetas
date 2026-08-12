@@ -13,10 +13,20 @@ const ALERT_STYLE = {
   'subindo forte': { bg: '#c6f6d5', fg: '#22543d' },
 };
 
-// resumo já parseado (da Análise). vendas = {7,15,30}, cross parseados aqui.
-export default function FullReposicao({ resumo, vendas, cross }) {
+const DECISOES = ['Manter', 'Promover', 'Avaliar saída', 'Ignorar'];
+const DEC_STYLE = {
+  'Manter': { bg: '#bee3f8', fg: '#2a4365' },
+  'Promover': { bg: '#c6f6d5', fg: '#22543d' },
+  'Avaliar saída': { bg: '#feebc8', fg: '#7b341e' },
+  'Ignorar': { bg: '#e2e8f0', fg: '#4a5568' },
+};
+
+// resumo já parseado. vendas = {7,15,30} (7/15 podem ser null), cross, desempenho opcionais.
+export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [regra, setRegra] = useState('MAX');
   const [dias, setDias] = useState(30);
+  const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
+  const [decFiltro, setDecFiltro] = useState('Todos');
   const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
   const [historico, setHistorico] = useState({}); // codigoMl -> total enviado
   const [notes, setNotes] = useState({});         // codigoMl -> nota
@@ -38,8 +48,8 @@ export default function FullReposicao({ resumo, vendas, cross }) {
   }, []);
 
   const { rows, meta } = useMemo(
-    () => computeReposicao({ resumo, vendas, cross, params: { regra, diasCobertura: dias } }),
-    [resumo, vendas, cross, regra, dias]
+    () => computeReposicao({ resumo, vendas, cross, desempenho, params: { regra, diasCobertura: dias, ranking: rank } }),
+    [resumo, vendas, cross, desempenho, regra, dias, rank]
   );
 
   const finalOf = (r) => (overrides[r.codigoMl] != null ? overrides[r.codigoMl] : r.final);
@@ -47,6 +57,7 @@ export default function FullReposicao({ resumo, vendas, cross }) {
   const view = useMemo(() => {
     const q = busca.trim().toLowerCase();
     let arr = rows;
+    if (decFiltro !== 'Todos') arr = arr.filter(r => r.decisao === decFiltro);
     if (q) arr = arr.filter(r => r.sku.toLowerCase().includes(q) || (r.produto || '').toLowerCase().includes(q) || r.codigoMl.toLowerCase().includes(q));
     const key = sort.key, mul = sort.dir === 'asc' ? 1 : -1;
     const val = (r) => key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'sku' ? r.sku : r.velEsc;
@@ -54,7 +65,7 @@ export default function FullReposicao({ resumo, vendas, cross }) {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides]);
+  }, [rows, busca, sort, overrides, decFiltro]);
 
   const totalFinal = rows.reduce((s, r) => s + finalOf(r), 0);
   const linhasEnvio = rows.filter(r => finalOf(r) > 0).length;
@@ -136,6 +147,47 @@ export default function FullReposicao({ resumo, vendas, cross }) {
             Span: 7d {n1(meta.span[7])} · 15d {n1(meta.span[15])} · 30d {n1(meta.span[30])}
           </div>
         </div>
+        {/* Ranking de "melhores" (define Manter/Promover) */}
+        <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+          <div style={styles.group}>
+            <span style={styles.label}>Melhores por</span>
+            {[['topN', 'Top N'], ['score', 'Score'], ['cortes', 'Cortes']].map(([m, lbl]) => (
+              <button key={m} onClick={() => setRank(r => ({ ...r, metodo: m }))} style={{ ...styles.chip, ...(rank.metodo === m ? styles.chipOn : {}) }}>{lbl}</button>
+            ))}
+          </div>
+          {rank.metodo !== 'cortes' ? (
+            <div style={styles.group}>
+              <span style={styles.label}>Top N</span>
+              <input type="number" min="1" value={rank.topN} onChange={e => setRank(r => ({ ...r, topN: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                style={styles.numInput} />
+            </div>
+          ) : (
+            <>
+              <div style={styles.group}>
+                <span style={styles.label}>≥ un/mês</span>
+                <input type="number" min="0" value={rank.corteUn} onChange={e => setRank(r => ({ ...r, corteUn: Math.max(0, parseInt(e.target.value, 10) || 0) }))} style={styles.numInput} />
+              </div>
+              <div style={styles.group}>
+                <span style={styles.label}>ou ≥ R$/mês</span>
+                <input type="number" min="0" value={rank.corteRs} onChange={e => setRank(r => ({ ...r, corteRs: Math.max(0, parseInt(e.target.value, 10) || 0) }))} style={styles.numInput} />
+              </div>
+            </>
+          )}
+          <div style={{ marginLeft: 'auto', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+            {meta.temDesempenho ? 'ranking: relatório de desempenho' : 'ranking: vendas (sem desempenho)'}
+          </div>
+        </div>
+      </div>
+
+      {/* Filtro por decisão */}
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
+        <span style={styles.label}>Decisão</span>
+        <button onClick={() => setDecFiltro('Todos')} style={{ ...styles.chip, ...(decFiltro === 'Todos' ? styles.chipOn : {}) }}>Todos ({rows.length})</button>
+        {DECISOES.map(d => (
+          <button key={d} onClick={() => setDecFiltro(d)} style={{ ...styles.chip, ...(decFiltro === d ? styles.chipOn : {}) }}>
+            {d} ({meta.decisoes[d] || 0})
+          </button>
+        ))}
       </div>
 
       {/* Barra de ação */}
@@ -153,6 +205,7 @@ export default function FullReposicao({ resumo, vendas, cross }) {
             <tr>
               {th('sku', 'SKU')}
               <th>Produto</th>
+              <th>Decisão</th>
               {th('vel', 'Vel (7/15/30)', { textAlign: 'right' })}
               {th('estoque', 'Estoque', { textAlign: 'right' })}
               {th('cobertura', 'Cobertura', { textAlign: 'right' })}
@@ -166,9 +219,12 @@ export default function FullReposicao({ resumo, vendas, cross }) {
           </thead>
           <tbody>
             {view.map(r => (
-              <tr key={r.codigoMl}>
+              <tr key={r.key}>
                 <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{r.sku}</td>
-                <td style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.produto}>{r.produto}</td>
+                <td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.produto}>{r.produto}</td>
+                <td>
+                  <span style={{ ...(DEC_STYLE[r.decisao] || {}), background: (DEC_STYLE[r.decisao] || {}).bg, color: (DEC_STYLE[r.decisao] || {}).fg, fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>{r.decisao}</span>
+                </td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{n1(r.vel7)}/{n1(r.vel15)}/{n1(r.vel30)}</td>
                 <td style={{ textAlign: 'right' }}>{int(r.estoque)}</td>
                 <td style={{ textAlign: 'right' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
@@ -206,4 +262,5 @@ const styles = {
   label: { fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 },
   chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
   chipOn: { background: 'var(--btn-primary)', borderColor: 'var(--btn-primary)', color: '#fff' },
+  numInput: { width: '70px', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: '6px', textAlign: 'right' },
 };

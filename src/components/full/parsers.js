@@ -4,6 +4,15 @@
 
 const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const txt = (v) => (v == null ? '' : String(v).trim());
+// Valor monetário: número puro (SheetJS) ou texto BR "R$ 1.234,56" / "R$ 16.284".
+// Em texto BR o ponto é separador de milhar e a vírgula é decimal.
+const money = (v) => {
+  if (typeof v === 'number') return v;
+  const s = String(v ?? '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s); return isNaN(n) ? 0 : n;
+};
+// Percentual "5,5%" -> 5.5
+const pct = (v) => { const s = String(v ?? '').replace('%', '').replace(',', '.'); const n = parseFloat(s); return isNaN(n) ? 0 : n; };
 
 // Alguns exports do ML têm compressão que a lib xlsx atual não descomprime 100%
 // (perde as linhas de cabeçalho). Por isso o parser tem 2 caminhos:
@@ -157,6 +166,7 @@ export async function parseVendas(file) {
   const ci = {
     sku: hdr.indexOf('SKU'), estado: hdr.indexOf('Estado'), un: hdr.indexOf('Unidades'),
     data: hdr.indexOf('Data da venda'), titulo: hdr.indexOf('Título do anúncio'), anuncio: hdr.indexOf('# de anúncio'),
+    entrega: hdr.indexOf('Forma de entrega'), receita: hdr.indexOf('Receita por produtos (BRL)'),
   };
   if (ci.sku < 0 || ci.un < 0 || ci.estado < 0) throw new Error('Colunas essenciais (SKU/Unidades/Estado) não encontradas no relatório de vendas.');
 
@@ -180,16 +190,54 @@ export async function parseVendas(file) {
     porClasse[classe] += un;
     const data = ci.data >= 0 ? parseSaleDate(r[ci.data]) : null;
     if (data) { if (!dmin || data < dmin) dmin = data; if (!dmax || data > dmax) dmax = data; }
+    const entrega = ci.entrega >= 0 ? txt(r[ci.entrega]) : '';
+    const canal = /full/i.test(entrega) ? 'full' : /coleta/i.test(entrega) ? 'cross' : /flex/i.test(entrega) ? 'flex' : 'outro';
     linhas.push({
       sku,
       anuncio: ci.anuncio >= 0 ? txt(r[ci.anuncio]).replace(/^MLB/i, '') : '',
       titulo: ci.titulo >= 0 ? txt(r[ci.titulo]) : '',
-      un, estado, classe, data,
+      un, estado, classe, data, canal,
+      receita: ci.receita >= 0 ? money(r[ci.receita]) : 0,
     });
   }
   if (linhas.length === 0) throw new Error('Nenhuma venda válida encontrada no relatório.');
   const span = dmin && dmax ? (dmax - dmin) / 86400000 : 0;
   return { linhas, span, porClasse, estadosDesconhecidos: [...estadosDesconhecidos], dmin, dmax };
+}
+
+// ===================== Desempenho de anúncios =====================
+// Agrega por SKU: unidades, receita, visitas, vendas (pedidos). Opcional.
+export async function parseDesempenho(file) {
+  const XLSX = await import('xlsx');
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets['Relatório'] || wb.Sheets[wb.SheetNames[0]];
+  if (!ws) throw new Error('Não encontrei a aba do relatório de desempenho.');
+  const m = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: null });
+  const h = m.findIndex(r => Array.isArray(r) && r.some(c => txt(c) === 'ID do anúncio'));
+  if (h < 0) throw new Error('Não encontrei "ID do anúncio" — confirme se é o relatório de Desempenho de anúncios.');
+  const hdr = m[h].map(txt);
+  const ci = {
+    sku: hdr.indexOf('SKU'), un: hdr.indexOf('Unidades vendidas'),
+    receita: hdr.indexOf('Vendas brutas (BRL)'), visitas: hdr.indexOf('Visitas únicas'),
+    vendas: hdr.indexOf('Quantidade de vendas'),
+  };
+  if (ci.sku < 0 || ci.un < 0) throw new Error('Colunas essenciais (SKU/Unidades vendidas) não encontradas no relatório de desempenho.');
+  const bySku = new Map();
+  for (let i = h + 1; i < m.length; i++) {
+    const r = m[i];
+    if (!Array.isArray(r)) continue;
+    const sku = txt(r[ci.sku]);
+    if (!sku) continue;
+    if (!bySku.has(sku)) bySku.set(sku, { un: 0, receita: 0, visitas: 0, vendas: 0 });
+    const o = bySku.get(sku);
+    o.un += num(r[ci.un]);
+    o.receita += ci.receita >= 0 ? money(r[ci.receita]) : 0;
+    o.visitas += ci.visitas >= 0 ? num(r[ci.visitas]) : 0;
+    o.vendas += ci.vendas >= 0 ? num(r[ci.vendas]) : 0;
+  }
+  for (const o of bySku.values()) o.conv = o.visitas > 0 ? (o.vendas / o.visitas) * 100 : 0;
+  return { bySku };
 }
 
 // ===================== Estoque do armazém (cross, CSV) =====================

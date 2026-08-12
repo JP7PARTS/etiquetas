@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../utils/api.js';
-import { parseFullResumo, parseVendas, parseCross } from './parsers.js';
+import { parseFullResumo, parseVendas, parseCross, parseDesempenho } from './parsers.js';
 import FullAnalysis from './FullAnalysis.jsx';
 import FullReposicao from './FullReposicao.jsx';
 
@@ -8,11 +8,12 @@ function fmtDate(s) { try { return new Date(s).toLocaleString('pt-BR'); } catch 
 
 // Os 5 relatórios crus que alimentam o cálculo (parsers entram na próxima fase)
 const SLOTS = [
-  { id: 'vendas7', label: 'Vendas — 7 dias', accept: '.xlsx' },
-  { id: 'vendas15', label: 'Vendas — 15 dias', accept: '.xlsx' },
   { id: 'vendas30', label: 'Vendas — 30 dias', accept: '.xlsx' },
+  { id: 'vendas15', label: 'Vendas — 15 dias (opcional)', accept: '.xlsx' },
+  { id: 'vendas7', label: 'Vendas — 7 dias (opcional)', accept: '.xlsx' },
   { id: 'full', label: 'Estoque no Full', accept: '.xlsx' },
   { id: 'cross', label: 'Estoque do armazém (cross)', accept: '.csv' },
+  { id: 'desemp', label: 'Desempenho de anúncios (opcional)', accept: '.xlsx' },
 ];
 
 export default function FullShipments({ user }) {
@@ -48,17 +49,19 @@ export default function FullShipments({ user }) {
     setRepo(null); setCalcErr('');
   }
 
-  const temTodos = ['vendas7', 'vendas15', 'vendas30', 'full', 'cross'].every(id => files[id]);
+  // Mínimo para calcular: vendas 30d + estoque Full + cross. 7/15 e desempenho são opcionais.
+  const temMinimo = files.vendas30 && files.full && files.cross;
 
   async function calcular() {
     setCalcing(true); setCalcErr('');
     try {
-      const [resumo, v7, v15, v30, cross] = await Promise.all([
-        parseFullResumo(files.full),
-        parseVendas(files.vendas7), parseVendas(files.vendas15), parseVendas(files.vendas30),
-        parseCross(files.cross),
+      const [resumo, v30, cross] = await Promise.all([
+        parseFullResumo(files.full), parseVendas(files.vendas30), parseCross(files.cross),
       ]);
-      setRepo({ resumo, vendas: { 7: v7, 15: v15, 30: v30 }, cross });
+      const v7 = files.vendas7 ? await parseVendas(files.vendas7) : null;
+      const v15 = files.vendas15 ? await parseVendas(files.vendas15) : null;
+      const desempenho = files.desemp ? await parseDesempenho(files.desemp) : null;
+      setRepo({ resumo, vendas: { 7: v7, 15: v15, 30: v30 }, cross, desempenho });
     } catch (err) {
       setCalcErr(err.message || 'Erro ao processar os relatórios');
       setRepo(null);
@@ -141,12 +144,12 @@ export default function FullShipments({ user }) {
           <button className="btn-primary" disabled={!files.full || analyzing} onClick={analisarFull}>
             {analyzing ? 'Analisando...' : '📊 Analisar Full'}
           </button>
-          <button className="btn-primary" disabled={!temTodos || calcing} onClick={calcular}
-            title={temTodos ? '' : 'Carregue os 5 relatórios'}>
+          <button className="btn-primary" disabled={!temMinimo || calcing} onClick={calcular}
+            title={temMinimo ? '' : 'Carregue no mínimo: Vendas 30 dias + Estoque Full + Cross'}>
             {calcing ? 'Calculando...' : '🧮 Calcular reposição'}
           </button>
           <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
-            Analisar usa só o Full. Calcular reposição usa os 5 relatórios.
+            Mínimo: Vendas 30d + Full + Cross. 7/15 dias e Desempenho enriquecem (tendência e ranking).
           </span>
         </div>
         {analysisErr && <div className="alert alert-error" style={{ marginTop: '10px' }}>{analysisErr}</div>}
@@ -158,7 +161,7 @@ export default function FullShipments({ user }) {
           <div className="page-header" style={{ marginTop: '18px', marginBottom: 0 }}>
             <h2 style={{ margin: 0 }}>Reposição sugerida</h2>
           </div>
-          <FullReposicao resumo={repo.resumo} vendas={repo.vendas} cross={repo.cross} />
+          <FullReposicao resumo={repo.resumo} vendas={repo.vendas} cross={repo.cross} desempenho={repo.desempenho} />
         </>
       )}
 
