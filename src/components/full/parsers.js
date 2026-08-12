@@ -15,7 +15,7 @@ const RESUMO_OFFSETS = {
   codigoMl: 0, gtin: 1, sku: 2, anuncio: 3, agrupador: 4, produto: 5, tamanho: 6,
   status: 8, oferece: 9, un30: 10, rs30: 11, estMedio: 12, afetamTempo: 13,
   naoAptas: 18, extraviadas: 19, emRevisao: 20, ocupaEspaco: 22,
-  boaQualidade: 24, evitarDescarte: 27, tempo: 28,
+  boaQualidade: 24, impulsionar: 25, colocarVenda: 26, evitarDescarte: 27, tempo: 28,
 };
 
 const CODIGO_ML_RE = /^[A-Z]{3,5}\d{4,7}$/; // ex.: RIKW39472, ULEV02571, NMVS85899
@@ -45,7 +45,8 @@ export async function parseFullResumo(file) {
       naoAptas: col('Não aptas para venda'),
       extraviadas: header.findIndex(h => h.startsWith('Extraviadas')),
       emRevisao: col('Em revisão'), evitarDescarte: col('Para evitar descarte'),
-      boaQualidade: col('Boa qualidade'), tempo: col('Tempo até esgotar estoque'),
+      boaQualidade: col('Boa qualidade'), impulsionar: col('Para impulsionar vendas'),
+      colocarVenda: col('Para colocar à venda'), tempo: col('Tempo até esgotar estoque'),
     };
     dataStart = hdrIdx + 1;
   } else {
@@ -84,6 +85,9 @@ export async function parseFullResumo(file) {
       emRevisao: num(r[map.emRevisao]),
       evitarDescarte: num(r[map.evitarDescarte]),
       boaQualidade: num(r[map.boaQualidade]),
+      impulsionar: num(r[map.impulsionar]),
+      colocarVenda: num(r[map.colocarVenda]),
+      estoqueFull: num(r[map.boaQualidade]) + num(r[map.impulsionar]) + num(r[map.colocarVenda]),
       tempoTxt,
       semanas: parseSemanas(tempoTxt),
       semEstoque: /sem estoque/i.test(tempoTxt),
@@ -113,4 +117,104 @@ function findCodigoMlColumn(matrix) {
 function parseSemanas(t) {
   const m = String(t).match(/(\d+)\s*semana/i);
   return m ? parseInt(m[1], 10) : null;
+}
+
+// ===================== Relatório de vendas (Vendas BR) =====================
+const MESES = {
+  janeiro: 0, fevereiro: 1, 'março': 2, marco: 2, abril: 3, maio: 4, junho: 5,
+  julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+};
+function parseSaleDate(v) {
+  const m = String(v ?? '').match(/(\d{1,2}) de (\S+) de (\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const mo = MESES[m[2].toLowerCase()];
+  if (mo == null) return null;
+  return new Date(+m[3], mo, +m[1], +m[4], +m[5]);
+}
+const CANCELADOS = [
+  'Cancelada pelo comprador', 'Pacote cancelado pelo Mercado Livre',
+  'Venda cancelada. Não envie.', 'Cancelada pelo Mercado Livre',
+];
+// Classifica o Estado da venda (spec §4.2). Ordem importa.
+export function classifyEstado(estado) {
+  const e = String(estado || '').trim();
+  if (CANCELADOS.includes(e)) return 'cancelamento';
+  if (/media[çc][ãa]o/i.test(e)) return 'mediacao';
+  if (/devolu[çc][ãa]o/i.test(e) || e === 'Em devolução' || /^Troca entregue/i.test(e)) return 'devolucao';
+  return 'valida';
+}
+
+export async function parseVendas(file) {
+  const XLSX = await import('xlsx');
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets['Vendas BR'] || wb.Sheets[wb.SheetNames[0]];
+  if (!ws) throw new Error('Não encontrei a aba de vendas no relatório.');
+  const m = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: null });
+  const h = m.findIndex(r => Array.isArray(r) && r.some(c => txt(c) === 'SKU'));
+  if (h < 0) throw new Error('Não encontrei a coluna "SKU" — confirme se é o relatório de vendas do ML.');
+  const hdr = m[h].map(txt);
+  const ci = {
+    sku: hdr.indexOf('SKU'), estado: hdr.indexOf('Estado'), un: hdr.indexOf('Unidades'),
+    data: hdr.indexOf('Data da venda'), titulo: hdr.indexOf('Título do anúncio'), anuncio: hdr.indexOf('# de anúncio'),
+  };
+  if (ci.sku < 0 || ci.un < 0 || ci.estado < 0) throw new Error('Colunas essenciais (SKU/Unidades/Estado) não encontradas no relatório de vendas.');
+
+  const linhas = [];
+  const porClasse = { valida: 0, devolucao: 0, mediacao: 0, cancelamento: 0 };
+  const estadosDesconhecidos = new Set();
+  let dmin = null, dmax = null;
+  const KNOWN = new Set([...CANCELADOS, 'Em devolução']);
+  for (let i = h + 1; i < m.length; i++) {
+    const r = m[i];
+    if (!Array.isArray(r)) continue;
+    const estado = txt(r[ci.estado]);
+    if (/^Pacote de/i.test(estado)) continue; // separador de pacote
+    const sku = txt(r[ci.sku]);
+    if (!sku) continue;
+    const un = num(r[ci.un]);
+    const classe = classifyEstado(estado);
+    if (classe === 'valida' && estado && !KNOWN.has(estado) && !/venda|entregue|pagamento|enviad|conclu|finaliz/i.test(estado)) {
+      estadosDesconhecidos.add(estado);
+    }
+    porClasse[classe] += un;
+    const data = ci.data >= 0 ? parseSaleDate(r[ci.data]) : null;
+    if (data) { if (!dmin || data < dmin) dmin = data; if (!dmax || data > dmax) dmax = data; }
+    linhas.push({
+      sku,
+      anuncio: ci.anuncio >= 0 ? txt(r[ci.anuncio]).replace(/^MLB/i, '') : '',
+      titulo: ci.titulo >= 0 ? txt(r[ci.titulo]) : '',
+      un, estado, classe, data,
+    });
+  }
+  if (linhas.length === 0) throw new Error('Nenhuma venda válida encontrada no relatório.');
+  const span = dmin && dmax ? (dmax - dmin) / 86400000 : 0;
+  return { linhas, span, porClasse, estadosDesconhecidos: [...estadosDesconhecidos], dmin, dmax };
+}
+
+// ===================== Estoque do armazém (cross, CSV) =====================
+export async function parseCross(file) {
+  const text = await file.text(); // File API decodifica UTF-8
+  const linhas = text.split(/\r?\n/).filter(l => l.trim());
+  if (linhas.length < 2) throw new Error('CSV do cross vazio ou sem dados.');
+  const split = (l) => l.split(';').map(c => c.replace(/^"|"$/g, '').trim());
+  const hdr = split(linhas[0]).map(s => s.toLowerCase());
+  const ciCod = hdr.findIndex(s => s === 'código' || s === 'codigo' || s === 'sku');
+  const ciQtd = hdr.findIndex(s => s.startsWith('quantidade'));
+  if (ciCod < 0 || ciQtd < 0) throw new Error('CSV do cross sem colunas "Código"/"Quantidade" — verifique o arquivo.');
+  const brNum = (s) => {
+    const t = String(s).replace(/\./g, '').replace(',', '.'); // 1.234,00 -> 1234.00
+    const n = parseFloat(t); return isNaN(n) ? 0 : n;
+  };
+  const map = new Map();
+  let totalUn = 0;
+  for (let i = 1; i < linhas.length; i++) {
+    const c = split(linhas[i]);
+    const sku = (c[ciCod] || '').toUpperCase();
+    if (!sku) continue;
+    const q = brNum(c[ciQtd]);
+    map.set(sku, (map.get(sku) || 0) + q);
+    totalUn += q;
+  }
+  return { map, skus: map.size, totalUn };
 }

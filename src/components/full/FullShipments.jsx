@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../utils/api.js';
-import { parseFullResumo } from './parsers.js';
+import { parseFullResumo, parseVendas, parseCross } from './parsers.js';
 import FullAnalysis from './FullAnalysis.jsx';
+import FullReposicao from './FullReposicao.jsx';
 
 function fmtDate(s) { try { return new Date(s).toLocaleString('pt-BR'); } catch { return s; } }
 
@@ -22,6 +23,9 @@ export default function FullShipments({ user }) {
   const [analysis, setAnalysis] = useState(null); // linhas parseadas do Resumo do Full
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisErr, setAnalysisErr] = useState('');
+  const [repo, setRepo] = useState(null);         // { resumo, vendas, cross } p/ reposição
+  const [calcing, setCalcing] = useState(false);
+  const [calcErr, setCalcErr] = useState('');
   const inputs = useRef({});
 
   useEffect(() => { loadLists(); }, []);
@@ -41,6 +45,26 @@ export default function FullShipments({ user }) {
   function pick(id, file) {
     setFiles(prev => ({ ...prev, [id]: file || null }));
     if (id === 'full') { setAnalysis(null); setAnalysisErr(''); }
+    setRepo(null); setCalcErr('');
+  }
+
+  const temTodos = ['vendas7', 'vendas15', 'vendas30', 'full', 'cross'].every(id => files[id]);
+
+  async function calcular() {
+    setCalcing(true); setCalcErr('');
+    try {
+      const [resumo, v7, v15, v30, cross] = await Promise.all([
+        parseFullResumo(files.full),
+        parseVendas(files.vendas7), parseVendas(files.vendas15), parseVendas(files.vendas30),
+        parseCross(files.cross),
+      ]);
+      setRepo({ resumo, vendas: { 7: v7, 15: v15, 30: v30 }, cross });
+    } catch (err) {
+      setCalcErr(err.message || 'Erro ao processar os relatórios');
+      setRepo(null);
+    } finally {
+      setCalcing(false);
+    }
   }
 
   async function analisarFull() {
@@ -117,12 +141,26 @@ export default function FullShipments({ user }) {
           <button className="btn-primary" disabled={!files.full || analyzing} onClick={analisarFull}>
             {analyzing ? 'Analisando...' : '📊 Analisar Full'}
           </button>
+          <button className="btn-primary" disabled={!temTodos || calcing} onClick={calcular}
+            title={temTodos ? '' : 'Carregue os 5 relatórios'}>
+            {calcing ? 'Calculando...' : '🧮 Calcular reposição'}
+          </button>
           <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
-            Usa só o relatório de estoque do Full. O cálculo de reposição (quanto enviar) usa os 5 e vem nas próximas fases.
+            Analisar usa só o Full. Calcular reposição usa os 5 relatórios.
           </span>
         </div>
         {analysisErr && <div className="alert alert-error" style={{ marginTop: '10px' }}>{analysisErr}</div>}
+        {calcErr && <div className="alert alert-error" style={{ marginTop: '10px' }}>{calcErr}</div>}
       </div>
+
+      {repo && (
+        <>
+          <div className="page-header" style={{ marginTop: '18px', marginBottom: 0 }}>
+            <h2 style={{ margin: 0 }}>Reposição sugerida</h2>
+          </div>
+          <FullReposicao resumo={repo.resumo} vendas={repo.vendas} cross={repo.cross} />
+        </>
+      )}
 
       {analysis && (
         <>
