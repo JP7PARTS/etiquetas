@@ -72,12 +72,12 @@ export default function FullAnalysis({ rows }) {
           </div>
         }>
         <Table rows={campeoes} cols={[
-          { h: 'Produto', get: r => r.produto, grow: true },
-          { h: 'SKU', get: r => r.sku, mono: true },
-          { h: 'Un 30d', get: r => int(r.un30), num: true, strong: champBy === 'qtd' },
-          { h: 'R$ 30d', get: r => brl(r.rs30), num: true, strong: champBy === 'valor' },
-          { h: 'Tempo estoque', get: r => r.tempoTxt },
-        ]} />
+          { h: 'Produto', get: r => r.produto, sort: r => r.produto, grow: true },
+          { h: 'SKU', get: r => r.sku, sort: r => r.sku, mono: true },
+          { h: 'Un 30d', get: r => int(r.un30), sort: r => r.un30, num: true, strong: champBy === 'qtd' },
+          { h: 'R$ 30d', get: r => brl(r.rs30), sort: r => r.rs30, num: true, strong: champBy === 'valor' },
+          { h: 'Tempo estoque', get: r => r.tempoTxt, sort: r => r.semanas ?? -1 },
+        ]} defaultSort={{ i: champBy === 'valor' ? 3 : 2, dir: 'desc' }} />
       </Section>
 
       {/* Estoque parado */}
@@ -91,17 +91,18 @@ export default function FullAnalysis({ rows }) {
               <button key={w} onClick={() => setSemanaCut(w)} style={{ ...styles.chip, ...(semanaCut === w ? styles.chipOn : {}) }}>{w} sem</button>
             ))}
             <button className="btn-outline" style={styles.exp} onClick={() => exportCsv(
-              'estoque_parado.csv', ['Produto', 'SKU', 'Semanas', 'Ocupam espaco', 'Estoque medio', 'Un 30d'],
-              parado.map(r => [r.produto, r.sku, r.semanas, r.ocupaEspaco, r.estMedio, r.un30]))}>CSV</button>
+              'estoque_parado.csv', ['Produto', 'SKU', 'Semanas', 'Ocupam espaco', 'Com tempo de estoque', 'Estoque medio', 'Un 30d'],
+              parado.map(r => [r.produto, r.sku, r.semanas, r.ocupaEspaco, r.afetamTempo, r.estMedio, r.un30]))}>CSV</button>
           </div>
         }>
         <Table rows={parado} empty="Nenhum produto acima do corte." cols={[
-          { h: 'Produto', get: r => r.produto, grow: true },
-          { h: 'SKU', get: r => r.sku, mono: true },
-          { h: 'Semanas', get: r => r.tempoTxt, strong: true },
-          { h: 'Ocupam espaço', get: r => int(r.ocupaEspaco), num: true },
-          { h: 'Un 30d', get: r => int(r.un30), num: true },
-        ]} />
+          { h: 'Produto', get: r => r.produto, sort: r => r.produto, grow: true },
+          { h: 'SKU', get: r => r.sku, sort: r => r.sku, mono: true },
+          { h: 'Semanas', get: r => r.tempoTxt, sort: r => r.semanas ?? -1, num: true, strong: true },
+          { h: 'Ocupam espaço', get: r => int(r.ocupaEspaco), sort: r => r.ocupaEspaco, num: true },
+          { h: 'Com tempo de estoque', get: r => int(r.afetamTempo), sort: r => r.afetamTempo, num: true, strong: true },
+          { h: 'Un 30d', get: r => int(r.un30), sort: r => r.un30, num: true },
+        ]} defaultSort={{ i: 2, dir: 'desc' }} />
       </Section>
 
       {/* Ruptura */}
@@ -114,11 +115,11 @@ export default function FullAnalysis({ rows }) {
             ruptura.map(r => [r.produto, r.sku, r.un30, r.tempoTxt]))}>CSV</button>
         }>
         <Table rows={ruptura} empty="Nenhum produto em ruptura vendendo." cols={[
-          { h: 'Produto', get: r => r.produto, grow: true },
-          { h: 'SKU', get: r => r.sku, mono: true },
-          { h: 'Un 30d', get: r => int(r.un30), num: true, strong: true },
-          { h: 'Tempo estoque', get: r => r.tempoTxt },
-        ]} />
+          { h: 'Produto', get: r => r.produto, sort: r => r.produto, grow: true },
+          { h: 'SKU', get: r => r.sku, sort: r => r.sku, mono: true },
+          { h: 'Un 30d', get: r => int(r.un30), sort: r => r.un30, num: true, strong: true },
+          { h: 'Tempo estoque', get: r => r.tempoTxt, sort: r => r.semanas ?? -1 },
+        ]} defaultSort={{ i: 2, dir: 'desc' }} />
       </Section>
 
       {/* Dinheiro preso */}
@@ -131,12 +132,12 @@ export default function FullAnalysis({ rows }) {
             presos.map(r => [r.produto, r.sku, r.evitarDescarte, r.naoAptas, r.extraviadas, r.preso]))}>CSV</button>
         }>
         <Table rows={presos} empty="Nenhuma unidade presa. 👍" cols={[
-          { h: 'Produto', get: r => r.produto, grow: true },
-          { h: 'SKU', get: r => r.sku, mono: true },
-          { h: 'Evitar descarte', get: r => int(r.evitarDescarte), num: true },
-          { h: 'Não aptas', get: r => int(r.naoAptas), num: true },
-          { h: 'Total preso', get: r => int(r.preso), num: true, strong: true },
-        ]} />
+          { h: 'Produto', get: r => r.produto, sort: r => r.produto, grow: true },
+          { h: 'SKU', get: r => r.sku, sort: r => r.sku, mono: true },
+          { h: 'Evitar descarte', get: r => int(r.evitarDescarte), sort: r => r.evitarDescarte, num: true },
+          { h: 'Não aptas', get: r => int(r.naoAptas), sort: r => r.naoAptas, num: true },
+          { h: 'Total preso', get: r => int(r.preso), sort: r => r.preso, num: true, strong: true },
+        ]} defaultSort={{ i: 4, dir: 'desc' }} />
       </Section>
     </div>
   );
@@ -166,14 +167,38 @@ function Section({ title, subtitle, right, children }) {
   );
 }
 
-function Table({ rows, cols, empty }) {
+function Table({ rows, cols, empty, defaultSort }) {
+  const [sort, setSort] = useState(defaultSort || null); // { i, dir }
+
+  const sorted = useMemo(() => {
+    if (!sort || !cols[sort.i]?.sort) return rows;
+    const acc = cols[sort.i].sort;
+    const mul = sort.dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const va = acc(a), vb = acc(b);
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * mul;
+      return String(va).localeCompare(String(vb)) * mul;
+    });
+  }, [rows, cols, sort]);
+
+  function clickHeader(i) {
+    if (!cols[i].sort) return;
+    setSort(s => s && s.i === i ? { i, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { i, dir: 'desc' });
+  }
+
   if (!rows.length) return <div className="empty-state" style={{ padding: '18px' }}><p>{empty || 'Sem dados.'}</p></div>;
+
   return (
     <div style={{ overflowX: 'auto' }}>
       <table>
-        <thead><tr>{cols.map((c, i) => <th key={i} style={c.num ? { textAlign: 'right' } : {}}>{c.h}</th>)}</tr></thead>
+        <thead><tr>{cols.map((c, i) => (
+          <th key={i} onClick={() => clickHeader(i)}
+            style={{ ...(c.num ? { textAlign: 'right' } : {}), ...(c.sort ? { cursor: 'pointer', userSelect: 'none' } : {}) }}>
+            {c.h}{sort && sort.i === i ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+          </th>
+        ))}</tr></thead>
         <tbody>
-          {rows.map((r, ri) => (
+          {sorted.map((r, ri) => (
             <tr key={ri}>
               {cols.map((c, ci) => (
                 <td key={ci} style={{
