@@ -65,6 +65,31 @@ CREATE TABLE IF NOT EXISTS picking_lists (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ============================================================
+-- Módulo Envio Full (isolado, prefixo full_). Nenhuma tabela
+-- existente é alterada; o cadastro `skus` é usado só para leitura.
+-- ============================================================
+
+-- Envios de Full gerados (histórico + feed "últimos envios" na tela de revisão)
+CREATE TABLE IF NOT EXISTS full_shipments (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  created_by INTEGER,
+  created_by_name VARCHAR(100),
+  params JSONB,          -- { periodo, regra: MAX|MEDIA|MEDIANA, dias_cobertura }
+  items JSONB NOT NULL,  -- [{ codigo_ml, sku, qty }] quantidade final enviada
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_full_shipments_created_at ON full_shipments (created_at DESC);
+
+-- Anotações persistentes por Código ML (sobrevivem entre envios)
+CREATE TABLE IF NOT EXISTS full_notes (
+  codigo_ml VARCHAR(60) PRIMARY KEY,
+  note TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (username, email, password_hash, role)

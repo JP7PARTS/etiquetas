@@ -11,6 +11,8 @@ const usersRoutes = require('./routes/users');
 const historyRoutes = require('./routes/history');
 const skuRequestsRoutes = require('./routes/skuRequests');
 const pickingListsRoutes = require('./routes/pickingLists');
+const fullShipmentsRoutes = require('./routes/full/shipments');
+const fullNotesRoutes = require('./routes/full/notes');
 
 const app = express();
 
@@ -48,6 +50,8 @@ app.use('/api/users', usersRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/sku-requests', skuRequestsRoutes);
 app.use('/api/picking-lists', pickingListsRoutes);
+app.use('/api/full/shipments', fullShipmentsRoutes);
+app.use('/api/full/notes', fullNotesRoutes);
 
 // 404 handler for /api routes
 app.use('/api/*', (req, res) => {
