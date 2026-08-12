@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../utils/api.js';
+import { parseFullResumo } from './parsers.js';
+import FullAnalysis from './FullAnalysis.jsx';
 
 function fmtDate(s) { try { return new Date(s).toLocaleString('pt-BR'); } catch { return s; } }
 
@@ -17,6 +19,9 @@ export default function FullShipments({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [files, setFiles] = useState({}); // id -> File (só guardado por enquanto)
+  const [analysis, setAnalysis] = useState(null); // linhas parseadas do Resumo do Full
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisErr, setAnalysisErr] = useState('');
   const inputs = useRef({});
 
   useEffect(() => { loadLists(); }, []);
@@ -35,6 +40,22 @@ export default function FullShipments({ user }) {
 
   function pick(id, file) {
     setFiles(prev => ({ ...prev, [id]: file || null }));
+    if (id === 'full') { setAnalysis(null); setAnalysisErr(''); }
+  }
+
+  async function analisarFull() {
+    const file = files.full;
+    if (!file) return;
+    setAnalyzing(true); setAnalysisErr('');
+    try {
+      const rows = await parseFullResumo(file);
+      setAnalysis(rows);
+    } catch (err) {
+      setAnalysisErr(err.message || 'Erro ao ler o relatório do Full');
+      setAnalysis(null);
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   async function remove(l) {
@@ -92,12 +113,25 @@ export default function FullShipments({ user }) {
             </div>
           ))}
         </div>
-        <div style={styles.soon}>
-          🚧 O processamento (parsers, cálculo de velocidade, reconciliação de migração e sugestão de envio)
-          está sendo construído por partes. Nesta fase os arquivos são só selecionados; o cálculo e a
-          exportação no modelo do ML entram nas próximas fases.
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '14px', flexWrap: 'wrap' }}>
+          <button className="btn-primary" disabled={!files.full || analyzing} onClick={analisarFull}>
+            {analyzing ? 'Analisando...' : '📊 Analisar Full'}
+          </button>
+          <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+            Usa só o relatório de estoque do Full. O cálculo de reposição (quanto enviar) usa os 5 e vem nas próximas fases.
+          </span>
         </div>
+        {analysisErr && <div className="alert alert-error" style={{ marginTop: '10px' }}>{analysisErr}</div>}
       </div>
+
+      {analysis && (
+        <>
+          <div className="page-header" style={{ marginTop: '18px', marginBottom: 0 }}>
+            <h2 style={{ margin: 0 }}>Análise do Full</h2>
+          </div>
+          <FullAnalysis rows={analysis} />
+        </>
+      )}
 
       {/* Histórico de envios salvos */}
       <div className="card">
