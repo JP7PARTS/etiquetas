@@ -28,6 +28,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [regra, setRegra] = useState('MAX');
   const [dias, setDias] = useState(30);
   const [janelasTxt, setJanelasTxt] = useState('7, 15, 30');
+  const [reconciliar, setReconciliar] = useState(true);
+  const [showRec, setShowRec] = useState(false);
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
   const [decFiltro, setDecFiltro] = useState('Todos');
   const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
@@ -70,8 +72,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   }, [janelasTxt]);
 
   const { rows, meta } = useMemo(
-    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas } }),
-    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas]
+    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar } }),
+    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar]
   );
 
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : r.final);
@@ -132,15 +134,30 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
 
   return (
     <div>
-      {/* Avisos de qualidade dos dados */}
-      {!meta.validacao.ok && (
-        <div className="alert alert-error" style={{ marginBottom: '10px' }}>
-          ⚠️ Validação contra o ML: {meta.validacao.divergentes}/{meta.validacao.comparaveis} Códigos ML divergem &gt;2 un ({meta.validacao.pct.toFixed(0)}%).
-          Esperado enquanto a <b>reconciliação de anúncios migrados</b> não entra — as vendas órfãs abaixo ainda não foram atribuídas.
+      {/* Reconciliação de anúncios migrados */}
+      {meta.reconciliadas.total > 0 && (
+        <div className="alert" style={{ marginBottom: '10px', background: '#e6fffa', border: '1px solid #38b2ac', color: '#234e52' }}>
+          🔗 <b>{int(meta.reconciliadas.total)}</b> vendas de anúncios migrados atribuídas ao Código ML certo (velocidade corrigida).
+          <button className="btn-outline" style={{ marginLeft: '10px', padding: '3px 10px', fontSize: '12px' }} onClick={() => setShowRec(v => !v)}>
+            {showRec ? 'ocultar' : 'ver lista'}
+          </button>
+          {showRec && (
+            <div style={{ marginTop: '8px', maxHeight: '180px', overflowY: 'auto', fontSize: '12.5px' }}>
+              {meta.reconciliadas.lista.slice(0, 100).map((o, i) => (
+                <div key={i}>• {int(o.un)}× <b>{o.sku}</b> — anúncio {o.anuncio} → {o.destinos.join(', ')}</div>
+              ))}
+            </div>
+          )}
         </div>
       )}
+      {/* Conferência vs ML (informativo — divergência é esperada durante a migração do ML) */}
+      <div className="alert" style={{ marginBottom: '10px', background: meta.validacao.pct > 40 ? '#fff5f5' : '#f7fafc', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '13px' }}>
+        📋 Conferência vs "Vendas 30 dias" do ML: {meta.validacao.divergentes}/{meta.validacao.comparaveis} Códigos ML diferem &gt;2 un ({meta.validacao.pct.toFixed(0)}%).
+        <span style={{ color: 'var(--text-muted)' }}> Parte é esperada (migração de anúncios). Só é sinal de alerta se subir muito de repente.</span>
+      </div>
+      {/* Órfãs restantes (cross-only ou migração não resolvida) */}
       <div className="alert" style={{ marginBottom: '12px', background: '#fffaf0', border: '1px solid #f6ad55', color: '#744210' }}>
-        🧩 Vendas <b>órfãs</b> (anúncio sem grupo, ainda não atribuídas): {meta.janelas.map(D => `${D}d ${int(meta.orfas[D])}`).join(' · ')}.
+        🧩 Vendas <b>órfãs</b> restantes (anúncio sem grupo, sobretudo do cross): {meta.janelas.map(D => `${D}d ${int(meta.orfas[D])}`).join(' · ')}.
         <button className="btn-outline" style={{ marginLeft: '10px', padding: '3px 10px', fontSize: '12px' }} onClick={() => setShowOrfas(v => !v)}>
           {showOrfas ? 'ocultar' : 'ver lista'}
         </button>
@@ -172,6 +189,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             <span style={styles.label}>Janelas (dias)</span>
             <input value={janelasTxt} onChange={e => setJanelasTxt(e.target.value)} placeholder="7, 15, 30"
               style={{ ...styles.numInput, width: '110px', textAlign: 'left' }} title="Períodos de conferência derivados do relatório (separados por vírgula)" />
+          </div>
+          <div style={styles.group}>
+            <button onClick={() => setReconciliar(v => !v)} style={{ ...styles.chip, ...(reconciliar ? styles.chipOn : {}) }}
+              title="Atribui vendas de anúncios migrados ao Código ML correto (pelo SKU/título)">
+              {reconciliar ? '✓ ' : ''}Reconciliar migrados
+            </button>
           </div>
           <div style={{ marginLeft: 'auto', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
             Relatório: {n1(meta.realSpan)} dias{meta.dmin && meta.dmax ? ` (${fmtDia(meta.dmin)} → ${fmtDia(meta.dmax)})` : ''}

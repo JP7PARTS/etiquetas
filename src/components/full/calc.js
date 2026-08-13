@@ -6,6 +6,8 @@
 // Reconciliação de anúncios migrados (§4.5) ainda não entra: vendas órfãs
 // (anúncio sem grupo) cujo SKU está no Full continuam à parte.
 
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+
 const median = (arr) => {
   const a = [...arr].sort((x, y) => x - y); const n = a.length;
   if (!n) return 0;
@@ -55,18 +57,45 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
   const janelas = (params?.janelas && params.janelas.length ? params.janelas : [7, 15, 30])
     .map(Number).filter(d => d > 0).sort((a, b) => a - b);
 
+  const reconciliar = params?.reconciliar !== false;
   const anuncioToCml = new Map();
   const skusFull = new Set();
+  const skuToCmls = new Map();   // sku -> [{ codigoMl, un30, estoque }]
+  const agSkuToCml = new Map();  // `${agrupador}|${sku}` -> codigoMl
+  const prodToAg = new Map();    // norm(produto).slice(0,30) -> agrupador
   for (const p of resumo) {
     for (const a of (p.anuncios || [])) anuncioToCml.set(String(a).trim(), p.codigoMl);
-    if (p.sku) skusFull.add(p.sku);
+    if (p.sku) {
+      skusFull.add(p.sku);
+      if (!skuToCmls.has(p.sku)) skuToCmls.set(p.sku, []);
+      skuToCmls.get(p.sku).push({ codigoMl: p.codigoMl, un30: p.un30 || 0, estoque: p.estoqueFull || 0 });
+    }
+    if (p.agrupador && p.sku) agSkuToCml.set(p.agrupador + '|' + p.sku, p.codigoMl);
+    const p30 = norm(p.produto).slice(0, 30);
+    if (p30 && p.agrupador && !prodToAg.has(p30)) prodToAg.set(p30, p.agrupador);
   }
 
-  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas }, anuncioToCml, skusFull });
+  // Resolve o destino (lista de [codigoMl, peso]) de uma venda órfã cujo SKU está no Full
+  function resolverDestino(sku, titulo) {
+    const cmls = skuToCmls.get(sku) || [];
+    if (cmls.length === 0) return [];
+    if (cmls.length === 1) return [[cmls[0].codigoMl, 1]];
+    const ag = prodToAg.get(norm(titulo).slice(0, 30));
+    const alvo = ag && agSkuToCml.get(ag + '|' + sku);
+    if (alvo) return [[alvo, 1]];
+    // rateio proporcional: por un30 do ML; fallback estoque; senão igual
+    let base = cmls.map(c => c.un30);
+    let soma = base.reduce((s, v) => s + v, 0);
+    if (soma <= 0) { base = cmls.map(c => c.estoque); soma = base.reduce((s, v) => s + v, 0); }
+    if (soma <= 0) return cmls.map(c => [c.codigoMl, 1 / cmls.length]);
+    return cmls.map((c, i) => [c.codigoMl, base[i] / soma]);
+  }
+
+  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar }, anuncioToCml, skusFull, resolverDestino });
 }
 
-function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull }) {
-  const { regra, diasCobertura, ranking, janelas } = params;
+function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull, resolverDestino }) {
+  const { regra, diasCobertura, ranking, janelas, reconciliar } = params;
   const DAY = 86400000;
   const maxJ = janelas[janelas.length - 1], minJ = janelas[0];
 
@@ -79,6 +108,9 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   const spanJ = {}, cutoff = {};
   for (const D of janelas) { spanJ[D] = Math.min(D, realSpan || D) || D; cutoff[D] = dmaxMs != null ? dmaxMs - D * DAY : -Infinity; }
   const dentro = (l, D) => l.data == null ? true : l.data.getTime() >= cutoff[D];
+  // Janela de 30 dias para a validação vs "Vendas 30 dias" do ML
+  const cutoff30 = dmaxMs != null ? dmaxMs - 30 * DAY : -Infinity;
+  const dentro30 = (l) => l.data == null ? true : l.data.getTime() >= cutoff30;
 
   const demCmlFull = new Map();   // cml -> { [D]: qty } canal full
   const mlCheck = new Map();      // cml -> valida+media (relatório inteiro) canal full
@@ -87,6 +119,15 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   const unSku = new Map();        // sku -> un (fallback de ranking)
   const orfas = {}; janelas.forEach(D => orfas[D] = 0); orfas.lista = [];
   const orfasP = new Map();
+  const reconciliadas = { total: 0, lista: [] };
+  const recP = new Map(); // `${anuncio}|${sku}` -> { anuncio, sku, titulo, un, destinos:Set }
+
+  // soma un (com peso) em demCmlFull[cml] nas janelas por data (demanda do Full)
+  const addFull = (cml, l, peso) => {
+    if (!demCmlFull.has(cml)) demCmlFull.set(cml, {});
+    const o = demCmlFull.get(cml);
+    for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un * peso;
+  };
 
   for (const l of linhas) {
     if (l.classe === 'cancelamento') continue;
@@ -95,14 +136,27 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     const cml = anuncioToCml.get(String(l.anuncio).trim());
     if (cml) {
       if (l.canal === 'full') {
-        if (!demCmlFull.has(cml)) demCmlFull.set(cml, {});
-        const o = demCmlFull.get(cml);
-        for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un;
-        if (l.classe !== 'devolucao') mlCheck.set(cml, (mlCheck.get(cml) || 0) + l.un);
+        addFull(cml, l, 1);
+        // validação (§4.7): conferência DIRETA anúncio→Código ML (canal Full, valida+mediação,
+        // últimos 30 dias), independente da reconciliação — alarme de "formato mudou".
+        if (l.classe !== 'devolucao' && dentro30(l)) mlCheck.set(cml, (mlCheck.get(cml) || 0) + l.un);
       }
       continue;
     }
     // órfã (anúncio sem grupo no Full)
+    // Reconciliação: se o SKU está no Full, é anúncio migrado → atribuir ao(s) Código(s) ML
+    if (reconciliar && skusFull.has(l.sku)) {
+      const destinos = resolverDestino(l.sku, l.titulo);
+      if (destinos.length) {
+        for (const [dcml, peso] of destinos) addFull(dcml, l, peso);
+        reconciliadas.total += l.un;
+        const k = `${l.anuncio}|${l.sku}`;
+        const prev = recP.get(k) || { anuncio: l.anuncio, sku: l.sku, titulo: l.titulo, un: 0, destinos: new Set() };
+        prev.un += l.un; destinos.forEach(([dc]) => prev.destinos.add(dc)); recP.set(k, prev);
+        continue;
+      }
+    }
+    // segue órfã (cross-only, ou migração não resolvida)
     for (const D of janelas) if (dentro(l, D)) orfas[D] += l.un;
     if (l.canal === 'cross') {
       if (!demSkuCross.has(l.sku)) demSkuCross.set(l.sku, {});
@@ -114,6 +168,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     prev.un += l.un; orfasP.set(k, prev);
   }
   orfas.lista = [...orfasP.values()].sort((a, b) => b.un - a.un);
+  reconciliadas.lista = [...recP.values()].map(o => ({ ...o, destinos: [...o.destinos] })).sort((a, b) => b.un - a.un);
 
   // velocidade por janela a partir de um mapa de demanda { [D]: qty }
   const velsDe = (d) => janelas.map(D => spanJ[D] > 0 ? (d[D] || 0) / spanJ[D] : 0);
@@ -214,7 +269,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   return {
     rows,
     meta: {
-      regra, diasCobertura, ranking, janelas, spanJ, realSpan, dmin, dmax, orfas,
+      regra, diasCobertura, ranking, janelas, spanJ, realSpan, dmin, dmax, orfas, reconciliadas, reconciliar,
       temDesempenho: !!desempenho?.bySku,
       decisoes: { Manter: conta('Manter'), Promover: conta('Promover'), 'Avaliar saída': conta('Avaliar saída'), Ignorar: conta('Ignorar'), 'Não enviar': conta('Não enviar') },
       validacao: { divergentes, comparaveis, pct, ok: pct <= 5 },
