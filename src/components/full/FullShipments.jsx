@@ -8,9 +8,7 @@ function fmtDate(s) { try { return new Date(s).toLocaleString('pt-BR'); } catch 
 
 // Os 5 relatórios crus que alimentam o cálculo (parsers entram na próxima fase)
 const SLOTS = [
-  { id: 'vendas30', label: 'Vendas — 30 dias', accept: '.xlsx' },
-  { id: 'vendas15', label: 'Vendas — 15 dias (opcional)', accept: '.xlsx' },
-  { id: 'vendas7', label: 'Vendas — 7 dias (opcional)', accept: '.xlsx' },
+  { id: 'vendas30', label: 'Vendas (relatório de ~30 dias)', accept: '.xlsx' },
   { id: 'full', label: 'Estoque no Full', accept: '.xlsx' },
   { id: 'cross', label: 'Estoque do armazém (cross)', accept: '.csv' },
   { id: 'desemp', label: 'Desempenho de anúncios (opcional)', accept: '.xlsx' },
@@ -55,13 +53,11 @@ export default function FullShipments({ user }) {
   async function calcular() {
     setCalcing(true); setCalcErr('');
     try {
-      const [resumo, v30, cross] = await Promise.all([
+      const [resumo, vendas, cross] = await Promise.all([
         parseFullResumo(files.full), parseVendas(files.vendas30), parseCross(files.cross),
       ]);
-      const v7 = files.vendas7 ? await parseVendas(files.vendas7) : null;
-      const v15 = files.vendas15 ? await parseVendas(files.vendas15) : null;
       const desempenho = files.desemp ? await parseDesempenho(files.desemp) : null;
-      setRepo({ resumo, vendas: { 7: v7, 15: v15, 30: v30 }, cross, desempenho });
+      setRepo({ resumo, vendas, cross, desempenho });
     } catch (err) {
       setCalcErr(err.message || 'Erro ao processar os relatórios');
       setRepo(null);
@@ -149,7 +145,7 @@ export default function FullShipments({ user }) {
             {calcing ? 'Calculando...' : '🧮 Calcular reposição'}
           </button>
           <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
-            Mínimo: Vendas 30d + Full + Cross. 7/15 dias e Desempenho enriquecem (tendência e ranking).
+            Mínimo: 1 relatório de vendas + Full + Cross. O sistema fatia as janelas (7/15/30) pela data. Desempenho enriquece o ranking.
           </span>
         </div>
         {analysisErr && <div className="alert alert-error" style={{ marginTop: '10px' }}>{analysisErr}</div>}

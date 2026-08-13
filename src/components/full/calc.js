@@ -52,7 +52,8 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
   const diasCobertura = params?.diasCobertura || 30;
   const ranking = params?.ranking || { metodo: 'topN', topN: 50 };
   const excl = excluidos instanceof Set ? excluidos : new Set(excluidos || []);
-  const periodos = [7, 15, 30];
+  const janelas = (params?.janelas && params.janelas.length ? params.janelas : [7, 15, 30])
+    .map(Number).filter(d => d > 0).sort((a, b) => a - b);
 
   const anuncioToCml = new Map();
   const skusFull = new Set();
@@ -61,54 +62,61 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
     if (p.sku) skusFull.add(p.sku);
   }
 
-  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking }, anuncioToCml, skusFull, periodos });
+  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas }, anuncioToCml, skusFull });
 }
 
-function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull, periodos }) {
-  const { regra, diasCobertura, ranking } = params;
-  const demCmlFull = new Map();   // cml -> {7,15,30} canal full
-  const mlCheck = new Map();      // cml -> valida+media 30d full
-  const demSkuCross = new Map();  // sku -> {7,15,30} canal cross
-  const receitaSku = new Map();   // sku -> receita 30d (fallback de ranking)
-  const unSku = new Map();        // sku -> un 30d todas as vendas (fallback)
-  const orfas = { 7: 0, 15: 0, 30: 0, lista: [] };
-  const spanByP = {};
-  const temP = {}; // períodos com dados (o cliente pode mandar só o de 30d)
+function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull }) {
+  const { regra, diasCobertura, ranking, janelas } = params;
+  const DAY = 86400000;
+  const maxJ = janelas[janelas.length - 1], minJ = janelas[0];
 
-  for (const p of periodos) {
-    const v = vendas[p];
-    temP[p] = !!(v && v.linhas && v.linhas.length);
-    spanByP[p] = v?.span || 0;
-    const orfasP = new Map();
-    for (const l of (v?.linhas || [])) {
-      if (l.classe === 'cancelamento') continue;
-      if (p === 30) {
-        unSku.set(l.sku, (unSku.get(l.sku) || 0) + l.un);
-        receitaSku.set(l.sku, (receitaSku.get(l.sku) || 0) + (l.receita || 0));
+  // Um único relatório de vendas → derivar as janelas por data da venda
+  const linhas = vendas?.linhas || [];
+  const dmax = vendas?.dmax || null;
+  const dmin = vendas?.dmin || null;
+  const realSpan = vendas?.span || (dmin && dmax ? (dmax - dmin) / DAY : 0);
+  const dmaxMs = dmax ? dmax.getTime() : null;
+  const spanJ = {}, cutoff = {};
+  for (const D of janelas) { spanJ[D] = Math.min(D, realSpan || D) || D; cutoff[D] = dmaxMs != null ? dmaxMs - D * DAY : -Infinity; }
+  const dentro = (l, D) => l.data == null ? true : l.data.getTime() >= cutoff[D];
+
+  const demCmlFull = new Map();   // cml -> { [D]: qty } canal full
+  const mlCheck = new Map();      // cml -> valida+media (relatório inteiro) canal full
+  const demSkuCross = new Map();  // sku -> { [D]: qty } canal cross
+  const receitaSku = new Map();   // sku -> receita (fallback de ranking)
+  const unSku = new Map();        // sku -> un (fallback de ranking)
+  const orfas = {}; janelas.forEach(D => orfas[D] = 0); orfas.lista = [];
+  const orfasP = new Map();
+
+  for (const l of linhas) {
+    if (l.classe === 'cancelamento') continue;
+    unSku.set(l.sku, (unSku.get(l.sku) || 0) + l.un);
+    receitaSku.set(l.sku, (receitaSku.get(l.sku) || 0) + (l.receita || 0));
+    const cml = anuncioToCml.get(String(l.anuncio).trim());
+    if (cml) {
+      if (l.canal === 'full') {
+        if (!demCmlFull.has(cml)) demCmlFull.set(cml, {});
+        const o = demCmlFull.get(cml);
+        for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un;
+        if (l.classe !== 'devolucao') mlCheck.set(cml, (mlCheck.get(cml) || 0) + l.un);
       }
-      const cml = anuncioToCml.get(String(l.anuncio).trim());
-      if (cml) {
-        if (l.canal === 'full') {
-          if (!demCmlFull.has(cml)) demCmlFull.set(cml, { 7: 0, 15: 0, 30: 0 });
-          demCmlFull.get(cml)[p] += l.un;
-          if (p === 30 && l.classe !== 'devolucao') mlCheck.set(cml, (mlCheck.get(cml) || 0) + l.un);
-        }
-        continue;
-      }
-      // órfã (anúncio sem grupo no Full)
-      orfas[p] += l.un;
-      if (l.canal === 'cross') {
-        if (!demSkuCross.has(l.sku)) demSkuCross.set(l.sku, { 7: 0, 15: 0, 30: 0 });
-        demSkuCross.get(l.sku)[p] += l.un;
-      }
-      if (p === 30) {
-        const k = `${l.anuncio}|${l.sku}`;
-        const prev = orfasP.get(k) || { anuncio: l.anuncio, sku: l.sku, titulo: l.titulo, un: 0, inFull: skusFull.has(l.sku) };
-        prev.un += l.un; orfasP.set(k, prev);
-      }
+      continue;
     }
-    if (p === 30) orfas.lista = [...orfasP.values()].sort((a, b) => b.un - a.un);
+    // órfã (anúncio sem grupo no Full)
+    for (const D of janelas) if (dentro(l, D)) orfas[D] += l.un;
+    if (l.canal === 'cross') {
+      if (!demSkuCross.has(l.sku)) demSkuCross.set(l.sku, {});
+      const o = demSkuCross.get(l.sku);
+      for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un;
+    }
+    const k = `${l.anuncio}|${l.sku}`;
+    const prev = orfasP.get(k) || { anuncio: l.anuncio, sku: l.sku, titulo: l.titulo, un: 0, inFull: skusFull.has(l.sku) };
+    prev.un += l.un; orfasP.set(k, prev);
   }
+  orfas.lista = [...orfasP.values()].sort((a, b) => b.un - a.un);
+
+  // velocidade por janela a partir de um mapa de demanda { [D]: qty }
+  const velsDe = (d) => janelas.map(D => spanJ[D] > 0 ? (d[D] || 0) / spanJ[D] : 0);
 
   // Ranking de "melhores" por SKU
   const perfBySku = new Map();
@@ -130,15 +138,13 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
 
   // ---- Linhas do Full (Resumo) ----
   let rows = resumo.map(p => {
-    const d = demCmlFull.get(p.codigoMl) || { 7: 0, 15: 0, 30: 0 };
-    const vel = {};
-    for (const per of periodos) vel[per] = temP[per] && spanByP[per] > 0 ? d[per] / spanByP[per] : 0;
-    const velArr = periodos.filter(per => temP[per]).map(per => vel[per]);
-    const velEsc = velArr.length ? aggreg(velArr, regra) : 0;
+    const d = demCmlFull.get(p.codigoMl) || {};
+    const vels = velsDe(d);
+    const velEsc = vels.length ? aggreg(vels, regra) : 0;
     const estoque = p.estoqueFull || 0;
     const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura - estoque));
     const melhor = melhores.has(p.sku);
-    const vendeFull = d[30] > 0;
+    const vendeFull = (d[maxJ] || 0) > 0;
     let decisao;
     if (excl.has(p.sku)) decisao = 'Não enviar';
     else if (p.semanas != null && p.semanas >= 10 && !melhor) decisao = 'Avaliar saída';
@@ -147,8 +153,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     else decisao = 'Ignorar';
     return {
       key: p.codigoMl, origem: 'full', codigoMl: p.codigoMl, sku: p.sku, produto: p.produto,
-      vel7: vel[7], vel15: vel[15], vel30: vel[30], velEsc,
-      un30: d[30], un30ml: p.un30, estoque, semanas: p.semanas,
+      vels, velEsc, unMax: d[maxJ] || 0, un30ml: p.un30, estoque, semanas: p.semanas,
       crossSku: cross?.map?.get((p.sku || '').toUpperCase()) || 0,
       sugestao, final: (decisao === 'Manter') ? sugestao : 0,
       melhor, rankPos: rankPosMap.get(p.sku) || null, perf: perf(p.sku), decisao, alertas: [],
@@ -158,20 +163,16 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   // ---- Candidatos do cross (não estão no Full) ----
   for (const [sku, d] of demSkuCross) {
     if (skusFull.has(sku)) continue; // migrado (SKU está no Full) — fica para a reconciliação
-    const vel = {};
-    for (const per of periodos) vel[per] = temP[per] && spanByP[per] > 0 ? d[per] / spanByP[per] : 0;
-    const velArr = periodos.filter(per => temP[per]).map(per => vel[per]);
-    const velEsc = velArr.length ? aggreg(velArr, regra) : 0;
+    const vels = velsDe(d);
+    const velEsc = vels.length ? aggreg(vels, regra) : 0;
     const crossSku = cross?.map?.get((sku || '').toUpperCase()) || 0;
     const melhor = melhores.has(sku);
-    const sugestaoBruta = Math.max(0, Math.ceil(velEsc * diasCobertura));
-    const sugestao = Math.min(sugestaoBruta, crossSku);
+    const sugestao = Math.min(Math.max(0, Math.ceil(velEsc * diasCobertura)), crossSku);
     const decisao = excl.has(sku) ? 'Não enviar' : (melhor && crossSku > 0 ? 'Promover' : 'Ignorar');
     const orf = orfas.lista.find(o => o.sku === sku);
     rows.push({
       key: 'cross:' + sku, origem: 'cross', codigoMl: '', sku, produto: orf?.titulo || sku,
-      vel7: vel[7], vel15: vel[15], vel30: vel[30], velEsc,
-      un30: d[30], un30ml: null, estoque: 0, semanas: null,
+      vels, velEsc, unMax: d[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
       melhor, rankPos: rankPosMap.get(sku) || null, perf: perf(sku), decisao, alertas: [],
     });
@@ -190,12 +191,14 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     }
   }
 
-  // Alertas
+  // Alertas — tendência = menor janela vs maior janela
+  const temTrend = janelas.length >= 2;
   for (const r of rows) {
+    const velCurto = r.vels[0] || 0, velLongo = r.vels[r.vels.length - 1] || 0;
     if (r.estouraCross) r.alertas.push('estoura cross');
     if (r.origem === 'full' && r.velEsc > 0 && r.estoque === 0) r.alertas.push('sem estoque full');
-    if (temP[7] && temP[30] && r.vel30 > 0 && r.vel7 < 0.5 * r.vel30) r.alertas.push('caindo forte');
-    if (temP[7] && temP[30] && r.vel30 > 0 && r.vel7 > 1.5 * r.vel30) r.alertas.push('subindo forte');
+    if (temTrend && velLongo > 0 && velCurto < 0.5 * velLongo) r.alertas.push('caindo forte');
+    if (temTrend && velLongo > 0 && velCurto > 1.5 * velLongo) r.alertas.push('subindo forte');
   }
 
   // Validação vs ML (§4.7) — só linhas do Full
@@ -211,7 +214,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   return {
     rows,
     meta: {
-      regra, diasCobertura, ranking, span: spanByP, orfas,
+      regra, diasCobertura, ranking, janelas, spanJ, realSpan, dmin, dmax, orfas,
       temDesempenho: !!desempenho?.bySku,
       decisoes: { Manter: conta('Manter'), Promover: conta('Promover'), 'Avaliar saída': conta('Avaliar saída'), Ignorar: conta('Ignorar'), 'Não enviar': conta('Não enviar') },
       validacao: { divergentes, comparaveis, pct, ok: pct <= 5 },

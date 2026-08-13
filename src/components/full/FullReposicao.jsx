@@ -4,6 +4,7 @@ import { computeReposicao } from './calc.js';
 
 const n1 = (n) => (n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const int = (n) => Math.round(n || 0).toLocaleString('pt-BR');
+const fmtDia = (d) => { try { return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch { return ''; } };
 
 const ALERT_STYLE = {
   'estoura cross': { bg: '#fed7d7', fg: '#822727' },
@@ -26,6 +27,7 @@ const DEC_STYLE = {
 export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [regra, setRegra] = useState('MAX');
   const [dias, setDias] = useState(30);
+  const [janelasTxt, setJanelasTxt] = useState('7, 15, 30');
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
   const [decFiltro, setDecFiltro] = useState('Todos');
   const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
@@ -62,9 +64,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     try { await api.delete(`/full/excluidos/${encodeURIComponent(sku)}`); } catch { carregarExcluidos(); }
   }
 
+  const janelas = useMemo(() => {
+    const arr = janelasTxt.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => n > 0);
+    return arr.length ? [...new Set(arr)].sort((a, b) => a - b) : [7, 15, 30];
+  }, [janelasTxt]);
+
   const { rows, meta } = useMemo(
-    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank } }),
-    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank]
+    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas } }),
+    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas]
   );
 
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : r.final);
@@ -133,7 +140,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         </div>
       )}
       <div className="alert" style={{ marginBottom: '12px', background: '#fffaf0', border: '1px solid #f6ad55', color: '#744210' }}>
-        🧩 Vendas <b>órfãs</b> (anúncio sem grupo, ainda não atribuídas): 7d {int(meta.orfas[7])} · 15d {int(meta.orfas[15])} · <b>30d {int(meta.orfas[30])}</b>.
+        🧩 Vendas <b>órfãs</b> (anúncio sem grupo, ainda não atribuídas): {meta.janelas.map(D => `${D}d ${int(meta.orfas[D])}`).join(' · ')}.
         <button className="btn-outline" style={{ marginLeft: '10px', padding: '3px 10px', fontSize: '12px' }} onClick={() => setShowOrfas(v => !v)}>
           {showOrfas ? 'ocultar' : 'ver lista'}
         </button>
@@ -161,8 +168,13 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <button key={d} onClick={() => setDias(d)} style={{ ...styles.chip, ...(dias === d ? styles.chipOn : {}) }}>{d}</button>
             ))}
           </div>
-          <div style={{ marginLeft: 'auto', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Span: 7d {n1(meta.span[7])} · 15d {n1(meta.span[15])} · 30d {n1(meta.span[30])}
+          <div style={styles.group}>
+            <span style={styles.label}>Janelas (dias)</span>
+            <input value={janelasTxt} onChange={e => setJanelasTxt(e.target.value)} placeholder="7, 15, 30"
+              style={{ ...styles.numInput, width: '110px', textAlign: 'left' }} title="Períodos de conferência derivados do relatório (separados por vírgula)" />
+          </div>
+          <div style={{ marginLeft: 'auto', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+            Relatório: {n1(meta.realSpan)} dias{meta.dmin && meta.dmax ? ` (${fmtDia(meta.dmin)} → ${fmtDia(meta.dmax)})` : ''}
           </div>
         </div>
         {/* Ranking de "melhores" (define Manter/Promover) */}
@@ -230,7 +242,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               {th('sku', 'SKU')}
               <th>Produto</th>
               <th>Decisão</th>
-              {th('vel', 'Vel (7/15/30)', { textAlign: 'right' })}
+              {th('vel', 'Vel (' + meta.janelas.join('/') + ')', { textAlign: 'right' })}
               {th('estoque', 'Estoque', { textAlign: 'right' })}
               {th('cobertura', 'Cobertura', { textAlign: 'right' })}
               <th style={{ textAlign: 'right' }}>Cross</th>
@@ -250,7 +262,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 <td>
                   <span style={{ ...(DEC_STYLE[r.decisao] || {}), background: (DEC_STYLE[r.decisao] || {}).bg, color: (DEC_STYLE[r.decisao] || {}).fg, fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>{r.decisao}</span>
                 </td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{n1(r.vel7)}/{n1(r.vel15)}/{n1(r.vel30)}</td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('/')}</td>
                 <td style={{ textAlign: 'right' }}>{int(r.estoque)}</td>
                 <td style={{ textAlign: 'right' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
                 <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
