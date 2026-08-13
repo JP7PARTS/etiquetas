@@ -208,6 +208,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     else decisao = 'Ignorar';
     return {
       key: p.codigoMl, origem: 'full', codigoMl: p.codigoMl, sku: p.sku, produto: p.produto,
+      gtin: p.gtin || '', anuncio: (p.anuncios && p.anuncios[0]) || '',
       vels, velEsc, unMax: d[maxJ] || 0, un30ml: p.un30, estoque, semanas: p.semanas,
       crossSku: cross?.map?.get((p.sku || '').toUpperCase()) || 0,
       sugestao, final: (decisao === 'Manter') ? sugestao : 0,

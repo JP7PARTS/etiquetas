@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../utils/api.js';
 import { computeReposicao } from './calc.js';
+import moldeUrl from './molde_full.xlsx?url';
 
 const n1 = (n) => (n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const int = (n) => Math.round(n || 0).toLocaleString('pt-BR');
@@ -107,6 +108,30 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   }
   function clickSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' });
+  }
+
+  async function exportarML() {
+    const itens = rows.filter(r => finalOf(r) > 0 && r.codigoMl);
+    if (itens.length === 0) { setMsg('Nenhum item com Código ML para exportar.'); return; }
+    try {
+      const XLSX = await import('xlsx');
+      const buf = await (await fetch(moldeUrl)).arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets['Seleção de produtos'];
+      let rr = 6;
+      for (const r of itens) {
+        XLSX.utils.sheet_add_aoa(ws, [[r.sku, String(r.gtin || ''), r.codigoMl, String(r.anuncio || ''), '', finalOf(r)]], { origin: 'A' + rr });
+        rr++;
+      }
+      ws['!ref'] = 'A1:F' + (rr - 1);
+      const d = new Date();
+      const nome = `envio_full_${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(2)}.xlsx`;
+      XLSX.writeFile(wb, nome);
+      const promoverFora = rows.filter(r => r.decisao === 'Promover' && finalOf(r) > 0 && !r.codigoMl).length;
+      setMsg(`✅ Planilha do ML gerada (${itens.length} itens).` + (promoverFora ? ` ⚠️ ${promoverFora} itens "Promover" ficaram de fora (ainda sem Código ML no Full — habilite-os no Full primeiro).` : ''));
+    } catch (err) {
+      setMsg('Erro ao gerar a planilha: ' + (err.message || err));
+    }
   }
   async function salvar() {
     const nome = window.prompt('Nome do envio:', `Envio Full ${new Date().toLocaleDateString('pt-BR')}`);
@@ -253,6 +278,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         <input placeholder="Buscar SKU / produto / Código ML" value={busca} onChange={e => setBusca(e.target.value)}
           style={{ flex: 1, minWidth: '220px', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '8px' }} />
         <span style={{ fontSize: '14px', fontWeight: 700 }}>{linhasEnvio} linhas · {int(totalFinal)} un a enviar</span>
+        <button className="btn-outline" onClick={exportarML} title="Gera a planilha no modelo oficial do ML (colunas A–F)">📤 Exportar planilha do ML</button>
         <button className="btn-primary" onClick={salvar} disabled={saving}>{saving ? 'Salvando...' : '💾 Salvar envio'}</button>
       </div>
       {msg && <div className="alert alert-success" style={{ marginBottom: '10px' }}>{msg}</div>}
