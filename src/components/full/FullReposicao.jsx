@@ -289,7 +289,9 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             <tr>
               {th('rank', 'Rank', { textAlign: 'right' })}
               {th('sku', 'SKU')}
-              <th>Produto</th>
+              <th style={{ textAlign: 'center' }} title="Título do anúncio (passe o mouse)">Tít.</th>
+              <th>MLB</th>
+              <th>Código ML</th>
               <th>Decisão</th>
               {th('vel', 'Vel (' + meta.janelas.join('/') + ')', { textAlign: 'right' })}
               {th('estoque', 'Estoque', { textAlign: 'right' })}
@@ -307,7 +309,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <tr key={r.key}>
                 <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankPos ? 'var(--text-primary)' : 'var(--text-muted)' }}>{r.rankPos ? '#' + r.rankPos : '—'}</td>
                 <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{r.sku}</td>
-                <td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.produto}>{r.produto}</td>
+                <td style={{ textAlign: 'center', cursor: 'help' }} title={r.tituloTop || r.produto}>ℹ️</td>
+                <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}
+                  title={(r.anuncios && r.anuncios.length ? r.anuncios : []).map(a => `MLB${a.mlb} · ${int(a.un)}un${a.titulo ? ' · ' + a.titulo : ''}`).join('\n') || 'sem anúncio'}>
+                  {r.anuncio ? <>MLB{r.anuncio}{r.anuncios && r.anuncios.length > 1 && <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}> +{r.anuncios.length - 1}</span>}</> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
+                <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}>
+                  {r.codigoMl ? r.codigoMl : <span style={{ color: 'var(--text-muted)' }} title="nunca foi ao Full (adicionar/remover)">—</span>}
+                </td>
                 <td>
                   <span style={{ ...(DEC_STYLE[r.decisao] || {}), background: (DEC_STYLE[r.decisao] || {}).bg, color: (DEC_STYLE[r.decisao] || {}).fg, fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>{r.decisao}</span>
                 </td>
