@@ -87,7 +87,13 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     // "Todos" oculta os "Não enviar"; o chip "Não enviar" mostra só eles
     if (decFiltro === 'Todos') arr = arr.filter(r => r.decisao !== 'Não enviar');
     else arr = arr.filter(r => r.decisao === decFiltro);
-    if (q) arr = arr.filter(r => r.sku.toLowerCase().includes(q) || (r.produto || '').toLowerCase().includes(q) || r.codigoMl.toLowerCase().includes(q));
+    if (q) {
+      const qm = q.replace(/^mlb/, '');
+      arr = arr.filter(r =>
+        r.sku.toLowerCase().includes(q) || (r.produto || '').toLowerCase().includes(q) || r.codigoMl.toLowerCase().includes(q) ||
+        String(r.anuncio || '').toLowerCase().includes(qm) ||
+        (r.anuncios || []).some(a => String(a.mlb || '').toLowerCase().includes(qm)));
+    }
     const key = sort.key, mul = sort.dir === 'asc' ? 1 : -1;
     const val = (r) => key === 'rank' ? (r.rankPos ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'sku' ? r.sku : r.velEsc;
     return [...arr].sort((a, b) => {
@@ -284,7 +290,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
 
       {/* Barra de ação */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
-        <input placeholder="Buscar SKU / produto / Código ML" value={busca} onChange={e => setBusca(e.target.value)}
+        <input placeholder="Buscar SKU / produto / Código ML / MLB" value={busca} onChange={e => setBusca(e.target.value)}
           style={{ flex: 1, minWidth: '220px', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '8px' }} />
         <span style={{ fontSize: '14px', fontWeight: 700 }}>{linhasEnvio} linhas · {int(totalFinal)} un a enviar</span>
         <button className="btn-outline" onClick={exportarML} title="Gera a planilha no modelo oficial do ML (colunas A–F)">📤 Exportar planilha do ML</button>
