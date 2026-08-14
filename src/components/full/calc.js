@@ -158,8 +158,10 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       continue;
     }
     // órfã (anúncio sem grupo no Full)
-    // Reconciliação: se o SKU está no Full, é anúncio migrado → atribuir ao(s) Código(s) ML
-    if (reconciliar && skusFull.has(l.sku)) {
+    // Reconciliação: SÓ vendas do canal Full (migração real de listagem Full → sucessor).
+    // Vendas cross de anúncios órfãos (mesmo SKU, título diferente) NÃO entram no Full —
+    // são anúncios diferentes; seguem como demanda de cross.
+    if (reconciliar && l.canal === 'full' && skusFull.has(l.sku)) {
       const destinos = resolverDestino(l.sku, l.titulo);
       if (destinos.length) {
         for (const [dcml, peso] of destinos) addFull(dcml, l, peso);
