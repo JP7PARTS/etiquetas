@@ -147,7 +147,7 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
           </span>
         </header>
 
-        <main style={styles.content}>
+        <main style={{ ...styles.content, ...(page === 'full' ? { maxWidth: '100%' } : {}) }}>
           {children}
         </main>
       </div>

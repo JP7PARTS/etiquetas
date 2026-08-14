@@ -284,7 +284,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       {msg && <div className="alert alert-success" style={{ marginBottom: '10px' }}>{msg}</div>}
 
       <div className="card" style={{ overflowX: 'auto' }}>
-        <table style={{ fontSize: '13px' }}>
+        <style>{`.repo-tbl th,.repo-tbl td{padding:8px 9px;}`}</style>
+        <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
               {th('rank', 'Rank', { textAlign: 'right' })}
