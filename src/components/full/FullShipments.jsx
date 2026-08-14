@@ -14,20 +14,32 @@ const SLOTS = [
   { id: 'desemp', label: 'Desempenho de anúncios (opcional)', accept: '.xlsx' },
 ];
 
+// Cache em memória (nível de módulo): mantém os arquivos e resultados ao navegar
+// entre áreas do app (o componente desmonta, mas isto persiste na sessão).
+const cache = { files: {}, analysis: null, repo: null };
+
 export default function FullShipments({ user }) {
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [files, setFiles] = useState({}); // id -> File (só guardado por enquanto)
-  const [analysis, setAnalysis] = useState(null); // linhas parseadas do Resumo do Full
+  const [files, setFiles] = useState(() => cache.files); // id -> File
+  const [analysis, setAnalysis] = useState(() => cache.analysis); // linhas parseadas do Resumo do Full
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisErr, setAnalysisErr] = useState('');
-  const [repo, setRepo] = useState(null);         // { resumo, vendas, cross } p/ reposição
+  const [repo, setRepo] = useState(() => cache.repo);    // { resumo, vendas, cross } p/ reposição
   const [calcing, setCalcing] = useState(false);
   const [calcErr, setCalcErr] = useState('');
   const inputs = useRef({});
 
   useEffect(() => { loadLists(); }, []);
+  useEffect(() => { cache.files = files; }, [files]);
+  useEffect(() => { cache.analysis = analysis; }, [analysis]);
+  useEffect(() => { cache.repo = repo; }, [repo]);
+
+  function limparArquivos() {
+    setFiles({}); setAnalysis(null); setRepo(null); setAnalysisErr(''); setCalcErr('');
+    for (const s of SLOTS) if (inputs.current[s.id]) inputs.current[s.id].value = '';
+  }
 
   async function loadLists() {
     setLoading(true); setError('');
@@ -106,7 +118,13 @@ export default function FullShipments({ user }) {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
           <h2 style={{ margin: 0, fontSize: '16px' }}>Relatórios do período</h2>
-          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{carregados}/5 carregados</span>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{carregados}/5 carregados</span>
+            {carregados > 0 && (
+              <button className="btn-outline" style={{ padding: '4px 10px', fontSize: '12.5px' }}
+                onClick={limparArquivos} title="Remove todos os relatórios carregados">🗑 Limpar arquivos</button>
+            )}
+          </div>
         </div>
         <div style={styles.slots}>
           {SLOTS.map(s => (
