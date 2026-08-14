@@ -211,6 +211,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             {[15, 30, 45, 60].map(d => (
               <button key={d} onClick={() => setDias(d)} style={{ ...styles.chip, ...(dias === d ? styles.chipOn : {}) }}>{d}</button>
             ))}
+            <input type="number" min="1" value={dias} onChange={e => setDias(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              style={{ ...styles.numInput, width: '64px' }} title="Digite qualquer número de dias de cobertura" />
           </div>
           <div style={styles.group}>
             <span style={styles.label}>Janelas (dias)</span>
