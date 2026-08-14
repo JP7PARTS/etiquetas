@@ -96,6 +96,7 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
 
 function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull, resolverDestino }) {
   const { regra, diasCobertura, ranking, janelas, reconciliar } = params;
+  const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const DAY = 86400000;
   const maxJ = janelas[janelas.length - 1], minJ = janelas[0];
 
@@ -115,6 +116,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   const demCmlFull = new Map();   // cml -> { [D]: qty } canal full
   const mlCheck = new Map();      // cml -> valida+media (relatório inteiro) canal full
   const demSkuCross = new Map();  // sku -> { [D]: qty } canal cross
+  const demAnunCross = new Map(); // anuncio -> { win:{[D]:qty}, sku, titulo, un } canal cross
   const receitaSku = new Map();   // sku -> receita (fallback de ranking)
   const unSku = new Map();        // sku -> un (fallback de ranking)
   const orfas = {}; janelas.forEach(D => orfas[D] = 0); orfas.lista = [];
@@ -179,6 +181,11 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       const o = demSkuCross.get(l.sku);
       for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un;
       addAnun(anunPorSku, l.sku, l, 1);
+      // demanda de cross por anúncio (para candidatos "2º anúncio" de SKU já no Full)
+      let a = demAnunCross.get(l.anuncio);
+      if (!a) { a = { win: {}, sku: l.sku, titulo: l.titulo, un: 0 }; demAnunCross.set(l.anuncio, a); }
+      for (const D of janelas) if (dentro(l, D)) a.win[D] = (a.win[D] || 0) + l.un;
+      a.un += l.un; if (l.titulo) a.titulo = l.titulo;
     }
     const k = `${l.anuncio}|${l.sku}`;
     const prev = orfasP.get(k) || { anuncio: l.anuncio, sku: l.sku, titulo: l.titulo, un: 0, inFull: skusFull.has(l.sku) };
@@ -264,6 +271,26 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       vels, velEsc, unMax: d[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
       melhor, rankPos: rankPosMap.get(sku) || null, perf: perf(sku), decisao, alertas: [],
+    });
+  }
+
+  // ---- 2º anúncio: candidatos de cross (título diferente) de SKU que JÁ está no Full ----
+  for (const [anuncio, a] of demAnunCross) {
+    if (!skusFull.has(a.sku)) continue;        // SKU não está no Full → já vira linha cross normal
+    if (anuncioToCml.has(anuncio)) continue;   // anúncio já é do Full
+    if ((a.win[maxJ] || 0) < limiar2) continue; // abaixo do limiar → cauda, ignora
+    const vels = velsDe(a.win);
+    const velEsc = vels.length ? aggreg(vels, regra) : 0;
+    const crossSku = cross?.map?.get((a.sku || '').toUpperCase()) || 0;
+    const sugestao = Math.min(Math.max(0, Math.ceil(velEsc * diasCobertura)), crossSku);
+    const decisao = excl.has(a.sku) ? 'Não enviar' : 'Promover';
+    rows.push({
+      key: 'cand:' + anuncio, origem: 'cross2', codigoMl: '', sku: a.sku, produto: a.titulo || a.sku,
+      anuncios: [{ mlb: anuncio, un: a.un, titulo: a.titulo }], anuncio, tituloTop: a.titulo || a.sku,
+      vels, velEsc, unMax: a.win[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
+      crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
+      melhor: melhores.has(a.sku), rankPos: rankPosMap.get(a.sku) || null, perf: perf(a.sku),
+      decisao, alertas: ['SKU já no Full'],
     });
   }
 

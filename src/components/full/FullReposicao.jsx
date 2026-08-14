@@ -13,6 +13,7 @@ const ALERT_STYLE = {
   'sem venda': { bg: '#e2e8f0', fg: '#4a5568' },
   'caindo forte': { bg: '#fefcbf', fg: '#744210' },
   'subindo forte': { bg: '#c6f6d5', fg: '#22543d' },
+  'SKU já no Full': { bg: '#e9d8fd', fg: '#553c9a' },
 };
 
 const DECISOES = ['Manter', 'Promover', 'Avaliar saída', 'Ignorar'];
@@ -30,6 +31,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [dias, setDias] = useState(30);
   const [janelasTxt, setJanelasTxt] = useState('7, 15, 30');
   const [reconciliar, setReconciliar] = useState(true);
+  const [limiar2, setLimiar2] = useState(15);
   const [showRec, setShowRec] = useState(false);
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
   const [decFiltro, setDecFiltro] = useState('Todos');
@@ -73,8 +75,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   }, [janelasTxt]);
 
   const { rows, meta } = useMemo(
-    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar } }),
-    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar]
+    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar, limiar2 } }),
+    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2]
   );
 
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : r.final);
@@ -220,6 +222,11 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               title="Atribui vendas de anúncios migrados ao Código ML correto (pelo SKU/título)">
               {reconciliar ? '✓ ' : ''}Reconciliar migrados
             </button>
+          </div>
+          <div style={styles.group}>
+            <span style={styles.label}>mín. un p/ 2º anúncio</span>
+            <input type="number" min="1" value={limiar2} onChange={e => setLimiar2(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              style={styles.numInput} title="Mínimo de unidades (na maior janela) para sugerir um 2º anúncio de cross de um SKU que já está no Full" />
           </div>
           <div style={{ marginLeft: 'auto', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
             Relatório: {n1(meta.realSpan)} dias{meta.dmin && meta.dmax ? ` (${fmtDia(meta.dmin)} → ${fmtDia(meta.dmax)})` : ''}
