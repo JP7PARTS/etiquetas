@@ -26,24 +26,25 @@ function percentis(entries, get) {
   return rank;
 }
 
-// Conjunto de SKUs "melhores" conforme o método escolhido
-function calcMelhores(perfBySku, ranking) {
+// Conjunto de SKUs "melhores" conforme o método e a métrica escolhidos.
+// metrica: 'ambos' (un+receita) | 'un' (só unidade) | 'rs' (só receita).
+function calcMelhores(perfBySku, ranking, metrica) {
   const entries = [...perfBySku.entries()];
   const metodo = ranking?.metodo || 'topN';
   const topN = ranking?.topN || 50;
+  const usaUn = metrica !== 'rs', usaRs = metrica !== 'un';
   const set = new Set();
   if (metodo === 'cortes') {
     const cu = ranking?.corteUn || 20, cr = ranking?.corteRs || 500;
     for (const [sku, p] of entries) if (p.un >= cu || p.receita >= cr) set.add(sku);
   } else if (metodo === 'score') {
     const pu = percentis(entries, p => p.un), pr = percentis(entries, p => p.receita), pc = percentis(entries, p => p.conv || 0);
-    const score = entries.map(([sku]) => [sku, pu.get(sku) + pr.get(sku) + pc.get(sku)]);
+    const score = entries.map(([sku]) => [sku, (usaUn ? pu.get(sku) : 0) + (usaRs ? pr.get(sku) : 0) + pc.get(sku)]);
     score.sort((a, b) => b[1] - a[1]);
     score.slice(0, topN).forEach(([sku]) => set.add(sku));
-  } else { // topN: união dos top N por quantidade e por valor
-    const byUn = [...entries].sort((a, b) => b[1].un - a[1].un).slice(0, topN);
-    const byRs = [...entries].sort((a, b) => b[1].receita - a[1].receita).slice(0, topN);
-    byUn.forEach(([sku]) => set.add(sku)); byRs.forEach(([sku]) => set.add(sku));
+  } else { // topN: união dos top N por quantidade e/ou por valor (conforme a métrica)
+    if (usaUn) [...entries].sort((a, b) => b[1].un - a[1].un).slice(0, topN).forEach(([sku]) => set.add(sku));
+    if (usaRs) [...entries].sort((a, b) => b[1].receita - a[1].receita).slice(0, topN).forEach(([sku]) => set.add(sku));
   }
   return set;
 }
@@ -59,6 +60,7 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
 
   const reconciliar = params?.reconciliar !== false;
   const rankPor = params?.rankPor === 'sku' ? 'sku' : 'anuncio';
+  const metricaRank = ['un', 'rs'].includes(params?.metricaRank) ? params.metricaRank : 'ambos';
   const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const anuncioToCml = new Map();
   const skusFull = new Set();
@@ -93,11 +95,11 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
     return cmls.map((c, i) => [c.codigoMl, base[i] / soma]);
   }
 
-  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, limiar2 }, anuncioToCml, skusFull, resolverDestino });
+  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, metricaRank, limiar2 }, anuncioToCml, skusFull, resolverDestino });
 }
 
 function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull, resolverDestino }) {
-  const { regra, diasCobertura, ranking, janelas, reconciliar, rankPor } = params;
+  const { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, metricaRank } = params;
   const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const DAY = 86400000;
   const maxJ = janelas[janelas.length - 1], minJ = janelas[0];
@@ -262,13 +264,14 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       for (const [anuncio, o] of perfCrossAnun) setPerf('an:' + anuncio, o.un, o.receita, 0);
     }
   }
-  const melhores = calcMelhores(perfByKey, ranking);
+  const melhores = calcMelhores(perfByKey, ranking, metricaRank);
   const perf = (key) => perfByKey.get(key) || { un: 0, receita: 0, conv: 0 };
 
-  // Posição no ranking (top 1, 2, 3…) pelos percentis de qtd+valor(+conversão)
+  // Posição no ranking (top 1, 2, 3…) pelos percentis da métrica escolhida (+conversão no método score)
+  const usaUn = metricaRank !== 'rs', usaRs = metricaRank !== 'un';
   const entriesM = [...perfByKey.entries()];
   const pu = percentis(entriesM, p => p.un), pr = percentis(entriesM, p => p.receita), pc = percentis(entriesM, p => p.conv || 0);
-  const scoreOf = (key) => (pu.get(key) || 0) + (pr.get(key) || 0) + (ranking?.metodo === 'score' ? (pc.get(key) || 0) : 0);
+  const scoreOf = (key) => (usaUn ? (pu.get(key) || 0) : 0) + (usaRs ? (pr.get(key) || 0) : 0) + (ranking?.metodo === 'score' ? (pc.get(key) || 0) : 0);
   const rankPosMap = new Map();
   [...melhores].sort((a, b) => scoreOf(b) - scoreOf(a)).forEach((key, i) => rankPosMap.set(key, i + 1));
 
@@ -394,7 +397,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   return {
     rows,
     meta: {
-      regra, diasCobertura, ranking, janelas, rankPor, spanJ, realSpan, dmin, dmax, orfas, reconciliadas, reconciliar,
+      regra, diasCobertura, ranking, janelas, rankPor, metricaRank, spanJ, realSpan, dmin, dmax, orfas, reconciliadas, reconciliar,
       temDesempenho: !!desempenho?.bySku,
       decisoes: { Manter: conta('Manter'), Promover: conta('Promover'), 'Avaliar saída': conta('Avaliar saída'), Ignorar: conta('Ignorar'), 'Não enviar': conta('Não enviar') },
       validacao: { divergentes, comparaveis, pct, ok: pct <= 5 },

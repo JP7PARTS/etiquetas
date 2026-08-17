@@ -5,6 +5,7 @@ import moldeUrl from './molde_full.xlsx?url';
 
 const n1 = (n) => (n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const int = (n) => Math.round(n || 0).toLocaleString('pt-BR');
+const brl = (n) => (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const fmtDia = (d) => { try { return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch { return ''; } };
 
 const ALERT_STYLE = {
@@ -37,6 +38,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [showRec, setShowRec] = useState(false);
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
   const [rankPor, setRankPor] = useState('anuncio'); // 'anuncio' (padrão) | 'sku'
+  const [metricaRank, setMetricaRank] = useState('ambos'); // 'ambos' | 'un' | 'rs'
   const [decFiltro, setDecFiltro] = useState('Todos');
   const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
   const [historico, setHistorico] = useState({}); // codigoMl -> total enviado
@@ -78,8 +80,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   }, [janelasTxt]);
 
   const { rows, meta } = useMemo(
-    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar, limiar2, rankPor } }),
-    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2, rankPor]
+    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar, limiar2, rankPor, metricaRank } }),
+    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2, rankPor, metricaRank]
   );
 
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : r.final);
@@ -100,7 +102,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         (r.anuncios || []).some(a => String(a.mlb || '').toLowerCase().includes(qm)));
     }
     const key = sort.key, mul = sort.dir === 'asc' ? 1 : -1;
-    const val = (r) => key === 'rank' ? (r.rankPos ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'sku' ? r.sku : r.velEsc;
+    const val = (r) => key === 'rank' ? (r.rankPos ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'un' ? (r.perf?.un || 0) : key === 'rs' ? (r.perf?.receita || 0) : key === 'sku' ? r.sku : r.velEsc;
     return [...arr].sort((a, b) => {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
@@ -267,6 +269,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <button key={m} onClick={() => setRankPor(m)} style={{ ...styles.chip, ...(rankPor === m ? styles.chipOn : {}) }}>{lbl}</button>
             ))}
           </div>
+          <div style={styles.group}>
+            <span style={styles.label}>Ranquear por</span>
+            {[['ambos', 'Ambos'], ['un', 'Unidade'], ['rs', 'Receita']].map(([m, lbl]) => (
+              <button key={m} onClick={() => setMetricaRank(m)} style={{ ...styles.chip, ...(metricaRank === m ? styles.chipOn : {}) }}>{lbl}</button>
+            ))}
+          </div>
           {rank.metodo !== 'cortes' ? (
             <div style={styles.group}>
               <span style={styles.label}>Top N</span>
@@ -333,6 +341,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <th>Código ML</th>
               <th>Decisão</th>
               {th('vel', 'Vel (' + meta.janelas.join('/') + ')', { textAlign: 'right' })}
+              {th('un', 'Un', { textAlign: 'right' })}
+              {th('rs', 'R$', { textAlign: 'right' })}
               {th('estoque', 'Estoque', { textAlign: 'right' })}
               {th('cobertura', 'Cobertura', { textAlign: 'right' })}
               <th style={{ textAlign: 'right' }}>Cross</th>
@@ -360,6 +370,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                   <span style={{ ...(DEC_STYLE[r.decisao] || {}), background: (DEC_STYLE[r.decisao] || {}).bg, color: (DEC_STYLE[r.decisao] || {}).fg, fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>{r.decisao}</span>
                 </td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('/')}</td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="unidades vendidas no período (base do ranking)">{int(r.perf?.un)}</td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="receita no período (base do ranking)">{brl(r.perf?.receita)}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{int(r.estoque)}{r.aCaminho > 0 && <span style={{ color: '#2a4365', fontSize: '11px' }} title="unidades a caminho do Full (entrada pendente)"> +{int(r.aCaminho)}🚚</span>}</td>
                 <td style={{ textAlign: 'right' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
                 <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
