@@ -33,6 +33,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [janelasTxt, setJanelasTxt] = useState('7, 15, 30');
   const [reconciliar, setReconciliar] = useState(true);
   const [limiar2, setLimiar2] = useState(15);
+  const [verTodos, setVerTodos] = useState(false); // por padrão, só os melhores (Top N)
   const [showRec, setShowRec] = useState(false);
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
   const [decFiltro, setDecFiltro] = useState('Todos');
@@ -85,6 +86,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const view = useMemo(() => {
     const q = busca.trim().toLowerCase();
     let arr = rows;
+    // Por padrão mostra só os "melhores" (Top N); "Ver todos" libera o resto
+    if (!verTodos) arr = arr.filter(r => r.melhor);
     // "Todos" oculta os "Não enviar"; o chip "Não enviar" mostra só eles
     if (decFiltro === 'Todos') arr = arr.filter(r => r.decisao !== 'Não enviar');
     else arr = arr.filter(r => r.decisao === decFiltro);
@@ -101,7 +104,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides, decFiltro]);
+  }, [rows, busca, sort, overrides, decFiltro, verTodos]);
 
   // Totais respeitam o filtro atual (view)
   const totalFinal = view.reduce((s, r) => s + finalOf(r), 0);
@@ -287,6 +290,10 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             🚫 Não enviar ({meta.decisoes['Não enviar']})
           </button>
         )}
+        <button onClick={() => setVerTodos(v => !v)} style={{ ...styles.chip, ...(verTodos ? {} : styles.chipOn), marginLeft: 'auto' }}
+          title={verTodos ? 'Mostrando tudo — clique para ver só os melhores (Top N)' : 'Mostrando só os melhores (Top N) — clique para ver todos'}>
+          {verTodos ? 'Ver todos' : `★ Só os melhores (${rows.filter(r => r.melhor).length})`}
+        </button>
       </div>
 
       {/* Barra de ação */}
