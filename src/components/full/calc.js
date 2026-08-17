@@ -58,6 +58,8 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
     .map(Number).filter(d => d > 0).sort((a, b) => a - b);
 
   const reconciliar = params?.reconciliar !== false;
+  const rankPor = params?.rankPor === 'sku' ? 'sku' : 'anuncio';
+  const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const anuncioToCml = new Map();
   const skusFull = new Set();
   const skuToCmls = new Map();   // sku -> [{ codigoMl, un30, estoque }]
@@ -91,11 +93,11 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
     return cmls.map((c, i) => [c.codigoMl, base[i] / soma]);
   }
 
-  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar }, anuncioToCml, skusFull, resolverDestino });
+  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, limiar2 }, anuncioToCml, skusFull, resolverDestino });
 }
 
 function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull, resolverDestino }) {
-  const { regra, diasCobertura, ranking, janelas, reconciliar } = params;
+  const { regra, diasCobertura, ranking, janelas, reconciliar, rankPor } = params;
   const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const DAY = 86400000;
   const maxJ = janelas[janelas.length - 1], minJ = janelas[0];
@@ -119,6 +121,15 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   const demAnunCross = new Map(); // anuncio -> { win:{[D]:qty}, sku, titulo, un } canal cross
   const receitaSku = new Map();   // sku -> receita (fallback de ranking)
   const unSku = new Map();        // sku -> un (fallback de ranking)
+  // Acumuladores por "unidade de ranking" (fallback sem desempenho), quando rankPor='anuncio'
+  const perfCml = new Map();       // cml -> { un, receita } vendas Full (diretas + reconciliadas)
+  const perfCrossSku = new Map();  // sku -> { un, receita } cross-only
+  const perfCrossAnun = new Map(); // anuncio -> { un, receita } cross-only
+  const bump = (mapa, chave, un, receita) => {
+    if (!chave && chave !== 0) return;
+    const o = mapa.get(chave) || { un: 0, receita: 0 };
+    o.un += un; o.receita += receita; mapa.set(chave, o);
+  };
   const orfas = {}; janelas.forEach(D => orfas[D] = 0); orfas.lista = [];
   const orfasP = new Map();
   const reconciliadas = { total: 0, lista: [] };
@@ -140,6 +151,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     if (!demCmlFull.has(cml)) demCmlFull.set(cml, {});
     const o = demCmlFull.get(cml);
     for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un * peso;
+    bump(perfCml, cml, l.un * peso, (l.receita || 0) * peso);
     // Só registra o MLB no detalhamento quando a atribuição é confiável (venda direta
     // ou reconciliação de destino único); rateio proporcional (peso<1) não polui a lista.
     if (peso === 1) addAnun(anunPorCml, cml, l, 1);
@@ -181,6 +193,8 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       const o = demSkuCross.get(l.sku);
       for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un;
       addAnun(anunPorSku, l.sku, l, 1);
+      bump(perfCrossSku, l.sku, l.un, l.receita || 0);
+      bump(perfCrossAnun, l.anuncio, l.un, l.receita || 0);
       // demanda de cross por anúncio (para candidatos "2º anúncio" de SKU já no Full)
       let a = demAnunCross.get(l.anuncio);
       if (!a) { a = { win: {}, sku: l.sku, titulo: l.titulo, un: 0 }; demAnunCross.set(l.anuncio, a); }
@@ -197,23 +211,66 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   // velocidade por janela a partir de um mapa de demanda { [D]: qty }
   const velsDe = (d) => janelas.map(D => spanJ[D] > 0 ? (d[D] || 0) / spanJ[D] : 0);
 
-  // Ranking de "melhores" por SKU
-  const perfBySku = new Map();
-  if (desempenho?.bySku) {
-    for (const [sku, o] of desempenho.bySku) perfBySku.set(sku, { un: o.un, receita: o.receita, conv: o.conv || 0 });
+  // Ranking de "melhores" por "unidade de ranking":
+  //  - rankPor='sku'    → uma entrada por SKU (comportamento clássico);
+  //  - rankPor='anuncio'→ por Código ML (Full), por SKU do cross ('sku:'), por anúncio 2º (an:').
+  // Cada linha aponta para sua perfKey; o rank é calculado sobre perfByKey.
+  const keyFor = (origem, o) => {
+    if (rankPor === 'sku') return o.sku;
+    if (origem === 'cross') return 'sku:' + o.sku;
+    if (origem === 'cross2') return 'an:' + o.anuncio;
+    return o.codigoMl; // full
+  };
+  const perfByKey = new Map();
+  const setPerf = (key, un, receita, conv) => {
+    if (key == null || key === '') return;
+    const p = perfByKey.get(key) || { un: 0, receita: 0, conv: 0 };
+    p.un += un; p.receita += receita; if (conv) p.conv = conv;
+    perfByKey.set(key, p);
+  };
+  if (rankPor === 'sku') {
+    if (desempenho?.bySku) {
+      for (const [sku, o] of desempenho.bySku) setPerf(sku, o.un, o.receita, o.conv || 0);
+    } else {
+      for (const sku of new Set([...unSku.keys(), ...receitaSku.keys()]))
+        setPerf(sku, unSku.get(sku) || 0, receitaSku.get(sku) || 0, 0);
+    }
   } else {
-    for (const sku of new Set([...unSku.keys(), ...receitaSku.keys()]))
-      perfBySku.set(sku, { un: unSku.get(sku) || 0, receita: receitaSku.get(sku) || 0, conv: 0 });
+    const byAn = desempenho?.byAnuncio;
+    if (byAn) {
+      // Full: soma o desempenho dos anúncios do Código ML (traz conversão)
+      for (const p of resumo) {
+        let un = 0, receita = 0, visitas = 0, vendas = 0;
+        for (const a of (p.anuncios || [])) {
+          const o = byAn.get(String(a).trim()); if (!o) continue;
+          un += o.un; receita += o.receita; visitas += o.visitas || 0; vendas += o.vendas || 0;
+        }
+        setPerf(p.codigoMl, un, receita, visitas > 0 ? (vendas / visitas) * 100 : 0);
+      }
+      // cross-only: pelo SKU
+      for (const sku of demSkuCross.keys()) {
+        if (skusFull.has(sku)) continue;
+        const o = desempenho.bySku?.get(sku); if (o) setPerf('sku:' + sku, o.un, o.receita, o.conv || 0);
+      }
+      // 2º anúncio: pelo anúncio
+      for (const anuncio of demAnunCross.keys()) {
+        const o = byAn.get(String(anuncio).trim()); if (o) setPerf('an:' + anuncio, o.un, o.receita, o.conv || 0);
+      }
+    } else {
+      for (const [cml, o] of perfCml) setPerf(cml, o.un, o.receita, 0);
+      for (const [sku, o] of perfCrossSku) setPerf('sku:' + sku, o.un, o.receita, 0);
+      for (const [anuncio, o] of perfCrossAnun) setPerf('an:' + anuncio, o.un, o.receita, 0);
+    }
   }
-  const melhores = calcMelhores(perfBySku, ranking);
-  const perf = (sku) => perfBySku.get(sku) || { un: 0, receita: 0, conv: 0 };
+  const melhores = calcMelhores(perfByKey, ranking);
+  const perf = (key) => perfByKey.get(key) || { un: 0, receita: 0, conv: 0 };
 
   // Posição no ranking (top 1, 2, 3…) pelos percentis de qtd+valor(+conversão)
-  const entriesM = [...perfBySku.entries()];
+  const entriesM = [...perfByKey.entries()];
   const pu = percentis(entriesM, p => p.un), pr = percentis(entriesM, p => p.receita), pc = percentis(entriesM, p => p.conv || 0);
-  const scoreOf = (sku) => (pu.get(sku) || 0) + (pr.get(sku) || 0) + (ranking?.metodo === 'score' ? (pc.get(sku) || 0) : 0);
+  const scoreOf = (key) => (pu.get(key) || 0) + (pr.get(key) || 0) + (ranking?.metodo === 'score' ? (pc.get(key) || 0) : 0);
   const rankPosMap = new Map();
-  [...melhores].sort((a, b) => scoreOf(b) - scoreOf(a)).forEach((sku, i) => rankPosMap.set(sku, i + 1));
+  [...melhores].sort((a, b) => scoreOf(b) - scoreOf(a)).forEach((key, i) => rankPosMap.set(key, i + 1));
 
   // ---- Linhas do Full (Resumo) ----
   // Detalhamento por MLB: une os anúncios do Resumo (venda 0 default) com o que foi
@@ -238,7 +295,8 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     const estoqueEfetivo = estoque + aCaminho;
     const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura - estoqueEfetivo));
     const coberturaDias = velEsc > 0 ? Math.round(estoqueEfetivo / velEsc) : null;
-    const melhor = melhores.has(p.sku);
+    const pkey = keyFor('full', p);
+    const melhor = melhores.has(pkey);
     const vendeFull = (d[maxJ] || 0) > 0;
     let decisao;
     if (excl.has(p.sku)) decisao = 'Não enviar';
@@ -253,7 +311,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       vels, velEsc, unMax: d[maxJ] || 0, un30ml: p.un30, estoque, aCaminho, coberturaDias, semanas: p.semanas,
       crossSku: cross?.map?.get((p.sku || '').toUpperCase()) || 0,
       sugestao, final: (decisao === 'Manter') ? sugestao : 0,
-      melhor, rankPos: rankPosMap.get(p.sku) || null, perf: perf(p.sku), decisao, alertas: [],
+      melhor, rankPos: rankPosMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],
     };
   });
 
@@ -263,7 +321,8 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     const vels = velsDe(d);
     const velEsc = vels.length ? aggreg(vels, regra) : 0;
     const crossSku = cross?.map?.get((sku || '').toUpperCase()) || 0;
-    const melhor = melhores.has(sku);
+    const pkey = keyFor('cross', { sku });
+    const melhor = melhores.has(pkey);
     const sugestao = Math.min(Math.max(0, Math.ceil(velEsc * diasCobertura)), crossSku);
     const decisao = excl.has(sku) ? 'Não enviar' : (melhor && crossSku > 0 ? 'Promover' : 'Ignorar');
     const orf = orfas.lista.find(o => o.sku === sku);
@@ -273,7 +332,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       anuncios, anuncio: (anuncios[0] && anuncios[0].mlb) || '', tituloTop: (anuncios[0] && anuncios[0].titulo) || orf?.titulo || sku,
       vels, velEsc, unMax: d[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
-      melhor, rankPos: rankPosMap.get(sku) || null, perf: perf(sku), decisao, alertas: [],
+      melhor, rankPos: rankPosMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],
     });
   }
 
@@ -287,12 +346,13 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     const crossSku = cross?.map?.get((a.sku || '').toUpperCase()) || 0;
     const sugestao = Math.min(Math.max(0, Math.ceil(velEsc * diasCobertura)), crossSku);
     const decisao = excl.has(a.sku) ? 'Não enviar' : 'Promover';
+    const pkey = keyFor('cross2', { sku: a.sku, anuncio });
     rows.push({
       key: 'cand:' + anuncio, origem: 'cross2', codigoMl: '', sku: a.sku, produto: a.titulo || a.sku,
       anuncios: [{ mlb: anuncio, un: a.un, titulo: a.titulo }], anuncio, tituloTop: a.titulo || a.sku,
       vels, velEsc, unMax: a.win[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
-      melhor: melhores.has(a.sku), rankPos: rankPosMap.get(a.sku) || null, perf: perf(a.sku),
+      melhor: melhores.has(pkey), rankPos: rankPosMap.get(pkey) || null, perf: perf(pkey),
       decisao, alertas: ['SKU já no Full'],
     });
   }
@@ -334,7 +394,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   return {
     rows,
     meta: {
-      regra, diasCobertura, ranking, janelas, spanJ, realSpan, dmin, dmax, orfas, reconciliadas, reconciliar,
+      regra, diasCobertura, ranking, janelas, rankPor, spanJ, realSpan, dmin, dmax, orfas, reconciliadas, reconciliar,
       temDesempenho: !!desempenho?.bySku,
       decisoes: { Manter: conta('Manter'), Promover: conta('Promover'), 'Avaliar saída': conta('Avaliar saída'), Ignorar: conta('Ignorar'), 'Não enviar': conta('Não enviar') },
       validacao: { divergentes, comparaveis, pct, ok: pct <= 5 },

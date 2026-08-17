@@ -36,6 +36,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [verTodos, setVerTodos] = useState(false); // por padrão, só os melhores (Top N)
   const [showRec, setShowRec] = useState(false);
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
+  const [rankPor, setRankPor] = useState('anuncio'); // 'anuncio' (padrão) | 'sku'
   const [decFiltro, setDecFiltro] = useState('Todos');
   const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
   const [historico, setHistorico] = useState({}); // codigoMl -> total enviado
@@ -77,8 +78,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   }, [janelasTxt]);
 
   const { rows, meta } = useMemo(
-    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar, limiar2 } }),
-    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2]
+    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar, limiar2, rankPor } }),
+    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2, rankPor]
   );
 
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : r.final);
@@ -258,6 +259,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             <span style={styles.label}>Melhores por</span>
             {[['topN', 'Top N'], ['score', 'Score'], ['cortes', 'Cortes']].map(([m, lbl]) => (
               <button key={m} onClick={() => setRank(r => ({ ...r, metodo: m }))} style={{ ...styles.chip, ...(rank.metodo === m ? styles.chipOn : {}) }}>{lbl}</button>
+            ))}
+          </div>
+          <div style={styles.group}>
+            <span style={styles.label}>Rank por</span>
+            {[['anuncio', 'Anúncio'], ['sku', 'SKU']].map(([m, lbl]) => (
+              <button key={m} onClick={() => setRankPor(m)} style={{ ...styles.chip, ...(rankPor === m ? styles.chipOn : {}) }}>{lbl}</button>
             ))}
           </div>
           {rank.metodo !== 'cortes' ? (

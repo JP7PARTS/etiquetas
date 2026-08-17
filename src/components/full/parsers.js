@@ -222,24 +222,34 @@ export async function parseDesempenho(file) {
   const ci = {
     sku: hdr.indexOf('SKU'), un: hdr.indexOf('Unidades vendidas'),
     receita: hdr.indexOf('Vendas brutas (BRL)'), visitas: hdr.indexOf('Visitas únicas'),
-    vendas: hdr.indexOf('Quantidade de vendas'),
+    vendas: hdr.indexOf('Quantidade de vendas'), anuncio: hdr.indexOf('ID do anúncio'),
   };
   if (ci.sku < 0 || ci.un < 0) throw new Error('Colunas essenciais (SKU/Unidades vendidas) não encontradas no relatório de desempenho.');
   const bySku = new Map();
+  const byAnuncio = new Map();
+  const acc = (mapa, chave) => {
+    if (!chave) return null;
+    if (!mapa.has(chave)) mapa.set(chave, { un: 0, receita: 0, visitas: 0, vendas: 0 });
+    return mapa.get(chave);
+  };
   for (let i = h + 1; i < m.length; i++) {
     const r = m[i];
     if (!Array.isArray(r)) continue;
     const sku = txt(r[ci.sku]);
-    if (!sku) continue;
-    if (!bySku.has(sku)) bySku.set(sku, { un: 0, receita: 0, visitas: 0, vendas: 0 });
-    const o = bySku.get(sku);
-    o.un += num(r[ci.un]);
-    o.receita += ci.receita >= 0 ? money(r[ci.receita]) : 0;
-    o.visitas += ci.visitas >= 0 ? num(r[ci.visitas]) : 0;
-    o.vendas += ci.vendas >= 0 ? num(r[ci.vendas]) : 0;
+    const anuncio = ci.anuncio >= 0 ? txt(r[ci.anuncio]).replace(/^MLB/i, '') : '';
+    if (!sku && !anuncio) continue;
+    const un = num(r[ci.un]);
+    const receita = ci.receita >= 0 ? money(r[ci.receita]) : 0;
+    const visitas = ci.visitas >= 0 ? num(r[ci.visitas]) : 0;
+    const vendas = ci.vendas >= 0 ? num(r[ci.vendas]) : 0;
+    for (const o of [acc(bySku, sku), acc(byAnuncio, anuncio)]) {
+      if (!o) continue;
+      o.un += un; o.receita += receita; o.visitas += visitas; o.vendas += vendas;
+    }
   }
   for (const o of bySku.values()) o.conv = o.visitas > 0 ? (o.vendas / o.visitas) * 100 : 0;
-  return { bySku };
+  for (const o of byAnuncio.values()) o.conv = o.visitas > 0 ? (o.vendas / o.visitas) * 100 : 0;
+  return { bySku, byAnuncio };
 }
 
 // ===================== Estoque do armazém (cross, CSV) =====================
