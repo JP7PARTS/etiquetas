@@ -106,6 +106,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     });
   }, [rows, busca, sort, overrides, decFiltro, verTodos]);
 
+  // Contadores dos chips de decisão respeitam o "Só os melhores"
+  const baseRows = useMemo(() => verTodos ? rows : rows.filter(r => r.melhor), [rows, verTodos]);
+  const cont = useMemo(() => {
+    const c = { Todos: 0 };
+    for (const r of baseRows) { c[r.decisao] = (c[r.decisao] || 0) + 1; if (r.decisao !== 'Não enviar') c.Todos++; }
+    return c;
+  }, [baseRows]);
+
   // Totais respeitam o filtro atual (view)
   const totalFinal = view.reduce((s, r) => s + finalOf(r), 0);
   const linhasEnvio = view.filter(r => finalOf(r) > 0).length;
@@ -279,15 +287,15 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       {/* Filtro por decisão */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
         <span style={styles.label}>Decisão</span>
-        <button onClick={() => setDecFiltro('Todos')} style={{ ...styles.chip, ...(decFiltro === 'Todos' ? styles.chipOn : {}) }}>Todos ({rows.length - (meta.decisoes['Não enviar'] || 0)})</button>
+        <button onClick={() => setDecFiltro('Todos')} style={{ ...styles.chip, ...(decFiltro === 'Todos' ? styles.chipOn : {}) }}>Todos ({cont.Todos || 0})</button>
         {DECISOES.map(d => (
           <button key={d} onClick={() => setDecFiltro(d)} style={{ ...styles.chip, ...(decFiltro === d ? styles.chipOn : {}) }}>
-            {d} ({meta.decisoes[d] || 0})
+            {d} ({cont[d] || 0})
           </button>
         ))}
-        {(meta.decisoes['Não enviar'] || 0) > 0 && (
+        {(cont['Não enviar'] || 0) > 0 && (
           <button onClick={() => setDecFiltro('Não enviar')} style={{ ...styles.chip, ...(decFiltro === 'Não enviar' ? styles.chipOn : {}) }}>
-            🚫 Não enviar ({meta.decisoes['Não enviar']})
+            🚫 Não enviar ({cont['Não enviar']})
           </button>
         )}
         <button onClick={() => setVerTodos(v => !v)} style={{ ...styles.chip, ...(verTodos ? {} : styles.chipOn), marginLeft: 'auto' }}
