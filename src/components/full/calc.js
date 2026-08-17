@@ -234,20 +234,23 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     const vels = velsDe(d);
     const velEsc = vels.length ? aggreg(vels, regra) : 0;
     const estoque = p.estoqueFull || 0;
-    const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura - estoque));
+    const aCaminho = p.aCaminho || 0;              // entrada pendente (já enviada, ainda não disponível)
+    const estoqueEfetivo = estoque + aCaminho;
+    const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura - estoqueEfetivo));
+    const coberturaDias = velEsc > 0 ? Math.round(estoqueEfetivo / velEsc) : null;
     const melhor = melhores.has(p.sku);
     const vendeFull = (d[maxJ] || 0) > 0;
     let decisao;
     if (excl.has(p.sku)) decisao = 'Não enviar';
     else if (p.semanas != null && p.semanas >= 10 && !melhor) decisao = 'Avaliar saída';
     else if (melhor || vendeFull) decisao = 'Manter';
-    else if (estoque > 0) decisao = 'Avaliar saída';
+    else if (estoqueEfetivo > 0) decisao = 'Avaliar saída';
     else decisao = 'Ignorar';
     return {
       key: p.codigoMl, origem: 'full', codigoMl: p.codigoMl, sku: p.sku, produto: p.produto,
       gtin: p.gtin || '', anuncios, anuncio: (anuncios[0] && anuncios[0].mlb) || (p.anuncios && p.anuncios[0]) || '',
       tituloTop: (anuncios[0] && anuncios[0].titulo) || p.produto,
-      vels, velEsc, unMax: d[maxJ] || 0, un30ml: p.un30, estoque, semanas: p.semanas,
+      vels, velEsc, unMax: d[maxJ] || 0, un30ml: p.un30, estoque, aCaminho, coberturaDias, semanas: p.semanas,
       crossSku: cross?.map?.get((p.sku || '').toUpperCase()) || 0,
       sugestao, final: (decisao === 'Manter') ? sugestao : 0,
       melhor, rankPos: rankPosMap.get(p.sku) || null, perf: perf(p.sku), decisao, alertas: [],
@@ -312,7 +315,8 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   for (const r of rows) {
     const velCurto = r.vels[0] || 0, velLongo = r.vels[r.vels.length - 1] || 0;
     if (r.estouraCross) r.alertas.push('estoura cross');
-    if (r.origem === 'full' && r.velEsc > 0 && r.estoque === 0) r.alertas.push('sem estoque full');
+    if (r.origem === 'full' && r.velEsc > 0 && (r.estoque + (r.aCaminho || 0)) === 0) r.alertas.push('sem estoque full');
+    if (r.origem === 'full' && (r.aCaminho || 0) > 0) r.alertas.push('a caminho');
     if (temTrend && velLongo > 0 && velCurto < 0.5 * velLongo) r.alertas.push('caindo forte');
     if (temTrend && velLongo > 0 && velCurto > 1.5 * velLongo) r.alertas.push('subindo forte');
   }

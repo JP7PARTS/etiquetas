@@ -22,7 +22,7 @@ const pct = (v) => { const s = String(v ?? '').replace('%', '').replace(',', '.'
 // Offsets das colunas do Resumo relativos à coluna "Código ML" (base = Código ML).
 const RESUMO_OFFSETS = {
   codigoMl: 0, gtin: 1, sku: 2, anuncio: 3, agrupador: 4, produto: 5, tamanho: 6,
-  status: 8, oferece: 9, un30: 10, rs30: 11, estMedio: 12, afetamTempo: 13,
+  status: 8, oferece: 9, un30: 10, rs30: 11, estMedio: 12, afetamTempo: 13, aCaminho: 14,
   naoAptas: 18, extraviadas: 19, emRevisao: 20, ocupaEspaco: 22,
   boaQualidade: 24, impulsionar: 25, colocarVenda: 26, evitarDescarte: 27, tempo: 28,
 };
@@ -50,6 +50,7 @@ export async function parseFullResumo(file) {
       un30: col('Vendas últimos 30 dias (un.)'), rs30: col('Vendas últimos 30 dias (R$)'),
       estMedio: col('Estoque médio últimos 30 dias (un.)'),
       afetamTempo: col('Unidades que afetam a métrica de Tempo de estoque'),
+      aCaminho: col('Unidades a caminho do Full'),
       ocupaEspaco: col('Unidades que ocupam espaço no Full'),
       naoAptas: col('Não aptas para venda'),
       extraviadas: header.findIndex(h => h.startsWith('Extraviadas')),
@@ -88,6 +89,7 @@ export async function parseFullResumo(file) {
       rs30: num(r[map.rs30]),
       estMedio: num(r[map.estMedio]),
       afetamTempo: num(r[map.afetamTempo]),
+      aCaminho: num(r[map.aCaminho]),
       ocupaEspaco: num(r[map.ocupaEspaco]),
       naoAptas: num(r[map.naoAptas]),
       extraviadas: num(r[map.extraviadas]),

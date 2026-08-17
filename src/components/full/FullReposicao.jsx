@@ -14,6 +14,7 @@ const ALERT_STYLE = {
   'caindo forte': { bg: '#fefcbf', fg: '#744210' },
   'subindo forte': { bg: '#c6f6d5', fg: '#22543d' },
   'SKU já no Full': { bg: '#e9d8fd', fg: '#553c9a' },
+  'a caminho': { bg: '#bee3f8', fg: '#2a4365' },
 };
 
 const DECISOES = ['Manter', 'Promover', 'Avaliar saída', 'Ignorar'];
@@ -337,7 +338,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                   <span style={{ ...(DEC_STYLE[r.decisao] || {}), background: (DEC_STYLE[r.decisao] || {}).bg, color: (DEC_STYLE[r.decisao] || {}).fg, fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>{r.decisao}</span>
                 </td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('/')}</td>
-                <td style={{ textAlign: 'right' }}>{int(r.estoque)}</td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{int(r.estoque)}{r.aCaminho > 0 && <span style={{ color: '#2a4365', fontSize: '11px' }} title="unidades a caminho do Full (entrada pendente)"> +{int(r.aCaminho)}🚚</span>}</td>
                 <td style={{ textAlign: 'right' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
                 <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700 }}>{int(r.sugestao)}</td>
