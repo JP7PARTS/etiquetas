@@ -128,8 +128,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     if (alertFiltro.size) arr = arr.filter(r => alertasDe(r).some(a => alertFiltro.has(a)));
     // Filtro de coluna: cross ≤ crossMax
     if (crossMax !== '' && !isNaN(parseInt(crossMax, 10))) { const m = parseInt(crossMax, 10); arr = arr.filter(r => (r.crossSku || 0) <= m); }
-    // Filtro de coluna: só linhas com Enviar > 0
-    if (soComEnvio) arr = arr.filter(r => finalOf(r) > 0);
+    // Filtro de coluna: esconder só as linhas com Enviar explicitamente 0 (mantém as em branco)
+    if (soComEnvio) arr = arr.filter(r => overrides[r.key] !== 0);
     if (q) {
       const qm = q.replace(/^mlb/, '');
       arr = arr.filter(r =>
@@ -417,8 +417,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               </th>
               <th></th>
               <th style={{ textAlign: 'center' }}>
-                <button onClick={() => setSoComEnvio(v => !v)} title="Mostrar só linhas com Enviar > 0"
-                  style={{ ...styles.chip, padding: '2px 6px', fontSize: '11px', ...(soComEnvio ? styles.chipOn : {}) }}>só c/ envio</button>
+                <button onClick={() => setSoComEnvio(v => !v)} title="Ocultar linhas com Enviar = 0 (mantém as em branco)"
+                  style={{ ...styles.chip, padding: '2px 6px', fontSize: '11px', ...(soComEnvio ? styles.chipOn : {}) }}>esconder 0</button>
               </th>
               <th style={{ position: 'relative' }}>
                 <button onClick={() => setAlertMenu(v => !v)} title="Filtrar por alertas"
@@ -430,7 +430,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                     {alertasDisp.length === 0 && <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>sem alertas</div>}
                     {alertasDisp.map(([a, n]) => (
                       <label key={a} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 2px', fontSize: '12.5px', fontWeight: 400, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={alertFiltro.has(a)} onChange={() => toggleAlerta(a)} /> {a} <span style={{ color: 'var(--text-muted)' }}>({n})</span>
+                        <input type="checkbox" checked={alertFiltro.has(a)} onChange={() => toggleAlerta(a)} style={{ width: 'auto', flex: '0 0 auto', margin: 0, padding: 0 }} />
+                        <span style={{ flex: 1 }}>{a}</span> <span style={{ color: 'var(--text-muted)' }}>({n})</span>
                       </label>
                     ))}
                     {alertFiltro.size > 0 && <button onClick={() => setAlertFiltro(new Set())} style={{ ...styles.chip, marginTop: '6px', fontSize: '11px' }}>limpar</button>}
