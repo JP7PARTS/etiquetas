@@ -287,7 +287,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             </>
           )}
           <div style={{ marginLeft: 'auto', fontSize: '12.5px', color: 'var(--text-muted)' }}>
-            {meta.temDesempenho ? 'ranking: relatório de desempenho' : 'ranking: vendas (sem desempenho)'}
+            ranking: unidades e receita (Vendas)
           </div>
         </div>
       </div>

@@ -214,39 +214,15 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     p.un += un; p.receita += receita; if (conv) p.conv = conv;
     perfByKey.set(key, p);
   };
+  // Base do ranking = SEMPRE o relatório de VENDAS (unidades e receita reais do período),
+  // não o de Desempenho. Os acumuladores abaixo já vêm de l.un / l.receita das Vendas.
   if (rankPor === 'sku') {
-    if (desempenho?.bySku) {
-      for (const [sku, o] of desempenho.bySku) setPerf(sku, o.un, o.receita, o.conv || 0);
-    } else {
-      for (const sku of new Set([...unSku.keys(), ...receitaSku.keys()]))
-        setPerf(sku, unSku.get(sku) || 0, receitaSku.get(sku) || 0, 0);
-    }
+    for (const sku of new Set([...unSku.keys(), ...receitaSku.keys()]))
+      setPerf(sku, unSku.get(sku) || 0, receitaSku.get(sku) || 0, 0);
   } else {
-    const byAn = desempenho?.byAnuncio;
-    if (byAn) {
-      // Full: soma o desempenho dos anúncios do Código ML (traz conversão)
-      for (const p of resumo) {
-        let un = 0, receita = 0, visitas = 0, vendas = 0;
-        for (const a of (p.anuncios || [])) {
-          const o = byAn.get(String(a).trim()); if (!o) continue;
-          un += o.un; receita += o.receita; visitas += o.visitas || 0; vendas += o.vendas || 0;
-        }
-        setPerf(p.codigoMl, un, receita, visitas > 0 ? (vendas / visitas) * 100 : 0);
-      }
-      // cross-only: pelo SKU
-      for (const sku of demSkuCross.keys()) {
-        if (skusFull.has(sku)) continue;
-        const o = desempenho.bySku?.get(sku); if (o) setPerf('sku:' + sku, o.un, o.receita, o.conv || 0);
-      }
-      // 2º anúncio: pelo anúncio
-      for (const anuncio of demAnunCross.keys()) {
-        const o = byAn.get(String(anuncio).trim()); if (o) setPerf('an:' + anuncio, o.un, o.receita, o.conv || 0);
-      }
-    } else {
-      for (const [cml, o] of perfCml) setPerf(cml, o.un, o.receita, 0);
-      for (const [sku, o] of perfCrossSku) setPerf('sku:' + sku, o.un, o.receita, 0);
-      for (const [anuncio, o] of perfCrossAnun) setPerf('an:' + anuncio, o.un, o.receita, 0);
-    }
+    for (const [cml, o] of perfCml) setPerf(cml, o.un, o.receita, 0);
+    for (const [sku, o] of perfCrossSku) setPerf('sku:' + sku, o.un, o.receita, 0);
+    for (const [anuncio, o] of perfCrossAnun) setPerf('an:' + anuncio, o.un, o.receita, 0);
   }
   const melhores = calcMelhores(perfByKey, ranking);
   const perf = (key) => perfByKey.get(key) || { un: 0, receita: 0, conv: 0 };
