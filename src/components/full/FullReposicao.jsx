@@ -384,12 +384,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       {msg && <div className="alert alert-success" style={{ marginBottom: '10px' }}>{msg}</div>}
 
       <div className="card" style={{ overflowX: 'auto' }}>
-        <style>{`.repo-tbl th,.repo-tbl td{padding:8px 9px;}`}</style>
+        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:8px 9px;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}`}</style>
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
-              {th('rqtd', 'R.Qtd', { textAlign: 'right' })}
-              {th('rval', 'R.Val', { textAlign: 'right' })}
+              {th('rqtd', 'R.Qtd', { textAlign: 'left' })}
+              {th('rval', 'R.Val', { textAlign: 'left' })}
               {th('sku', 'SKU')}
               <th style={{ textAlign: 'center' }} title="Título do anúncio (passe o mouse)">Tít.</th>
               <th>MLB</th>
@@ -444,8 +444,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             {view.map(r => (
               <React.Fragment key={r.key}>
               <tr>
-                <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankQtd ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por quantidade vendida">{r.rankQtd ? '#' + r.rankQtd : '—'}</td>
-                <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankValor ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por receita">{r.rankValor ? '#' + r.rankValor : '—'}</td>
+                <td style={{ textAlign: 'left', fontWeight: 700, color: r.rankQtd ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por quantidade vendida">{r.rankQtd ? '#' + r.rankQtd : '—'}</td>
+                <td style={{ textAlign: 'left', fontWeight: 700, color: r.rankValor ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por receita">{r.rankValor ? '#' + r.rankValor : '—'}</td>
                 <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{r.sku}</td>
                 <td style={{ textAlign: 'center', cursor: 'help' }} title={r.tituloTop || r.produto}>ℹ️</td>
                 <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}
