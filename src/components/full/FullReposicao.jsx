@@ -384,7 +384,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       {msg && <div className="alert alert-success" style={{ marginBottom: '10px' }}>{msg}</div>}
 
       <div className="card" style={{ overflowX: 'auto' }}>
-        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:2px 9px;line-height:1.2;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
+        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
