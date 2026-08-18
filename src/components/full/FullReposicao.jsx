@@ -21,6 +21,8 @@ const ALERT_STYLE = {
 };
 
 const DECISOES = ['Manter', 'Promover', 'Avaliar saída', 'Ignorar'];
+// Chave persistente por anúncio: Código ML quando existe, senão o MLB do anúncio.
+const refDe = (r) => r.codigoMl || (r.anuncio ? 'MLB' + r.anuncio : '');
 const DEC_STYLE = {
   'Manter': { bg: '#bee3f8', fg: '#2a4365' },
   'Promover': { bg: '#c6f6d5', fg: '#22543d' },
@@ -72,13 +74,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     api.get('/full/cross-wait').then(r => setCrossWait(new Set((r.data || []).map(x => x.codigo_ml)))).catch(() => {});
   }
   async function marcarCross(r) {
-    if (!r.codigoMl) return;
-    setCrossWait(prev => new Set(prev).add(r.codigoMl)); // otimista
-    try { await api.post('/full/cross-wait', { codigo_ml: r.codigoMl, sku: r.sku }); } catch { carregarCrossWait(); }
+    const ref = refDe(r); if (!ref) return;
+    setCrossWait(prev => new Set(prev).add(ref)); // otimista
+    try { await api.post('/full/cross-wait', { codigo_ml: ref, sku: r.sku }); } catch { carregarCrossWait(); }
   }
   async function desmarcarCross(r) {
-    setCrossWait(prev => { const n = new Set(prev); n.delete(r.codigoMl); return n; });
-    try { await api.delete(`/full/cross-wait/${encodeURIComponent(r.codigoMl)}`); } catch { carregarCrossWait(); }
+    const ref = refDe(r); if (!ref) return;
+    setCrossWait(prev => { const n = new Set(prev); n.delete(ref); return n; });
+    try { await api.delete(`/full/cross-wait/${encodeURIComponent(ref)}`); } catch { carregarCrossWait(); }
   }
   async function excluir(sku) {
     setExcluidos(prev => new Set(prev).add(sku)); // otimista
@@ -100,11 +103,16 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   );
 
   const [alertFiltro, setAlertFiltro] = useState(new Set());
+  const [crossMax, setCrossMax] = useState('');       // filtro: cross ≤ crossMax
+  const [soComEnvio, setSoComEnvio] = useState(false); // filtro: só linhas com Enviar > 0
+  const [alertMenu, setAlertMenu] = useState(false);   // dropdown de alertas no cabeçalho
+  const [notando, setNotando] = useState(null);        // ref da linha com editor de nota aberto
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : 0);
   // Alertas da linha + selo de "cross esgotado" (aguardando / voltou), derivado do estado persistido
   const alertasDe = (r) => {
     const base = r.alertas || [];
-    if (r.codigoMl && crossWait.has(r.codigoMl)) return [...base, r.crossSku > 0 ? 'cross voltou' : 'aguardando cross'];
+    const ref = refDe(r);
+    if (ref && crossWait.has(ref)) return [...base, r.crossSku > 0 ? 'cross voltou' : 'aguardando cross'];
     return base;
   };
 
@@ -118,6 +126,10 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     else arr = arr.filter(r => r.decisao === decFiltro);
     // Filtro por alertas (multi, OR)
     if (alertFiltro.size) arr = arr.filter(r => alertasDe(r).some(a => alertFiltro.has(a)));
+    // Filtro de coluna: cross ≤ crossMax
+    if (crossMax !== '' && !isNaN(parseInt(crossMax, 10))) { const m = parseInt(crossMax, 10); arr = arr.filter(r => (r.crossSku || 0) <= m); }
+    // Filtro de coluna: só linhas com Enviar > 0
+    if (soComEnvio) arr = arr.filter(r => finalOf(r) > 0);
     if (q) {
       const qm = q.replace(/^mlb/, '');
       arr = arr.filter(r =>
@@ -131,7 +143,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait]);
+  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio]);
 
   // Alertas presentes (para os chips de filtro), com contagem, respeitando "Só os melhores"
   const alertasDisp = useMemo(() => {
@@ -165,9 +177,13 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     setOverrides(prev => ({ ...prev, [key]: q }));
   }
   const setOverride = (key, q) => setOverrides(prev => ({ ...prev, [key]: Math.max(0, q || 0) }));
-  function saveNote(cml, text) {
-    setNotes(prev => ({ ...prev, [cml]: text }));
-    api.put(`/full/notes/${encodeURIComponent(cml)}`, { note: text }).catch(() => {});
+  const noteTimers = useRef({});
+  function saveNote(ref, text) {
+    setNotes(prev => ({ ...prev, [ref]: text }));
+    clearTimeout(noteTimers.current[ref]);
+    noteTimers.current[ref] = setTimeout(() => {
+      api.put(`/full/notes/${encodeURIComponent(ref)}`, { note: text }).catch(() => {});
+    }, 600);
   }
   function clickSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' });
@@ -353,23 +369,6 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         </button>
       </div>
 
-      {/* Filtro por alertas (multi) */}
-      {alertasDisp.length > 0 && (
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
-          <span style={styles.label}>Alertas</span>
-          {alertasDisp.map(([a, n]) => {
-            const on = alertFiltro.has(a); const s = ALERT_STYLE[a] || { bg: '#e2e8f0', fg: '#4a5568' };
-            return (
-              <button key={a} onClick={() => toggleAlerta(a)}
-                style={{ ...styles.chip, ...(on ? { background: s.bg, color: s.fg, borderColor: s.fg, fontWeight: 700 } : {}) }}>
-                {a} ({n})
-              </button>
-            );
-          })}
-          {alertFiltro.size > 0 && <button onClick={() => setAlertFiltro(new Set())} style={styles.chip}>limpar alertas</button>}
-        </div>
-      )}
-
       {/* Barra de ação */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
         <input placeholder="Buscar SKU / produto / Código ML / MLB" value={busca} onChange={e => setBusca(e.target.value)}
@@ -408,10 +407,43 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <th style={{ textAlign: 'right' }}>Últ. envios</th>
               <th>Ação</th>
             </tr>
+            {/* Linha de filtros por coluna */}
+            <tr style={{ background: 'var(--bg-muted, #f7fafc)' }}>
+              <th colSpan={12}></th>
+              <th style={{ textAlign: 'right' }} title="Mostrar só linhas com cross ≤ valor">
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>≤ </span>
+                <input type="number" min="0" value={crossMax} onChange={e => setCrossMax(e.target.value)} placeholder="cross"
+                  style={{ width: '52px', padding: '2px 4px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '5px', fontSize: '12px' }} />
+              </th>
+              <th></th>
+              <th style={{ textAlign: 'center' }}>
+                <button onClick={() => setSoComEnvio(v => !v)} title="Mostrar só linhas com Enviar > 0"
+                  style={{ ...styles.chip, padding: '2px 6px', fontSize: '11px', ...(soComEnvio ? styles.chipOn : {}) }}>só c/ envio</button>
+              </th>
+              <th style={{ position: 'relative' }}>
+                <button onClick={() => setAlertMenu(v => !v)} title="Filtrar por alertas"
+                  style={{ ...styles.chip, padding: '2px 6px', fontSize: '11px', ...(alertFiltro.size ? styles.chipOn : {}) }}>
+                  Alertas{alertFiltro.size ? ` (${alertFiltro.size})` : ''} ▾
+                </button>
+                {alertMenu && (
+                  <div style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, background: 'var(--bg, #fff)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,.12)', padding: '8px', minWidth: '180px', textAlign: 'left' }}>
+                    {alertasDisp.length === 0 && <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>sem alertas</div>}
+                    {alertasDisp.map(([a, n]) => (
+                      <label key={a} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 2px', fontSize: '12.5px', fontWeight: 400, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={alertFiltro.has(a)} onChange={() => toggleAlerta(a)} /> {a} <span style={{ color: 'var(--text-muted)' }}>({n})</span>
+                      </label>
+                    ))}
+                    {alertFiltro.size > 0 && <button onClick={() => setAlertFiltro(new Set())} style={{ ...styles.chip, marginTop: '6px', fontSize: '11px' }}>limpar</button>}
+                  </div>
+                )}
+              </th>
+              <th colSpan={2}></th>
+            </tr>
           </thead>
           <tbody>
             {view.map(r => (
-              <tr key={r.key}>
+              <React.Fragment key={r.key}>
+              <tr>
                 <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankQtd ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por quantidade vendida">{r.rankQtd ? '#' + r.rankQtd : '—'}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankValor ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por receita">{r.rankValor ? '#' + r.rankValor : '—'}</td>
                 <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{r.sku}</td>
@@ -457,12 +489,30 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                     {r.decisao === 'Não enviar'
                       ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} onClick={() => restaurar(r.sku)}>↩ voltar</button>
                       : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Não enviar ao Full (ex.: tamanho)" onClick={() => excluir(r.sku)}>🚫 não enviar</button>}
-                    {r.codigoMl && (crossWait.has(r.codigoMl)
+                    {refDe(r) && (crossWait.has(refDe(r))
                       ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Remover marcação de cross esgotado" onClick={() => desmarcarCross(r)}>aguardando cross ✕</button>
                       : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Marcar que o estoque do cross (armazém) acabou; avisa quando voltar" onClick={() => marcarCross(r)}>⛔ cross esgotou</button>)}
+                    {refDe(r) && (() => { const has = !!(notes[refDe(r)] || '').trim(); const open = notando === refDe(r); return (
+                      <button className="btn-outline" title={has ? notes[refDe(r)] : 'Adicionar comentário'} onClick={() => setNotando(open ? null : refDe(r))}
+                        style={{ padding: '3px 8px', fontSize: '11.5px', ...(has ? { background: '#fefcbf', borderColor: '#b7791f', color: '#744210', fontWeight: 700 } : {}) }}>💬{has ? '•' : ''}</button>
+                    ); })()}
                   </div>
                 </td>
               </tr>
+              {notando === refDe(r) && refDe(r) && (
+                <tr>
+                  <td colSpan={18} style={{ background: 'var(--bg-muted, #f7fafc)' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '4px 2px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', paddingTop: '4px' }}>💬 {r.sku}:</span>
+                      <textarea autoFocus rows={2} value={notes[refDe(r)] || ''} onChange={e => saveNote(refDe(r), e.target.value)}
+                        placeholder="Comentário (ex.: vende ~X/mês; quando o cross voltar, mandar X un)"
+                        style={{ flex: 1, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '13px', resize: 'vertical' }} />
+                      <button className="btn-outline" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => setNotando(null)}>fechar</button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
