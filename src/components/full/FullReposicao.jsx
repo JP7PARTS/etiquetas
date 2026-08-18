@@ -384,7 +384,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       {msg && <div className="alert alert-success" style={{ marginBottom: '10px' }}>{msg}</div>}
 
       <div className="card" style={{ overflowX: 'auto' }}>
-        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:8px 9px;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}`}</style>
+        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:2px 9px;line-height:1.2;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
@@ -469,7 +469,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                     <input type="number" min="0" placeholder="—" value={overrides[r.key] ?? ''} onChange={e => setFinal(r.key, e.target.value)}
-                      style={{ width: '58px', padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '6px' }} />
+                      style={{ width: '58px', padding: '2px 6px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '6px' }} />
                     {r.final > 0 && (
                       <button title={`Usar sugestão (${int(r.final)})`} onClick={() => setOverride(r.key, r.final)}
                         style={{ padding: '3px 5px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--bg-muted, #edf2f7)', cursor: 'pointer' }}>↧</button>
