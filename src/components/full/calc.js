@@ -122,6 +122,8 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   const recP = new Map(); // `${anuncio}|${sku}` -> { anuncio, sku, titulo, un, destinos:Set }
   const anunPorCml = new Map(); // cml -> Map(anuncio -> { un, titulo })
   const anunPorSku = new Map(); // sku -> Map(anuncio -> { un, titulo })
+  const fullUnByCml = new Map(); // cml -> total un vendidas pelo Full (diretas + reconciliadas)
+  const crossFull = new Map();   // cml -> { win:{[D]:qty}, un, receita } vendas por Coleta no anúncio do Full
 
   const addAnun = (mapa, chave, l, peso) => {
     if (!chave) return;
@@ -138,9 +140,21 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     const o = demCmlFull.get(cml);
     for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un * peso;
     bump(perfCml, cml, l.un * peso, (l.receita || 0) * peso);
+    fullUnByCml.set(cml, (fullUnByCml.get(cml) || 0) + l.un * peso);
     // Só registra o MLB no detalhamento quando a atribuição é confiável (venda direta
     // ou reconciliação de destino único); rateio proporcional (peso<1) não polui a lista.
     if (peso === 1) addAnun(anunPorCml, cml, l, 1);
+  };
+
+  // Vendas por Coleta (cross) caídas no anúncio do próprio Full — guardadas à parte.
+  // Só viram demanda do Full no pós-laço SE o Código ML teve zero vendas Full no período (esgotou).
+  const addCrossFull = (cml, l) => {
+    if (!crossFull.has(cml)) crossFull.set(cml, { win: {}, un: 0, receita: 0, det: new Map() });
+    const o = crossFull.get(cml);
+    for (const D of janelas) if (dentro(l, D)) o.win[D] = (o.win[D] || 0) + l.un;
+    o.un += l.un; o.receita += l.receita || 0;
+    const e = o.det.get(l.anuncio) || { un: 0, titulo: '' };
+    e.un += l.un; if (l.titulo) e.titulo = l.titulo; o.det.set(l.anuncio, e);
   };
 
   for (const l of linhas) {
@@ -154,6 +168,9 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
         // validação (§4.7): conferência DIRETA anúncio→Código ML (canal Full, valida+mediação,
         // últimos 30 dias), independente da reconciliação — alarme de "formato mudou".
         if (l.classe !== 'devolucao' && dentro30(l)) mlCheck.set(cml, (mlCheck.get(cml) || 0) + l.un);
+      } else if (l.canal === 'cross') {
+        // Coleta no anúncio do Full: guarda à parte (só vira demanda se o Full esgotou). Flex → ignora.
+        addCrossFull(cml, l);
       }
       continue;
     }
@@ -193,6 +210,20 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   }
   orfas.lista = [...orfasP.values()].sort((a, b) => b.un - a.un);
   reconciliadas.lista = [...recP.values()].map(o => ({ ...o, destinos: [...o.destinos] })).sort((a, b) => b.un - a.un);
+
+  // Esgotamento: Código ML do Full que NÃO teve nenhuma venda pelo Full no período, mas
+  // vendeu por Coleta no próprio anúncio → a Coleta vira demanda do Full (para repor).
+  // Se teve qualquer venda Full (>0), a Coleta é só roteamento do ML e é ignorada (não lota o Full).
+  for (const [cml, o] of crossFull) {
+    if ((fullUnByCml.get(cml) || 0) > 0) continue;
+    if (!demCmlFull.has(cml)) demCmlFull.set(cml, {});
+    const dem = demCmlFull.get(cml);
+    for (const D of janelas) dem[D] = (dem[D] || 0) + (o.win[D] || 0);
+    bump(perfCml, cml, o.un, o.receita);
+    if (!anunPorCml.has(cml)) anunPorCml.set(cml, new Map());
+    const am = anunPorCml.get(cml);
+    for (const [an, e] of o.det) { const p = am.get(an) || { un: 0, titulo: '' }; p.un += e.un; if (e.titulo) p.titulo = e.titulo; am.set(an, p); }
+  }
 
   // velocidade por janela a partir de um mapa de demanda { [D]: qty }
   const velsDe = (d) => janelas.map(D => spanJ[D] > 0 ? (d[D] || 0) / spanJ[D] : 0);
