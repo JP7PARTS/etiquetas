@@ -17,34 +17,19 @@ const aggreg = (vels, regra) =>
   regra === 'MEDIA' ? vels.reduce((s, v) => s + v, 0) / vels.length :
   regra === 'MEDIANA' ? median(vels) : Math.max(...vels);
 
-// Rank percentílico (0..1) de cada SKU numa métrica
-function percentis(entries, get) {
-  const sorted = [...entries].sort((a, b) => get(a[1]) - get(b[1]));
-  const n = sorted.length;
-  const rank = new Map();
-  sorted.forEach(([sku], i) => rank.set(sku, n > 1 ? i / (n - 1) : 1));
-  return rank;
-}
-
-// Conjunto de SKUs "melhores" conforme o método e a métrica escolhidos.
-// metrica: 'ambos' (un+receita) | 'un' (só unidade) | 'rs' (só receita).
-function calcMelhores(perfBySku, ranking, metrica) {
-  const entries = [...perfBySku.entries()];
+// Conjunto de chaves "melhores": união do Top N por quantidade + Top N por receita
+// (ou método "cortes" por limiares). Sem placar/média — dois rankings puros.
+function calcMelhores(perfByKey, ranking) {
+  const entries = [...perfByKey.entries()];
   const metodo = ranking?.metodo || 'topN';
   const topN = ranking?.topN || 50;
-  const usaUn = metrica !== 'rs', usaRs = metrica !== 'un';
   const set = new Set();
   if (metodo === 'cortes') {
     const cu = ranking?.corteUn || 20, cr = ranking?.corteRs || 500;
-    for (const [sku, p] of entries) if (p.un >= cu || p.receita >= cr) set.add(sku);
-  } else if (metodo === 'score') {
-    const pu = percentis(entries, p => p.un), pr = percentis(entries, p => p.receita), pc = percentis(entries, p => p.conv || 0);
-    const score = entries.map(([sku]) => [sku, (usaUn ? pu.get(sku) : 0) + (usaRs ? pr.get(sku) : 0) + pc.get(sku)]);
-    score.sort((a, b) => b[1] - a[1]);
-    score.slice(0, topN).forEach(([sku]) => set.add(sku));
-  } else { // topN: união dos top N por quantidade e/ou por valor (conforme a métrica)
-    if (usaUn) [...entries].sort((a, b) => b[1].un - a[1].un).slice(0, topN).forEach(([sku]) => set.add(sku));
-    if (usaRs) [...entries].sort((a, b) => b[1].receita - a[1].receita).slice(0, topN).forEach(([sku]) => set.add(sku));
+    for (const [key, p] of entries) if (p.un >= cu || p.receita >= cr) set.add(key);
+  } else { // topN: união dos top N por quantidade e por valor
+    [...entries].sort((a, b) => b[1].un - a[1].un).slice(0, topN).forEach(([key]) => set.add(key));
+    [...entries].sort((a, b) => b[1].receita - a[1].receita).slice(0, topN).forEach(([key]) => set.add(key));
   }
   return set;
 }
@@ -60,7 +45,6 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
 
   const reconciliar = params?.reconciliar !== false;
   const rankPor = params?.rankPor === 'sku' ? 'sku' : 'anuncio';
-  const metricaRank = ['un', 'rs'].includes(params?.metricaRank) ? params.metricaRank : 'ambos';
   const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const anuncioToCml = new Map();
   const skusFull = new Set();
@@ -95,11 +79,11 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
     return cmls.map((c, i) => [c.codigoMl, base[i] / soma]);
   }
 
-  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, metricaRank, limiar2 }, anuncioToCml, skusFull, resolverDestino });
+  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, limiar2 }, anuncioToCml, skusFull, resolverDestino });
 }
 
 function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull, resolverDestino }) {
-  const { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, metricaRank } = params;
+  const { regra, diasCobertura, ranking, janelas, reconciliar, rankPor } = params;
   const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const DAY = 86400000;
   const maxJ = janelas[janelas.length - 1], minJ = janelas[0];
@@ -264,16 +248,18 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       for (const [anuncio, o] of perfCrossAnun) setPerf('an:' + anuncio, o.un, o.receita, 0);
     }
   }
-  const melhores = calcMelhores(perfByKey, ranking, metricaRank);
+  const melhores = calcMelhores(perfByKey, ranking);
   const perf = (key) => perfByKey.get(key) || { un: 0, receita: 0, conv: 0 };
 
-  // Posição no ranking (top 1, 2, 3…) pelos percentis da métrica escolhida (+conversão no método score)
-  const usaUn = metricaRank !== 'rs', usaRs = metricaRank !== 'un';
+  // Dois rankings independentes por ordenação pura (sem placar/média):
+  //  - rankQtd: posição por unidades vendidas (desc); empate por receita.
+  //  - rankValor: posição por receita (desc); empate por unidades.
+  // Posições calculadas sobre TODAS as chaves com venda (por anúncio/Código ML, ou por SKU se rankPor='sku').
   const entriesM = [...perfByKey.entries()];
-  const pu = percentis(entriesM, p => p.un), pr = percentis(entriesM, p => p.receita), pc = percentis(entriesM, p => p.conv || 0);
-  const scoreOf = (key) => (usaUn ? (pu.get(key) || 0) : 0) + (usaRs ? (pr.get(key) || 0) : 0) + (ranking?.metodo === 'score' ? (pc.get(key) || 0) : 0);
-  const rankPosMap = new Map();
-  [...melhores].sort((a, b) => scoreOf(b) - scoreOf(a)).forEach((key, i) => rankPosMap.set(key, i + 1));
+  const rankQtdMap = new Map();
+  [...entriesM].sort((a, b) => (b[1].un - a[1].un) || (b[1].receita - a[1].receita)).forEach(([key], i) => rankQtdMap.set(key, i + 1));
+  const rankValorMap = new Map();
+  [...entriesM].sort((a, b) => (b[1].receita - a[1].receita) || (b[1].un - a[1].un)).forEach(([key], i) => rankValorMap.set(key, i + 1));
 
   // ---- Linhas do Full (Resumo) ----
   // Detalhamento por MLB: une os anúncios do Resumo (venda 0 default) com o que foi
@@ -314,7 +300,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       vels, velEsc, unMax: d[maxJ] || 0, un30ml: p.un30, estoque, aCaminho, coberturaDias, semanas: p.semanas,
       crossSku: cross?.map?.get((p.sku || '').toUpperCase()) || 0,
       sugestao, final: (decisao === 'Manter') ? sugestao : 0,
-      melhor, rankPos: rankPosMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],
+      melhor, rankQtd: rankQtdMap.get(pkey) || null, rankValor: rankValorMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],
     };
   });
 
@@ -335,7 +321,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       anuncios, anuncio: (anuncios[0] && anuncios[0].mlb) || '', tituloTop: (anuncios[0] && anuncios[0].titulo) || orf?.titulo || sku,
       vels, velEsc, unMax: d[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
-      melhor, rankPos: rankPosMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],
+      melhor, rankQtd: rankQtdMap.get(pkey) || null, rankValor: rankValorMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],
     });
   }
 
@@ -355,7 +341,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
       anuncios: [{ mlb: anuncio, un: a.un, titulo: a.titulo }], anuncio, tituloTop: a.titulo || a.sku,
       vels, velEsc, unMax: a.win[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
-      melhor: melhores.has(pkey), rankPos: rankPosMap.get(pkey) || null, perf: perf(pkey),
+      melhor: melhores.has(pkey), rankQtd: rankQtdMap.get(pkey) || null, rankValor: rankValorMap.get(pkey) || null, perf: perf(pkey),
       decisao, alertas: ['SKU já no Full'],
     });
   }
@@ -397,7 +383,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
   return {
     rows,
     meta: {
-      regra, diasCobertura, ranking, janelas, rankPor, metricaRank, spanJ, realSpan, dmin, dmax, orfas, reconciliadas, reconciliar,
+      regra, diasCobertura, ranking, janelas, rankPor, spanJ, realSpan, dmin, dmax, orfas, reconciliadas, reconciliar,
       temDesempenho: !!desempenho?.bySku,
       decisoes: { Manter: conta('Manter'), Promover: conta('Promover'), 'Avaliar saída': conta('Avaliar saída'), Ignorar: conta('Ignorar'), 'Não enviar': conta('Não enviar') },
       validacao: { divergentes, comparaveis, pct, ok: pct <= 5 },

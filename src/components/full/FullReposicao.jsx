@@ -38,12 +38,11 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [showRec, setShowRec] = useState(false);
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
   const [rankPor, setRankPor] = useState('anuncio'); // 'anuncio' (padrão) | 'sku'
-  const [metricaRank, setMetricaRank] = useState('ambos'); // 'ambos' | 'un' | 'rs'
   const [decFiltro, setDecFiltro] = useState('Todos');
   const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
   const [historico, setHistorico] = useState({}); // codigoMl -> total enviado
   const [notes, setNotes] = useState({});         // codigoMl -> nota
-  const [sort, setSort] = useState({ key: 'rank', dir: 'asc' });
+  const [sort, setSort] = useState({ key: 'rqtd', dir: 'asc' });
   const [excluidos, setExcluidos] = useState(new Set());
   const [busca, setBusca] = useState('');
   const [showOrfas, setShowOrfas] = useState(false);
@@ -80,8 +79,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   }, [janelasTxt]);
 
   const { rows, meta } = useMemo(
-    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar, limiar2, rankPor, metricaRank } }),
-    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2, rankPor, metricaRank]
+    () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar, limiar2, rankPor } }),
+    [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2, rankPor]
   );
 
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : r.final);
@@ -102,7 +101,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         (r.anuncios || []).some(a => String(a.mlb || '').toLowerCase().includes(qm)));
     }
     const key = sort.key, mul = sort.dir === 'asc' ? 1 : -1;
-    const val = (r) => key === 'rank' ? (r.rankPos ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'un' ? (r.perf?.un || 0) : key === 'rs' ? (r.perf?.receita || 0) : key === 'sku' ? r.sku : r.velEsc;
+    const val = (r) => key === 'rqtd' ? (r.rankQtd ?? 1e9) : key === 'rval' ? (r.rankValor ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'un' ? (r.perf?.un || 0) : key === 'rs' ? (r.perf?.receita || 0) : key === 'sku' ? r.sku : r.velEsc;
     return [...arr].sort((a, b) => {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
@@ -259,7 +258,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
           <div style={styles.group}>
             <span style={styles.label}>Melhores por</span>
-            {[['topN', 'Top N'], ['score', 'Score'], ['cortes', 'Cortes']].map(([m, lbl]) => (
+            {[['topN', 'Top N'], ['cortes', 'Cortes']].map(([m, lbl]) => (
               <button key={m} onClick={() => setRank(r => ({ ...r, metodo: m }))} style={{ ...styles.chip, ...(rank.metodo === m ? styles.chipOn : {}) }}>{lbl}</button>
             ))}
           </div>
@@ -267,12 +266,6 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             <span style={styles.label}>Rank por</span>
             {[['anuncio', 'Anúncio'], ['sku', 'SKU']].map(([m, lbl]) => (
               <button key={m} onClick={() => setRankPor(m)} style={{ ...styles.chip, ...(rankPor === m ? styles.chipOn : {}) }}>{lbl}</button>
-            ))}
-          </div>
-          <div style={styles.group}>
-            <span style={styles.label}>Ranquear por</span>
-            {[['ambos', 'Ambos'], ['un', 'Unidade'], ['rs', 'Receita']].map(([m, lbl]) => (
-              <button key={m} onClick={() => setMetricaRank(m)} style={{ ...styles.chip, ...(metricaRank === m ? styles.chipOn : {}) }}>{lbl}</button>
             ))}
           </div>
           {rank.metodo !== 'cortes' ? (
@@ -334,7 +327,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
-              {th('rank', 'Rank', { textAlign: 'right' })}
+              {th('rqtd', 'R.Qtd', { textAlign: 'right' })}
+              {th('rval', 'R.Val', { textAlign: 'right' })}
               {th('sku', 'SKU')}
               <th style={{ textAlign: 'center' }} title="Título do anúncio (passe o mouse)">Tít.</th>
               <th>MLB</th>
@@ -356,7 +350,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
           <tbody>
             {view.map(r => (
               <tr key={r.key}>
-                <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankPos ? 'var(--text-primary)' : 'var(--text-muted)' }}>{r.rankPos ? '#' + r.rankPos : '—'}</td>
+                <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankQtd ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por quantidade vendida">{r.rankQtd ? '#' + r.rankQtd : '—'}</td>
+                <td style={{ textAlign: 'right', fontWeight: 700, color: r.rankValor ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por receita">{r.rankValor ? '#' + r.rankValor : '—'}</td>
                 <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{r.sku}</td>
                 <td style={{ textAlign: 'center', cursor: 'help' }} title={r.tituloTop || r.produto}>ℹ️</td>
                 <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}
