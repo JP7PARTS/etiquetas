@@ -83,7 +83,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2, rankPor]
   );
 
-  const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : r.final);
+  const [alertFiltro, setAlertFiltro] = useState(new Set());
+  const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : 0);
 
   const view = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -93,6 +94,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     // "Todos" oculta os "Não enviar"; o chip "Não enviar" mostra só eles
     if (decFiltro === 'Todos') arr = arr.filter(r => r.decisao !== 'Não enviar');
     else arr = arr.filter(r => r.decisao === decFiltro);
+    // Filtro por alertas (multi, OR)
+    if (alertFiltro.size) arr = arr.filter(r => (r.alertas || []).some(a => alertFiltro.has(a)));
     if (q) {
       const qm = q.replace(/^mlb/, '');
       arr = arr.filter(r =>
@@ -106,7 +109,16 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides, decFiltro, verTodos]);
+  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro]);
+
+  // Alertas presentes (para os chips de filtro), com contagem, respeitando "Só os melhores"
+  const alertasDisp = useMemo(() => {
+    const c = new Map();
+    for (const r of (verTodos ? rows : rows.filter(r => r.melhor)))
+      for (const a of (r.alertas || [])) c.set(a, (c.get(a) || 0) + 1);
+    return [...c.entries()].sort((a, b) => b[1] - a[1]);
+  }, [rows, verTodos]);
+  const toggleAlerta = (a) => setAlertFiltro(prev => { const n = new Set(prev); n.has(a) ? n.delete(a) : n.add(a); return n; });
 
   // Contadores dos chips de decisão respeitam o "Só os melhores"
   const baseRows = useMemo(() => verTodos ? rows : rows.filter(r => r.melhor), [rows, verTodos]);
@@ -118,12 +130,19 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
 
   // Totais respeitam o filtro atual (view)
   const totalFinal = view.reduce((s, r) => s + finalOf(r), 0);
+  const totalSugestao = view.reduce((s, r) => s + (r.final || 0), 0);
   const linhasEnvio = view.filter(r => finalOf(r) > 0).length;
 
+  // Preencher/limpar o campo Enviar com a sugestão viável (r.final)
+  function usarSugestoes() { setOverrides(prev => { const n = { ...prev }; for (const r of view) n[r.key] = r.final || 0; return n; }); }
+  function limparEnvios() { setOverrides(prev => { const n = { ...prev }; for (const r of view) delete n[r.key]; return n; }); }
+
   function setFinal(key, v) {
+    if (v === '' || v == null) { setOverrides(prev => { const n = { ...prev }; delete n[key]; return n; }); return; }
     const q = Math.max(0, parseInt(v, 10) || 0);
     setOverrides(prev => ({ ...prev, [key]: q }));
   }
+  const setOverride = (key, q) => setOverrides(prev => ({ ...prev, [key]: Math.max(0, q || 0) }));
   function saveNote(cml, text) {
     setNotes(prev => ({ ...prev, [cml]: text }));
     api.put(`/full/notes/${encodeURIComponent(cml)}`, { note: text }).catch(() => {});
@@ -312,11 +331,32 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         </button>
       </div>
 
+      {/* Filtro por alertas (multi) */}
+      {alertasDisp.length > 0 && (
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
+          <span style={styles.label}>Alertas</span>
+          {alertasDisp.map(([a, n]) => {
+            const on = alertFiltro.has(a); const s = ALERT_STYLE[a] || { bg: '#e2e8f0', fg: '#4a5568' };
+            return (
+              <button key={a} onClick={() => toggleAlerta(a)}
+                style={{ ...styles.chip, ...(on ? { background: s.bg, color: s.fg, borderColor: s.fg, fontWeight: 700 } : {}) }}>
+                {a} ({n})
+              </button>
+            );
+          })}
+          {alertFiltro.size > 0 && <button onClick={() => setAlertFiltro(new Set())} style={styles.chip}>limpar alertas</button>}
+        </div>
+      )}
+
       {/* Barra de ação */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
         <input placeholder="Buscar SKU / produto / Código ML / MLB" value={busca} onChange={e => setBusca(e.target.value)}
           style={{ flex: 1, minWidth: '220px', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '8px' }} />
-        <span style={{ fontSize: '14px', fontWeight: 700 }}>{linhasEnvio} linhas · {int(totalFinal)} un a enviar</span>
+        <span style={{ fontSize: '13.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+          Sugestão: {int(totalSugestao)} · <span style={{ color: 'var(--brand, #2b6cb0)' }}>Enviar: {int(totalFinal)}</span> · {linhasEnvio} linhas
+        </span>
+        <button className="btn-outline" onClick={usarSugestoes} title="Preenche o campo Enviar com a sugestão em todas as linhas visíveis">↧ Usar sugestões</button>
+        <button className="btn-outline" onClick={limparEnvios} title="Zera o campo Enviar nas linhas visíveis">Limpar</button>
         <button className="btn-outline" onClick={exportarML} title="Gera a planilha no modelo oficial do ML (colunas A–F)">📤 Exportar planilha do ML</button>
         <button className="btn-primary" onClick={salvar} disabled={saving}>{saving ? 'Salvando...' : '💾 Salvar envio'}</button>
       </div>
@@ -372,8 +412,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700 }}>{int(r.sugestao)}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <input type="number" min="0" value={finalOf(r)} onChange={e => setFinal(r.key, e.target.value)}
-                    style={{ width: '64px', padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '6px' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                    <input type="number" min="0" placeholder="—" value={overrides[r.key] ?? ''} onChange={e => setFinal(r.key, e.target.value)}
+                      style={{ width: '58px', padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '6px' }} />
+                    {r.final > 0 && (
+                      <button title={`Usar sugestão (${int(r.final)})`} onClick={() => setOverride(r.key, r.final)}
+                        style={{ padding: '3px 5px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--bg-muted, #edf2f7)', cursor: 'pointer' }}>↧</button>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
