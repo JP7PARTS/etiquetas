@@ -224,14 +224,24 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     for (const [sku, o] of perfCrossSku) setPerf('sku:' + sku, o.un, o.receita, 0);
     for (const [anuncio, o] of perfCrossAnun) setPerf('an:' + anuncio, o.un, o.receita, 0);
   }
-  const melhores = calcMelhores(perfByKey, ranking);
+  // Só rankeamos as chaves que de fato viram LINHA na tabela — senão chaves "fantasma"
+  // (SKU do cross já no Full, ou 2º anúncio abaixo do limiar) consomem posições e abrem
+  // buracos no rank. rowKeys replica as condições das 3 construções de linha abaixo.
+  const rowKeys = new Set();
+  for (const p of resumo) rowKeys.add(keyFor('full', p));
+  for (const sku of demSkuCross.keys()) if (!skusFull.has(sku)) rowKeys.add(keyFor('cross', { sku }));
+  for (const [anuncio, a] of demAnunCross)
+    if (skusFull.has(a.sku) && !anuncioToCml.has(anuncio) && (a.win[maxJ] || 0) >= limiar2)
+      rowKeys.add(keyFor('cross2', { sku: a.sku, anuncio }));
+
+  const perfByRow = new Map([...perfByKey.entries()].filter(([k]) => rowKeys.has(k)));
+  const melhores = calcMelhores(perfByRow, ranking);
   const perf = (key) => perfByKey.get(key) || { un: 0, receita: 0, conv: 0 };
 
-  // Dois rankings independentes por ordenação pura (sem placar/média):
+  // Dois rankings independentes por ordenação pura (sem placar/média), sobre as linhas reais:
   //  - rankQtd: posição por unidades vendidas (desc); empate por receita.
   //  - rankValor: posição por receita (desc); empate por unidades.
-  // Posições calculadas sobre TODAS as chaves com venda (por anúncio/Código ML, ou por SKU se rankPor='sku').
-  const entriesM = [...perfByKey.entries()];
+  const entriesM = [...perfByRow.entries()];
   const rankQtdMap = new Map();
   [...entriesM].sort((a, b) => (b[1].un - a[1].un) || (b[1].receita - a[1].receita)).forEach(([key], i) => rankQtdMap.set(key, i + 1));
   const rankValorMap = new Map();
