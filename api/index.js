@@ -14,6 +14,7 @@ const pickingListsRoutes = require('./routes/pickingLists');
 const fullShipmentsRoutes = require('./routes/full/shipments');
 const fullNotesRoutes = require('./routes/full/notes');
 const fullExcluidosRoutes = require('./routes/full/excluidos');
+const fullCrossWaitRoutes = require('./routes/full/cross-wait');
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use('/api/picking-lists', pickingListsRoutes);
 app.use('/api/full/shipments', fullShipmentsRoutes);
 app.use('/api/full/notes', fullNotesRoutes);
 app.use('/api/full/excluidos', fullExcluidosRoutes);
+app.use('/api/full/cross-wait', fullCrossWaitRoutes);
 
 // 404 handler for /api routes
 app.use('/api/*', (req, res) => {

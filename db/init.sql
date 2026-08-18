@@ -98,6 +98,14 @@ CREATE TABLE IF NOT EXISTS full_excluidos (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Anúncios marcados como "cross esgotado" (aguardando estoque do armazém voltar)
+CREATE TABLE IF NOT EXISTS full_cross_wait (
+  codigo_ml VARCHAR(60) PRIMARY KEY,
+  sku VARCHAR(100),
+  created_by_name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (username, email, password_hash, role)

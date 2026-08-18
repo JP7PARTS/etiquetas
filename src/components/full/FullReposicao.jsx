@@ -16,6 +16,8 @@ const ALERT_STYLE = {
   'subindo forte': { bg: '#c6f6d5', fg: '#22543d' },
   'SKU já no Full': { bg: '#e9d8fd', fg: '#553c9a' },
   'a caminho': { bg: '#bee3f8', fg: '#2a4365' },
+  'aguardando cross': { bg: '#e2e8f0', fg: '#4a5568' },
+  'cross voltou': { bg: '#9ae6b4', fg: '#22543d' },
 };
 
 const DECISOES = ['Manter', 'Promover', 'Avaliar saída', 'Ignorar'];
@@ -44,6 +46,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [notes, setNotes] = useState({});         // codigoMl -> nota
   const [sort, setSort] = useState({ key: 'rqtd', dir: 'asc' });
   const [excluidos, setExcluidos] = useState(new Set());
+  const [crossWait, setCrossWait] = useState(new Set()); // codigoMl marcados "cross esgotado"
   const [busca, setBusca] = useState('');
   const [showOrfas, setShowOrfas] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,10 +62,23 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       setNotes(map);
     }).catch(() => {});
     carregarExcluidos();
+    carregarCrossWait();
   }, []);
 
   function carregarExcluidos() {
     api.get('/full/excluidos').then(r => setExcluidos(new Set((r.data || []).map(x => x.sku)))).catch(() => {});
+  }
+  function carregarCrossWait() {
+    api.get('/full/cross-wait').then(r => setCrossWait(new Set((r.data || []).map(x => x.codigo_ml)))).catch(() => {});
+  }
+  async function marcarCross(r) {
+    if (!r.codigoMl) return;
+    setCrossWait(prev => new Set(prev).add(r.codigoMl)); // otimista
+    try { await api.post('/full/cross-wait', { codigo_ml: r.codigoMl, sku: r.sku }); } catch { carregarCrossWait(); }
+  }
+  async function desmarcarCross(r) {
+    setCrossWait(prev => { const n = new Set(prev); n.delete(r.codigoMl); return n; });
+    try { await api.delete(`/full/cross-wait/${encodeURIComponent(r.codigoMl)}`); } catch { carregarCrossWait(); }
   }
   async function excluir(sku) {
     setExcluidos(prev => new Set(prev).add(sku)); // otimista
@@ -85,6 +101,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
 
   const [alertFiltro, setAlertFiltro] = useState(new Set());
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : 0);
+  // Alertas da linha + selo de "cross esgotado" (aguardando / voltou), derivado do estado persistido
+  const alertasDe = (r) => {
+    const base = r.alertas || [];
+    if (r.codigoMl && crossWait.has(r.codigoMl)) return [...base, r.crossSku > 0 ? 'cross voltou' : 'aguardando cross'];
+    return base;
+  };
 
   const view = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -95,7 +117,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     if (decFiltro === 'Todos') arr = arr.filter(r => r.decisao !== 'Não enviar');
     else arr = arr.filter(r => r.decisao === decFiltro);
     // Filtro por alertas (multi, OR)
-    if (alertFiltro.size) arr = arr.filter(r => (r.alertas || []).some(a => alertFiltro.has(a)));
+    if (alertFiltro.size) arr = arr.filter(r => alertasDe(r).some(a => alertFiltro.has(a)));
     if (q) {
       const qm = q.replace(/^mlb/, '');
       arr = arr.filter(r =>
@@ -109,15 +131,15 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro]);
+  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait]);
 
   // Alertas presentes (para os chips de filtro), com contagem, respeitando "Só os melhores"
   const alertasDisp = useMemo(() => {
     const c = new Map();
     for (const r of (verTodos ? rows : rows.filter(r => r.melhor)))
-      for (const a of (r.alertas || [])) c.set(a, (c.get(a) || 0) + 1);
+      for (const a of alertasDe(r)) c.set(a, (c.get(a) || 0) + 1);
     return [...c.entries()].sort((a, b) => b[1] - a[1]);
-  }, [rows, verTodos]);
+  }, [rows, verTodos, crossWait]);
   const toggleAlerta = (a) => setAlertFiltro(prev => { const n = new Set(prev); n.has(a) ? n.delete(a) : n.add(a); return n; });
 
   // Contadores dos chips de decisão respeitam o "Só os melhores"
@@ -423,7 +445,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    {r.alertas.map(a => {
+                    {alertasDe(r).map(a => {
                       const s = ALERT_STYLE[a] || { bg: '#e2e8f0', fg: '#4a5568' };
                       return <span key={a} style={{ background: s.bg, color: s.fg, fontSize: '10.5px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px', whiteSpace: 'nowrap' }}>{a}</span>;
                     })}
@@ -431,9 +453,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 </td>
                 <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{r.codigoMl && historico[r.codigoMl] ? int(historico[r.codigoMl]) : '—'}</td>
                 <td>
-                  {r.decisao === 'Não enviar'
-                    ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} onClick={() => restaurar(r.sku)}>↩ voltar</button>
-                    : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Não enviar ao Full (ex.: tamanho)" onClick={() => excluir(r.sku)}>🚫 não enviar</button>}
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {r.decisao === 'Não enviar'
+                      ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} onClick={() => restaurar(r.sku)}>↩ voltar</button>
+                      : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Não enviar ao Full (ex.: tamanho)" onClick={() => excluir(r.sku)}>🚫 não enviar</button>}
+                    {r.codigoMl && (crossWait.has(r.codigoMl)
+                      ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Remover marcação de cross esgotado" onClick={() => desmarcarCross(r)}>aguardando cross ✕</button>
+                      : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Marcar que o estoque do cross (armazém) acabou; avisa quando voltar" onClick={() => marcarCross(r)}>⛔ cross esgotou</button>)}
+                  </div>
                 </td>
               </tr>
             ))}
