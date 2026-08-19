@@ -460,7 +460,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <th style={{ textAlign: 'right' }}>Cross</th>
               {th('sugestao', 'Sugestão', { textAlign: 'right' })}
               <th style={{ textAlign: 'right' }}>Enviar</th>
-              <th>Alertas</th>
+              <th style={{ width: '118px', minWidth: '118px', maxWidth: '118px' }}>Alertas</th>
               <th style={{ textAlign: 'right' }}>Últ. envios</th>
               <th style={{ textAlign: 'center' }}>Tipo</th>
               <th>Ação</th>
@@ -532,8 +532,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                       style={{ width: '24px', height: '26px', boxSizing: 'border-box', padding: 0, fontSize: '11px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--bg-muted, #edf2f7)', cursor: r.final > 0 ? 'pointer' : 'default', opacity: r.final > 0 ? 1 : 0.35 }}>↧</button>
                   </div>
                 </td>
-                <td>
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                <td style={{ width: '118px', minWidth: '118px', maxWidth: '118px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
                     {alertasDe(r).map(a => {
                       const s = ALERT_STYLE[a] || { bg: '#e2e8f0', fg: '#4a5568' };
                       return <span key={a} style={{ background: s.bg, color: s.fg, fontSize: '10.5px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px', whiteSpace: 'nowrap' }}>{a}</span>;
