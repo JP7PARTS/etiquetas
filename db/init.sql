@@ -106,6 +106,14 @@ CREATE TABLE IF NOT EXISTS full_cross_wait (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Anúncios marcados como "Full grade" (produtos grandes); o resto é "Full geral" por padrão
+CREATE TABLE IF NOT EXISTS full_grade (
+  codigo_ml VARCHAR(60) PRIMARY KEY,
+  sku VARCHAR(100),
+  created_by_name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (username, email, password_hash, role)

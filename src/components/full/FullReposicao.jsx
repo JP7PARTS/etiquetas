@@ -49,6 +49,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [sort, setSort] = useState({ key: 'rqtd', dir: 'asc' });
   const [excluidos, setExcluidos] = useState(new Set());
   const [crossWait, setCrossWait] = useState(new Set()); // codigoMl marcados "cross esgotado"
+  const [gradeSet, setGradeSet] = useState(new Set());   // refs marcados "Full grade" (resto é Geral)
+  const [tipoSel, setTipoSel] = useState(new Set(['geral', 'grade'])); // filtro por tipo (multi)
   const [busca, setBusca] = useState('');
   const [showOrfas, setShowOrfas] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -73,7 +75,24 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     }).catch(() => {});
     carregarExcluidos();
     carregarCrossWait();
+    carregarGrade();
   }, []);
+
+  function carregarGrade() {
+    api.get('/full/grade').then(r => setGradeSet(new Set((r.data || []).map(x => x.codigo_ml)))).catch(() => {});
+  }
+  const tipoDe = (r) => (gradeSet.has(refDe(r)) ? 'grade' : 'geral');
+  async function marcarGrade(r) {
+    const ref = refDe(r); if (!ref) return;
+    setGradeSet(prev => new Set(prev).add(ref));
+    try { await api.post('/full/grade', { codigo_ml: ref, sku: r.sku }); } catch { carregarGrade(); }
+  }
+  async function desmarcarGrade(r) {
+    const ref = refDe(r); if (!ref) return;
+    setGradeSet(prev => { const n = new Set(prev); n.delete(ref); return n; });
+    try { await api.delete(`/full/grade/${encodeURIComponent(ref)}`); } catch { carregarGrade(); }
+  }
+  const toggleTipo = (r) => (tipoDe(r) === 'grade' ? desmarcarGrade(r) : marcarGrade(r));
 
   function carregarExcluidos() {
     api.get('/full/excluidos').then(r => setExcluidos(new Set((r.data || []).map(x => x.sku)))).catch(() => {});
@@ -138,6 +157,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     if (crossMax !== '' && !isNaN(parseInt(crossMax, 10))) { const m = parseInt(crossMax, 10); arr = arr.filter(r => (r.crossSku || 0) <= m); }
     // Filtro de coluna: esconder só as linhas com Enviar explicitamente 0 (mantém as em branco)
     if (soComEnvio) arr = arr.filter(r => overrides[r.key] !== 0);
+    // Filtro por tipo de envio (Geral/Grade)
+    if (tipoSel.size < 2) arr = arr.filter(r => tipoSel.has(tipoDe(r)));
     if (q) {
       const qm = q.replace(/^mlb/, '');
       arr = arr.filter(r =>
@@ -151,7 +172,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio]);
+  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio, tipoSel, gradeSet]);
 
   // Alertas presentes (para os chips de filtro), com contagem, respeitando "Só os melhores"
   const alertasDisp = useMemo(() => {
@@ -168,8 +189,9 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     if (ativo) { setAlertFiltro(new Set()); return; }
     setVerTodos(true); setDecFiltro('Todos'); setAlertFiltro(new Set(['cross voltou']));
   };
-  const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio;
-  const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); };
+  const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio || tipoSel.size < 2;
+  const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); setTipoSel(new Set(['geral', 'grade'])); };
+  const toggleTipoSel = (t) => setTipoSel(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n.size ? n : new Set(['geral', 'grade']); });
 
   // Contadores dos chips de decisão respeitam o "Só os melhores"
   const baseRows = useMemo(() => verTodos ? rows : rows.filter(r => r.melhor), [rows, verTodos]);
@@ -207,8 +229,9 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   }
 
   async function exportarML() {
-    const itens = rows.filter(r => finalOf(r) > 0 && r.codigoMl);
+    const itens = rows.filter(r => finalOf(r) > 0 && r.codigoMl && tipoSel.has(tipoDe(r)));
     if (itens.length === 0) { setMsg('Nenhum item com Código ML para exportar.'); return; }
+    const sufTipo = tipoSel.size < 2 ? (tipoSel.has('grade') ? 'grade_' : 'geral_') : '';
     try {
       const XLSX = await import('xlsx');
       const buf = await (await fetch(moldeUrl)).arrayBuffer();
@@ -221,7 +244,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       }
       ws['!ref'] = 'A1:F' + (rr - 1);
       const d = new Date();
-      const nome = `envio_full_${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(2)}.xlsx`;
+      const nome = `envio_full_${sufTipo}${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(2)}.xlsx`;
       XLSX.writeFile(wb, nome);
       const promoverFora = rows.filter(r => r.decisao === 'Promover' && finalOf(r) > 0 && !r.codigoMl).length;
       setMsg(`✅ Planilha do ML gerada (${itens.length} itens).` + (promoverFora ? ` ⚠️ ${promoverFora} itens "Promover" ficaram de fora (ainda sem Código ML no Full — habilite-os no Full primeiro).` : ''));
@@ -232,7 +255,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   async function salvar() {
     const nome = window.prompt('Nome do envio:', `Envio Full ${new Date().toLocaleDateString('pt-BR')}`);
     if (!nome || !nome.trim()) return;
-    const items = rows.filter(r => finalOf(r) > 0).map(r => ({ codigo_ml: r.codigoMl, sku: r.sku, qty: finalOf(r) }));
+    const items = rows.filter(r => finalOf(r) > 0 && tipoSel.has(tipoDe(r))).map(r => ({ codigo_ml: r.codigoMl, sku: r.sku, qty: finalOf(r) }));
     if (items.length === 0) { setMsg('Nenhuma quantidade a enviar.'); return; }
     setSaving(true); setMsg('');
     try {
@@ -386,8 +409,13 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             ✅ cross voltou ({crossVoltouN})
           </button>
         ); })()}
+        <span style={{ ...styles.label, marginLeft: '10px' }}>Tipo</span>
+        {[['geral', 'Geral'], ['grade', 'Grade']].map(([t, lbl]) => (
+          <button key={t} onClick={() => toggleTipoSel(t)} title={`Mostrar/exportar Full ${lbl}`}
+            style={{ ...styles.chip, ...(tipoSel.has(t) ? styles.chipOn : {}) }}>{lbl}</button>
+        ))}
         {temFiltro && (
-          <button onClick={limparFiltros} title="Remover todos os filtros (busca, decisão, alertas, cross, esconder 0)"
+          <button onClick={limparFiltros} title="Remover todos os filtros (busca, decisão, alertas, cross, esconder 0, tipo)"
             style={{ ...styles.chip, marginLeft: '10px' }}>✕ Limpar filtros</button>
         )}
         <button onClick={() => setVerTodos(v => !v)} style={{ ...styles.chip, ...(verTodos ? {} : styles.chipOn), marginLeft: 'auto' }}
@@ -432,6 +460,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <th style={{ textAlign: 'right' }}>Enviar</th>
               <th>Alertas</th>
               <th style={{ textAlign: 'right' }}>Últ. envios</th>
+              <th style={{ textAlign: 'center' }}>Tipo</th>
               <th>Ação</th>
             </tr>
             {/* Linha de filtros por coluna */}
@@ -465,7 +494,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                   </div>
                 )}
               </th>
-              <th colSpan={2}></th>
+              <th colSpan={3}></th>
             </tr>
           </thead>
           <tbody>
@@ -510,6 +539,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                   </div>
                 </td>
                 <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{r.codigoMl && historico[r.codigoMl] ? int(historico[r.codigoMl]) : '—'}</td>
+                <td style={{ textAlign: 'center' }}>
+                  {(() => { const grade = tipoDe(r) === 'grade'; return (
+                    <button onClick={() => toggleTipo(r)} title="Alternar entre Full Geral e Full Grade"
+                      style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '10px', cursor: 'pointer', border: '1px solid ' + (grade ? '#b7791f' : 'var(--border)'), background: grade ? '#feebc8' : 'var(--bg-muted, #edf2f7)', color: grade ? '#7b341e' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                      {grade ? 'Grade' : 'Geral'}
+                    </button>
+                  ); })()}
+                </td>
                 <td>
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {r.decisao === 'Não enviar'
@@ -527,7 +564,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               </tr>
               {notando === refDe(r) && refDe(r) && (
                 <tr>
-                  <td colSpan={18} style={{ background: 'var(--bg-muted, #f7fafc)' }}>
+                  <td colSpan={19} style={{ background: 'var(--bg-muted, #f7fafc)' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '4px 2px' }}>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', paddingTop: '4px' }}>💬 {r.sku}:</span>
                       <textarea autoFocus rows={2} value={notes[refDe(r)] || ''} onChange={e => saveNote(refDe(r), e.target.value)}
