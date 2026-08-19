@@ -321,7 +321,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
       key: p.codigoMl, origem: 'full', codigoMl: p.codigoMl, sku: p.sku, produto: p.produto,
       gtin: p.gtin || '', anuncios, anuncio: (anuncios[0] && anuncios[0].mlb) || (p.anuncios && p.anuncios[0]) || '',
       tituloTop: (anuncios[0] && anuncios[0].titulo) || p.produto,
-      vels, velEsc, unMax: d[maxJ] || 0, un30ml: p.un30, estoque, aCaminho, coberturaDias, semanas: p.semanas,
+      vels, velEsc, unMax: d[maxJ] || 0, un30ml: p.un30, estoque, aCaminho, coberturaDias, semanas: p.semanas, afetamTempo: p.afetamTempo || 0,
       crossSku: cross?.map?.get((p.sku || '').toUpperCase()) || 0,
       sugestao, final: (decisao === 'Manter') ? sugestao : 0,
       melhor, rankQtd: rankQtdMap.get(pkey) || null, rankValor: rankValorMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],

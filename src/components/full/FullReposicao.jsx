@@ -168,7 +168,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         (r.anuncios || []).some(a => String(a.mlb || '').toLowerCase().includes(qm)));
     }
     const key = sort.key, mul = sort.dir === 'asc' ? 1 : -1;
-    const val = (r) => key === 'rqtd' ? (r.rankQtd ?? 1e9) : key === 'rval' ? (r.rankValor ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'estoque' ? r.estoque : key === 'un' ? (r.perf?.un || 0) : key === 'rs' ? (r.perf?.receita || 0) : key === 'sku' ? r.sku : r.velEsc;
+    const val = (r) => key === 'rqtd' ? (r.rankQtd ?? 1e9) : key === 'rval' ? (r.rankValor ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'afetatempo' ? (r.afetamTempo || 0) : key === 'estoque' ? r.estoque : key === 'un' ? (r.perf?.un || 0) : key === 'rs' ? (r.perf?.receita || 0) : key === 'sku' ? r.sku : r.velEsc;
     return [...arr].sort((a, b) => {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
@@ -457,6 +457,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               {th('rs', 'R$', { textAlign: 'center' })}
               {th('estoque', 'Estoque', { textAlign: 'right' })}
               {th('cobertura', 'Cobertura', { textAlign: 'center' })}
+              {th('afetatempo', 'Un. tempo estq', { textAlign: 'center' })}
               <th style={{ textAlign: 'center' }}>Cross</th>
               {th('sugestao', 'Sugestão', { textAlign: 'center' })}
               <th style={{ textAlign: 'right' }}>Enviar</th>
@@ -467,7 +468,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             </tr>
             {/* Linha de filtros por coluna */}
             <tr style={{ background: 'var(--bg-muted, #f7fafc)' }}>
-              <th colSpan={12}></th>
+              <th colSpan={13}></th>
               <th style={{ textAlign: 'right' }} title="Mostrar só linhas com cross ≤ valor">
                 <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>≤ </span>
                 <input type="number" min="0" value={crossMax} onChange={e => setCrossMax(e.target.value)} placeholder="cross"
@@ -531,6 +532,9 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                   )}
                 </td>
                 <td style={{ textAlign: 'center' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
+                <td style={{ textAlign: 'center' }} title="unidades que já contam para a tarifa de Tempo de estoque (parado — risco de armazenagem)">
+                  {r.afetamTempo > 0 ? <span style={{ color: '#c05621', fontWeight: 700 }}>{int(r.afetamTempo)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
                 <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
                 <td style={{ textAlign: 'center', fontWeight: 700 }}>{int(r.sugestao)}</td>
                 <td style={{ textAlign: 'right' }}>
@@ -581,7 +585,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               </tr>
               {notando === refDe(r) && refDe(r) && (
                 <tr>
-                  <td colSpan={19} style={{ background: 'var(--bg-muted, #f7fafc)' }}>
+                  <td colSpan={20} style={{ background: 'var(--bg-muted, #f7fafc)' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '4px 2px' }}>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', paddingTop: '4px' }}>💬 {r.sku}:</span>
                       <textarea autoFocus rows={2} value={notes[refDe(r)] || ''} onChange={e => saveNote(refDe(r), e.target.value)}
