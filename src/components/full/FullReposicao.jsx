@@ -153,6 +153,15 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     return [...c.entries()].sort((a, b) => b[1] - a[1]);
   }, [rows, verTodos, crossWait]);
   const toggleAlerta = (a) => setAlertFiltro(prev => { const n = new Set(prev); n.has(a) ? n.delete(a) : n.add(a); return n; });
+  // Anúncios marcados cujo estoque do cross voltou (crossSku > 0)
+  const crossVoltouN = useMemo(() => rows.filter(r => { const ref = refDe(r); return ref && crossWait.has(ref) && r.crossSku > 0; }).length, [rows, crossWait]);
+  const filtrarCrossVoltou = () => {
+    const ativo = alertFiltro.size === 1 && alertFiltro.has('cross voltou');
+    if (ativo) { setAlertFiltro(new Set()); return; }
+    setVerTodos(true); setDecFiltro('Todos'); setAlertFiltro(new Set(['cross voltou']));
+  };
+  const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio;
+  const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); };
 
   // Contadores dos chips de decisão respeitam o "Só os melhores"
   const baseRows = useMemo(() => verTodos ? rows : rows.filter(r => r.melhor), [rows, verTodos]);
@@ -362,6 +371,16 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
           <button onClick={() => setDecFiltro('Não enviar')} style={{ ...styles.chip, ...(decFiltro === 'Não enviar' ? styles.chipOn : {}) }}>
             🚫 Não enviar ({cont['Não enviar']})
           </button>
+        )}
+        {crossVoltouN > 0 && (() => { const ativo = alertFiltro.size === 1 && alertFiltro.has('cross voltou'); const s = ALERT_STYLE['cross voltou']; return (
+          <button onClick={filtrarCrossVoltou} title="Anúncios cujo estoque do cross voltou — clique para ver só eles"
+            style={{ ...styles.chip, marginLeft: '10px', background: s.bg, color: s.fg, borderColor: s.fg, fontWeight: 700, ...(ativo ? { outline: '2px solid ' + s.fg } : {}) }}>
+            ✅ cross voltou ({crossVoltouN})
+          </button>
+        ); })()}
+        {temFiltro && (
+          <button onClick={limparFiltros} title="Remover todos os filtros (busca, decisão, alertas, cross, esconder 0)"
+            style={{ ...styles.chip, marginLeft: '10px' }}>✕ Limpar filtros</button>
         )}
         <button onClick={() => setVerTodos(v => !v)} style={{ ...styles.chip, ...(verTodos ? {} : styles.chipOn), marginLeft: 'auto' }}
           title={verTodos ? 'Mostrando tudo — clique para ver só os melhores (Top N)' : 'Mostrando só os melhores (Top N) — clique para ver todos'}>
