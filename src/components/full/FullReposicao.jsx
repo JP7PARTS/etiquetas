@@ -53,6 +53,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [showOrfas, setShowOrfas] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  const [copiado, setCopiado] = useState(null); // key da linha cujo título acabou de ser copiado
+  const copiarTitulo = (r) => {
+    const t = r.tituloTop || r.produto || '';
+    if (!t) return;
+    const ok = () => { setCopiado(r.key); setTimeout(() => setCopiado(c => (c === r.key ? null : c)), 1200); };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(t).then(ok).catch(() => {});
+    else { try { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ok(); } catch {} }
+  };
 
   useEffect(() => {
     api.get('/full/shipments/historico').then(r => {
@@ -467,7 +475,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 <td style={{ textAlign: 'left', fontWeight: 700, color: r.rankQtd ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por quantidade vendida">{r.rankQtd ? '#' + r.rankQtd : '—'}</td>
                 <td style={{ textAlign: 'left', fontWeight: 700, color: r.rankValor ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por receita">{r.rankValor ? '#' + r.rankValor : '—'}</td>
                 <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{r.sku}</td>
-                <td style={{ textAlign: 'center', cursor: 'help' }} title={r.tituloTop || r.produto}>ℹ️</td>
+                <td style={{ textAlign: 'center', cursor: 'pointer' }} title={(r.tituloTop || r.produto || '') + ' — clique para copiar o título'} onClick={() => copiarTitulo(r)}>{copiado === r.key ? '✅' : 'ℹ️'}</td>
                 <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}
                   title={(r.anuncios && r.anuncios.length ? r.anuncios : []).map(a => `MLB${a.mlb} · ${int(a.un)}un${a.titulo ? ' · ' + a.titulo : ''}`).join('\n') || 'sem anúncio'}>
                   {r.anuncio ? <>MLB{r.anuncio}{r.anuncios && r.anuncios.length > 1 && <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}> +{r.anuncios.length - 1}</span>}</> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
