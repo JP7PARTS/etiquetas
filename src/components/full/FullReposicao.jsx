@@ -134,6 +134,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [soComEnvio, setSoComEnvio] = useState(false); // filtro: só linhas com Enviar > 0
   const [alertMenu, setAlertMenu] = useState(false);   // dropdown de alertas no cabeçalho
   const [notando, setNotando] = useState(null);        // ref da linha com editor de nota aberto
+  const [acaoMenu, setAcaoMenu] = useState(null);      // key da linha com o menu "⋮" aberto
   const finalOf = (r) => (overrides[r.key] != null ? overrides[r.key] : 0);
   // Alertas da linha + selo de "cross esgotado" (aguardando / voltou), derivado do estado persistido
   const alertasDe = (r) => {
@@ -438,6 +439,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       </div>
       {msg && <div className="alert alert-success" style={{ marginBottom: '10px' }}>{msg}</div>}
 
+      {acaoMenu && <div onClick={() => setAcaoMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 25 }} />}
       <div className="card" style={{ overflowX: 'auto' }}>
         <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;vertical-align:middle;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
@@ -548,16 +550,22 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                   ); })()}
                 </td>
                 <td>
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    {r.decisao === 'Não enviar'
-                      ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} onClick={() => restaurar(r.sku)}>↩ voltar</button>
-                      : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Não enviar ao Full (ex.: tamanho)" onClick={() => { excluir(r.sku); if (refDe(r)) setNotando(refDe(r)); }}>🚫 não enviar</button>}
-                    {refDe(r) && (crossWait.has(refDe(r))
-                      ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Remover marcação de cross esgotado" onClick={() => desmarcarCross(r)}>aguardando cross ✕</button>
-                      : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Marcar que o estoque do cross (armazém) acabou; avisa quando voltar" onClick={() => { marcarCross(r); setNotando(refDe(r)); }}>⛔ cross esgotou</button>)}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                    <button className="btn-outline" title="Opções" onClick={(e) => { if (acaoMenu?.key === r.key) { setAcaoMenu(null); return; } const rc = e.currentTarget.getBoundingClientRect(); setAcaoMenu({ key: r.key, top: rc.bottom + 2, right: window.innerWidth - rc.right }); }}
+                      style={{ padding: '2px 7px', fontSize: '13px', lineHeight: 1, fontWeight: 700 }}>⋮</button>
+                    {acaoMenu?.key === r.key && (
+                      <div style={{ position: 'fixed', zIndex: 30, top: acaoMenu.top, right: acaoMenu.right, background: 'var(--bg, #fff)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,.14)', padding: '4px', minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {r.decisao === 'Não enviar'
+                          ? <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '12px', textAlign: 'left' }} onClick={() => { restaurar(r.sku); setAcaoMenu(null); }}>↩ voltar (enviar)</button>
+                          : <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '12px', textAlign: 'left' }} onClick={() => { excluir(r.sku); if (refDe(r)) setNotando(refDe(r)); setAcaoMenu(null); }}>🚫 não enviar</button>}
+                        {refDe(r) && (crossWait.has(refDe(r))
+                          ? <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '12px', textAlign: 'left' }} onClick={() => { desmarcarCross(r); setAcaoMenu(null); }}>aguardando cross ✕</button>
+                          : <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '12px', textAlign: 'left' }} onClick={() => { marcarCross(r); setNotando(refDe(r)); setAcaoMenu(null); }}>⛔ cross esgotou</button>)}
+                      </div>
+                    )}
                     {refDe(r) && (() => { const has = !!(notes[refDe(r)] || '').trim(); const open = notando === refDe(r); return (
                       <button className="btn-outline" title={has ? notes[refDe(r)] : 'Adicionar comentário'} onClick={() => setNotando(open ? null : refDe(r))}
-                        style={{ padding: '3px 8px', fontSize: '11.5px', ...(has ? { background: '#fefcbf', borderColor: '#b7791f', color: '#744210', fontWeight: 700 } : {}) }}>💬{has ? '•' : ''}</button>
+                        style={{ padding: '2px 7px', fontSize: '11.5px', ...(has ? { background: '#fefcbf', borderColor: '#b7791f', color: '#744210', fontWeight: 700 } : {}) }}>💬{has ? '•' : ''}</button>
                     ); })()}
                   </div>
                 </td>
