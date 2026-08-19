@@ -447,21 +447,21 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             <tr>
               {th('rqtd', 'R.Qtd', { textAlign: 'left' })}
               {th('rval', 'R.Val', { textAlign: 'left' })}
-              {th('sku', 'SKU')}
+              {th('sku', 'SKU', { textAlign: 'center' })}
               <th style={{ textAlign: 'center' }} title="Título do anúncio (passe o mouse)">Tít.</th>
-              <th>MLB</th>
-              <th>Código ML</th>
-              <th>Decisão</th>
-              {th('vel', 'Vel (' + meta.janelas.join('/') + ')', { textAlign: 'right' })}
-              {th('un', 'Un', { textAlign: 'right' })}
-              {th('rs', 'R$', { textAlign: 'right' })}
+              <th style={{ textAlign: 'center' }}>MLB</th>
+              <th style={{ textAlign: 'center' }}>Código ML</th>
+              <th style={{ textAlign: 'center' }}>Decisão</th>
+              {th('vel', 'Vel (' + meta.janelas.join('/') + ')', { textAlign: 'center' })}
+              {th('un', 'Un', { textAlign: 'center' })}
+              {th('rs', 'R$', { textAlign: 'center' })}
               {th('estoque', 'Estoque', { textAlign: 'right' })}
-              {th('cobertura', 'Cobertura', { textAlign: 'right' })}
-              <th style={{ textAlign: 'right' }}>Cross</th>
-              {th('sugestao', 'Sugestão', { textAlign: 'right' })}
+              {th('cobertura', 'Cobertura', { textAlign: 'center' })}
+              <th style={{ textAlign: 'center' }}>Cross</th>
+              {th('sugestao', 'Sugestão', { textAlign: 'center' })}
               <th style={{ textAlign: 'right' }}>Enviar</th>
               <th style={{ width: '118px', minWidth: '118px', maxWidth: '118px' }}>Alertas</th>
-              <th style={{ textAlign: 'right' }}>Últ. envios</th>
+              <th style={{ textAlign: 'center' }}>Últ. envios</th>
               <th style={{ textAlign: 'center' }}>Tipo</th>
               <th>Ação</th>
             </tr>
@@ -505,21 +505,21 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               <tr>
                 <td style={{ textAlign: 'left', fontWeight: 700, color: r.rankQtd ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por quantidade vendida">{r.rankQtd ? '#' + r.rankQtd : '—'}</td>
                 <td style={{ textAlign: 'left', fontWeight: 700, color: r.rankValor ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por receita">{r.rankValor ? '#' + r.rankValor : '—'}</td>
-                <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{r.sku}</td>
+                <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap', textAlign: 'center' }}>{r.sku}</td>
                 <td style={{ textAlign: 'center', cursor: 'pointer' }} title={(r.tituloTop || r.produto || '') + ' — clique para copiar o título'} onClick={() => copiarTitulo(r)}>{copiado === r.key ? '✅' : 'ℹ️'}</td>
-                <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}
+                <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px', textAlign: 'center' }}
                   title={(r.anuncios && r.anuncios.length ? r.anuncios : []).map(a => `MLB${a.mlb} · ${int(a.un)}un${a.titulo ? ' · ' + a.titulo : ''}`).join('\n') || 'sem anúncio'}>
                   {r.anuncio ? <>MLB{r.anuncio}{r.anuncios && r.anuncios.length > 1 && <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}> +{r.anuncios.length - 1}</span>}</> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                 </td>
-                <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}>
+                <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px', textAlign: 'center' }}>
                   {r.codigoMl ? r.codigoMl : <span style={{ color: 'var(--text-muted)' }} title="nunca foi ao Full (adicionar/remover)">—</span>}
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <span style={{ ...(DEC_STYLE[r.decisao] || {}), background: (DEC_STYLE[r.decisao] || {}).bg, color: (DEC_STYLE[r.decisao] || {}).fg, fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>{r.decisao}</span>
                 </td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('/')}</td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="unidades vendidas no período (base do ranking)">{int(r.perf?.un)}</td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="receita no período (base do ranking)">{brl(r.perf?.receita)}</td>
+                <td style={{ textAlign: 'center', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('/')}</td>
+                <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} title="unidades vendidas no período (base do ranking)">{int(r.perf?.un)}</td>
+                <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} title="receita no período (base do ranking)">{brl(r.perf?.receita)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                     <span>{int(r.estoque)}</span><span style={{ width: '15px', display: 'inline-block' }} />
@@ -530,9 +530,9 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                     </div>
                   )}
                 </td>
-                <td style={{ textAlign: 'right' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
-                <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
-                <td style={{ textAlign: 'right', fontWeight: 700 }}>{int(r.sugestao)}</td>
+                <td style={{ textAlign: 'center' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
+                <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
+                <td style={{ textAlign: 'center', fontWeight: 700 }}>{int(r.sugestao)}</td>
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                     <input type="number" min="0" placeholder="—" value={overrides[r.key] ?? ''} onChange={e => setFinal(r.key, e.target.value)}
@@ -549,7 +549,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                     })}
                   </div>
                 </td>
-                <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{r.codigoMl && historico[r.codigoMl] ? int(historico[r.codigoMl]) : '—'}</td>
+                <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{r.codigoMl && historico[r.codigoMl] ? int(historico[r.codigoMl]) : '—'}</td>
                 <td style={{ textAlign: 'center' }}>
                   {(() => { const grade = tipoDe(r) === 'grade'; return (
                     <button onClick={() => toggleTipo(r)} title="Alternar entre Full Geral e Full Grade"
