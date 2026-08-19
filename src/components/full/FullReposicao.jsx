@@ -520,9 +520,15 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('/')}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="unidades vendidas no período (base do ranking)">{int(r.perf?.un)}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="receita no período (base do ranking)">{brl(r.perf?.receita)}</td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <div>{int(r.estoque)}</div>
-                  {r.aCaminho > 0 && <div style={{ color: '#2a4365', fontSize: '11px' }} title="unidades a caminho do Full (entrada pendente)">{int(r.aCaminho)}🚚</div>}
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <span>{int(r.estoque)}</span><span style={{ width: '15px', display: 'inline-block' }} />
+                  </div>
+                  {r.aCaminho > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', color: '#2a4365', fontSize: '11px' }} title="unidades a caminho do Full (entrada pendente)">
+                      <span>{int(r.aCaminho)}</span><span style={{ width: '15px', display: 'inline-block', textAlign: 'right' }}>🚚</span>
+                    </div>
+                  )}
                 </td>
                 <td style={{ textAlign: 'right' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
                 <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
