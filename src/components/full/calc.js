@@ -47,12 +47,17 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
   const rankPor = params?.rankPor === 'sku' ? 'sku' : 'anuncio';
   const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const anuncioToCml = new Map();
+  const anunSkuToCml = new Map(); // `${anuncio}|${SKU}` -> codigoMl (variação: mesmo MLB, SKUs diferentes)
   const skusFull = new Set();
   const skuToCmls = new Map();   // sku -> [{ codigoMl, un30, estoque }]
   const agSkuToCml = new Map();  // `${agrupador}|${sku}` -> codigoMl
   const prodToAg = new Map();    // norm(produto).slice(0,30) -> agrupador
+  const skuKey = (s) => String(s || '').trim().toUpperCase();
   for (const p of resumo) {
-    for (const a of (p.anuncios || [])) anuncioToCml.set(String(a).trim(), p.codigoMl);
+    for (const a of (p.anuncios || [])) {
+      anuncioToCml.set(String(a).trim(), p.codigoMl);
+      if (p.sku) anunSkuToCml.set(String(a).trim() + '|' + skuKey(p.sku), p.codigoMl);
+    }
     if (p.sku) {
       skusFull.add(p.sku);
       if (!skuToCmls.has(p.sku)) skuToCmls.set(p.sku, []);
@@ -79,10 +84,10 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
     return cmls.map((c, i) => [c.codigoMl, base[i] / soma]);
   }
 
-  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, limiar2 }, anuncioToCml, skusFull, resolverDestino });
+  return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, limiar2 }, anuncioToCml, anunSkuToCml, skuKey, skusFull, resolverDestino });
 }
 
-function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, skusFull, resolverDestino }) {
+function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, anunSkuToCml, skuKey, skusFull, resolverDestino }) {
   const { regra, diasCobertura, ranking, janelas, reconciliar, rankPor } = params;
   const limiar2 = params?.limiar2 != null ? params.limiar2 : 15;
   const DAY = 86400000;
@@ -161,7 +166,9 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, s
     if (l.classe === 'cancelamento') continue;
     unSku.set(l.sku, (unSku.get(l.sku) || 0) + l.un);
     receitaSku.set(l.sku, (receitaSku.get(l.sku) || 0) + (l.receita || 0));
-    const cml = anuncioToCml.get(String(l.anuncio).trim());
+    // Variação do modelo antigo (mesmo MLB, SKUs diferentes): atribui por anúncio+SKU;
+    // senão cai no anúncio (modelo novo tem MLB único por variação).
+    const cml = anunSkuToCml.get(String(l.anuncio).trim() + '|' + skuKey(l.sku)) || anuncioToCml.get(String(l.anuncio).trim());
     if (cml) {
       if (l.canal === 'full') {
         addFull(cml, l, 1);
