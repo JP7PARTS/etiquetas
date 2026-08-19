@@ -514,10 +514,10 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {r.decisao === 'Não enviar'
                       ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} onClick={() => restaurar(r.sku)}>↩ voltar</button>
-                      : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Não enviar ao Full (ex.: tamanho)" onClick={() => excluir(r.sku)}>🚫 não enviar</button>}
+                      : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Não enviar ao Full (ex.: tamanho)" onClick={() => { excluir(r.sku); if (refDe(r)) setNotando(refDe(r)); }}>🚫 não enviar</button>}
                     {refDe(r) && (crossWait.has(refDe(r))
                       ? <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Remover marcação de cross esgotado" onClick={() => desmarcarCross(r)}>aguardando cross ✕</button>
-                      : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Marcar que o estoque do cross (armazém) acabou; avisa quando voltar" onClick={() => marcarCross(r)}>⛔ cross esgotou</button>)}
+                      : <button className="btn-outline" style={{ padding: '3px 8px', fontSize: '11.5px' }} title="Marcar que o estoque do cross (armazém) acabou; avisa quando voltar" onClick={() => { marcarCross(r); setNotando(refDe(r)); }}>⛔ cross esgotou</button>)}
                     {refDe(r) && (() => { const has = !!(notes[refDe(r)] || '').trim(); const open = notando === refDe(r); return (
                       <button className="btn-outline" title={has ? notes[refDe(r)] : 'Adicionar comentário'} onClick={() => setNotando(open ? null : refDe(r))}
                         style={{ padding: '3px 8px', fontSize: '11.5px', ...(has ? { background: '#fefcbf', borderColor: '#b7791f', color: '#744210', fontWeight: 700 } : {}) }}>💬{has ? '•' : ''}</button>
