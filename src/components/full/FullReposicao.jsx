@@ -199,6 +199,18 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     setVerTodos(true); setDecFiltro('Todos'); setAlertFiltro(new Set(['cross voltou']));
   };
   const comComentarioN = useMemo(() => rows.filter(r => (notes[refDe(r)] || '').trim()).length, [rows, notes]);
+  // Painel de resumo/saúde — números sobre TODAS as linhas
+  const resumoFull = useMemo(() => {
+    let unEnv = 0, unGeral = 0, unGrade = 0, linhasEnv = 0, sug = 0, tempoUn = 0, tempoProd = 0, crossEsg = 0;
+    for (const r of rows) {
+      const f = overrides[r.key] != null ? overrides[r.key] : 0;
+      if (f > 0) { unEnv += f; linhasEnv++; if ((gradeSet.has(refDe(r)) ? 'grade' : 'geral') === 'grade') unGrade += f; else unGeral += f; }
+      sug += r.final || 0;
+      if (r.afetamTempo > 0) { tempoUn += r.afetamTempo; tempoProd++; }
+      if (refDe(r) && crossWait.has(refDe(r))) crossEsg++;
+    }
+    return { unEnv, unGeral, unGrade, linhasEnv, sug, tempoUn, tempoProd, crossEsg };
+  }, [rows, overrides, gradeSet, crossWait]);
   const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio || tipoSel.size < 2 || soComComentario;
   const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); setTipoSel(new Set(['geral', 'grade'])); setSoComComentario(false); };
   const toggleTipoSel = (t) => setTipoSel(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n.size ? n : new Set(['geral', 'grade']); });
@@ -388,6 +400,25 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             ranking: unidades e receita (Vendas)
           </div>
         </div>
+      </div>
+
+      {/* Painel de resumo/saúde */}
+      <div className="card" style={{ marginBottom: '12px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        {[
+          { lbl: 'A enviar', val: int(resumoFull.unEnv) + ' un', sub: `Geral ${int(resumoFull.unGeral)} · Grade ${int(resumoFull.unGrade)}`, fg: 'var(--brand, #2b6cb0)' },
+          { lbl: 'Linhas c/ envio', val: int(resumoFull.linhasEnv) },
+          { lbl: 'Sugestão (viável)', val: int(resumoFull.sug) + ' un', fg: 'var(--text-muted)' },
+          { lbl: 'Un. tempo estoque', val: int(resumoFull.tempoUn), sub: `${resumoFull.tempoProd} produtos`, fg: '#c05621' },
+          { lbl: 'Avaliar saída', val: int(meta.decisoes?.['Avaliar saída'] || 0), fg: '#975a16' },
+          { lbl: 'Cross esgotado', val: int(resumoFull.crossEsg), sub: crossVoltouN > 0 ? `${crossVoltouN} voltaram` : '', fg: '#7b341e', subFg: '#22543d' },
+          { lbl: 'Com comentário', val: int(comComentarioN) },
+        ].map((c, i) => (
+          <div key={i} style={{ flex: '1 1 120px', minWidth: '120px', padding: '8px 10px', borderRadius: '8px', background: 'var(--bg-muted, #f7fafc)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.02em' }}>{c.lbl}</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: c.fg || 'var(--text-primary)', lineHeight: 1.15 }}>{c.val}</div>
+            {c.sub ? <div style={{ fontSize: '11.5px', color: c.subFg || 'var(--text-muted)' }}>{c.sub}</div> : null}
+          </div>
+        ))}
       </div>
 
       {/* Filtro por decisão */}
