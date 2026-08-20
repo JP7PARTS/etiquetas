@@ -43,7 +43,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 0, corteRs: 0 });
   const [rankPor, setRankPor] = useState('anuncio'); // 'anuncio' (padrão) | 'sku'
   const [decFiltro, setDecFiltro] = useState('Todos');
-  const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
+  const [overrides, setOverrides] = useState(() => { try { return JSON.parse(localStorage.getItem('full_envio_rascunho') || '{}') || {}; } catch { return {}; } }); // codigoMl -> qty final (rascunho no navegador)
   const [historico, setHistorico] = useState({}); // codigoMl -> total enviado
   const [notes, setNotes] = useState({});         // codigoMl -> nota
   const [sort, setSort] = useState({ key: 'rqtd', dir: 'asc' });
@@ -77,6 +77,11 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     carregarCrossWait();
     carregarGrade();
   }, []);
+
+  // Rascunho do "Enviar": salva automaticamente no navegador (persiste ao recarregar/novo relatório)
+  useEffect(() => {
+    try { localStorage.setItem('full_envio_rascunho', JSON.stringify(overrides)); } catch { /* quota/priv */ }
+  }, [overrides]);
 
   function carregarGrade() {
     api.get('/full/grade').then(r => setGradeSet(new Set((r.data || []).map(x => x.codigo_ml)))).catch(() => {});
@@ -439,6 +444,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
           style={{ flex: 1, minWidth: '220px', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '8px' }} />
         <span style={{ fontSize: '13.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>
           Sugestão: {int(totalSugestao)} · <span style={{ color: 'var(--brand, #2b6cb0)' }}>Enviar: {int(totalFinal)}</span> · {linhasEnvio} linhas
+          <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '11.5px' }}> · 💾 rascunho salvo</span>
         </span>
         <button className="btn-outline" onClick={usarSugestoes} title="Preenche o campo Enviar com a sugestão em todas as linhas visíveis">↧ Usar sugestões</button>
         <button className="btn-outline" onClick={limparEnvios} title="Zera o campo Enviar nas linhas visíveis">Limpar</button>
