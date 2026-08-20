@@ -43,7 +43,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 0, corteRs: 0 });
   const [rankPor, setRankPor] = useState('anuncio'); // 'anuncio' (padrão) | 'sku'
   const [decFiltro, setDecFiltro] = useState('Todos');
-  const [overrides, setOverrides] = useState(() => { try { return JSON.parse(localStorage.getItem('full_envio_rascunho') || '{}') || {}; } catch { return {}; } }); // codigoMl -> qty final (rascunho no navegador)
+  const [overrides, setOverrides] = useState({}); // codigoMl -> qty final (rascunho no navegador, atrelado ao relatório)
   const [historico, setHistorico] = useState({}); // codigoMl -> total enviado
   const [notes, setNotes] = useState({});         // codigoMl -> nota
   const [sort, setSort] = useState({ key: 'rqtd', dir: 'asc' });
@@ -77,11 +77,6 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     carregarCrossWait();
     carregarGrade();
   }, []);
-
-  // Rascunho do "Enviar": salva automaticamente no navegador (persiste ao recarregar/novo relatório)
-  useEffect(() => {
-    try { localStorage.setItem('full_envio_rascunho', JSON.stringify(overrides)); } catch { /* quota/priv */ }
-  }, [overrides]);
 
   function carregarGrade() {
     api.get('/full/grade').then(r => setGradeSet(new Set((r.data || []).map(x => x.codigo_ml)))).catch(() => {});
@@ -133,6 +128,18 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     () => computeReposicao({ resumo, vendas, cross, desempenho, excluidos, params: { regra, diasCobertura: dias, ranking: rank, janelas, reconciliar, limiar2, rankPor } }),
     [resumo, vendas, cross, desempenho, excluidos, regra, dias, rank, janelas, reconciliar, limiar2, rankPor]
   );
+
+  // Rascunho do "Enviar" atrelado ao relatório: cada relatório (datas) tem seu próprio rascunho,
+  // então trocar de relatório não vaza quantidade velha.
+  const reportId = useMemo(() => `${meta?.dmin ? new Date(meta.dmin).getTime() : 'x'}_${meta?.dmax ? new Date(meta.dmax).getTime() : 'y'}`, [meta?.dmin, meta?.dmax]);
+  useEffect(() => { // carrega o rascunho do relatório atual (ou começa limpo)
+    try { const s = JSON.parse(localStorage.getItem('full_rascunho::' + reportId) || 'null'); setOverrides(s && typeof s === 'object' ? s : {}); }
+    catch { setOverrides({}); }
+  }, [reportId]);
+  useEffect(() => { // salva a cada mudança (usa o reportId atual do closure; depende só de overrides de propósito)
+    try { localStorage.setItem('full_rascunho::' + reportId, JSON.stringify(overrides)); } catch { /* quota/priv */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overrides]);
 
   const [alertFiltro, setAlertFiltro] = useState(new Set());
   const [crossMax, setCrossMax] = useState('');       // filtro: cross ≤ crossMax
@@ -202,15 +209,17 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const comComentarioN = useMemo(() => rows.filter(r => (notes[refDe(r)] || '').trim()).length, [rows, notes]);
   // Painel de resumo/saúde — números sobre TODAS as linhas
   const resumoFull = useMemo(() => {
-    let unEnv = 0, unGeral = 0, unGrade = 0, linhasEnv = 0, sug = 0, tempoUn = 0, tempoProd = 0, crossEsg = 0;
+    let unEnv = 0, unGeral = 0, unGrade = 0, linhasEnv = 0, sug = 0, sugGeral = 0, sugGrade = 0, tempoUn = 0, tempoProd = 0, crossEsg = 0;
     for (const r of rows) {
+      const grade = gradeSet.has(refDe(r));
       const f = overrides[r.key] != null ? overrides[r.key] : 0;
-      if (f > 0) { unEnv += f; linhasEnv++; if ((gradeSet.has(refDe(r)) ? 'grade' : 'geral') === 'grade') unGrade += f; else unGeral += f; }
-      sug += r.final || 0;
+      if (f > 0) { unEnv += f; linhasEnv++; if (grade) unGrade += f; else unGeral += f; }
+      // Sugestão respeita o filtro Top N + pedido/valor mínimo (só os "melhores")
+      if (r.melhor) { const s = r.final || 0; sug += s; if (grade) sugGrade += s; else sugGeral += s; }
       if (r.afetamTempo > 0) { tempoUn += r.afetamTempo; tempoProd++; }
       if (refDe(r) && crossWait.has(refDe(r))) crossEsg++;
     }
-    return { unEnv, unGeral, unGrade, linhasEnv, sug, tempoUn, tempoProd, crossEsg };
+    return { unEnv, unGeral, unGrade, linhasEnv, sug, sugGeral, sugGrade, tempoUn, tempoProd, crossEsg };
   }, [rows, overrides, gradeSet, crossWait]);
   const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio || tipoSel.size < 2 || soComComentario;
   const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); setTipoSel(new Set(['geral', 'grade'])); setSoComComentario(false); };
@@ -418,7 +427,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         {[
           { lbl: 'A enviar', val: int(resumoFull.unEnv) + ' un', sub: `Geral ${int(resumoFull.unGeral)} · Grade ${int(resumoFull.unGrade)}`, fg: 'var(--brand, #2b6cb0)' },
           { lbl: 'Linhas c/ envio', val: int(resumoFull.linhasEnv) },
-          { lbl: 'Sugestão (viável)', val: int(resumoFull.sug) + ' un', fg: 'var(--text-muted)' },
+          { lbl: 'Sugestão (Top N)', val: int(resumoFull.sug) + ' un', sub: `Geral ${int(resumoFull.sugGeral)} · Grade ${int(resumoFull.sugGrade)}`, fg: 'var(--text-secondary)' },
           { lbl: 'Un. tempo estoque', val: int(resumoFull.tempoUn), sub: `${resumoFull.tempoProd} produtos`, fg: '#c05621' },
           { lbl: 'Avaliar saída', val: int(meta.decisoes?.['Avaliar saída'] || 0), fg: '#975a16' },
           { lbl: 'Cross esgotado', val: int(resumoFull.crossEsg), sub: crossVoltouN > 0 ? `${crossVoltouN} voltaram` : '', fg: '#7b341e', subFg: '#22543d' },
