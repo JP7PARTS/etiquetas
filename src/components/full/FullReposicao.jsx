@@ -143,7 +143,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
 
   const [alertFiltro, setAlertFiltro] = useState(new Set());
   const [crossMax, setCrossMax] = useState('');       // filtro: cross ≤ crossMax
-  const [soComEnvio, setSoComEnvio] = useState(false); // filtro: só linhas com Enviar > 0
+  const [soComEnvio, setSoComEnvio] = useState(false); // filtro: esconder Enviar = 0
+  const [esconderComQtd, setEsconderComQtd] = useState(false); // filtro: esconder Enviar > 0
   const [soComComentario, setSoComComentario] = useState(false); // filtro: só linhas com comentário
   const [sel, setSel] = useState(new Set()); // seleção em lote (keys das linhas)
   const [alertMenu, setAlertMenu] = useState(false);   // dropdown de alertas no cabeçalho
@@ -172,6 +173,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     if (crossMax !== '' && !isNaN(parseInt(crossMax, 10))) { const m = parseInt(crossMax, 10); arr = arr.filter(r => (r.crossSku || 0) <= m); }
     // Filtro de coluna: esconder só as linhas com Enviar explicitamente 0 (mantém as em branco)
     if (soComEnvio) arr = arr.filter(r => overrides[r.key] !== 0);
+    if (esconderComQtd) arr = arr.filter(r => !(overrides[r.key] > 0));
     // Filtro por tipo de envio (Geral/Grade)
     if (tipoSel.size < 2) arr = arr.filter(r => tipoSel.has(tipoDe(r)));
     // Filtro: só linhas com comentário
@@ -189,7 +191,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio, tipoSel, gradeSet, soComComentario, notes]);
+  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio, esconderComQtd, tipoSel, gradeSet, soComComentario, notes]);
 
   // Alertas presentes (para os chips de filtro), com contagem, respeitando "Só os melhores"
   const alertasDisp = useMemo(() => {
@@ -221,8 +223,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     }
     return { unEnv, unGeral, unGrade, linhasEnv, sug, sugGeral, sugGrade, tempoUn, tempoProd, crossEsg };
   }, [rows, overrides, gradeSet, crossWait]);
-  const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio || tipoSel.size < 2 || soComComentario;
-  const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); setTipoSel(new Set(['geral', 'grade'])); setSoComComentario(false); };
+  const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio || esconderComQtd || tipoSel.size < 2 || soComComentario;
+  const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); setEsconderComQtd(false); setTipoSel(new Set(['geral', 'grade'])); setSoComComentario(false); };
   const toggleTipoSel = (t) => setTipoSel(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n.size ? n : new Set(['geral', 'grade']); });
 
   // ---- Seleção em lote ----
@@ -570,8 +572,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               </th>
               <th></th>
               <th style={{ textAlign: 'center' }}>
-                <button onClick={() => setSoComEnvio(v => !v)} title="Ocultar linhas com Enviar = 0 (mantém as em branco)"
-                  style={{ ...styles.chip, padding: '2px 6px', fontSize: '11px', ...(soComEnvio ? styles.chipOn : {}) }}>esconder 0</button>
+                <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button onClick={() => setSoComEnvio(v => !v)} title="Ocultar linhas com Enviar = 0"
+                    style={{ ...styles.chip, padding: '2px 6px', fontSize: '11px', ...(soComEnvio ? styles.chipOn : {}) }}>esconder 0</button>
+                  <button onClick={() => setEsconderComQtd(v => !v)} title="Ocultar linhas com Enviar > 0 (as que você já preencheu)"
+                    style={{ ...styles.chip, padding: '2px 6px', fontSize: '11px', ...(esconderComQtd ? styles.chipOn : {}) }}>esconder c/ qtd</button>
+                </div>
               </th>
               <th></th>
               <th colSpan={3}></th>
