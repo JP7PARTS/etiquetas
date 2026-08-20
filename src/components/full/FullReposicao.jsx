@@ -531,7 +531,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
 
       {acaoMenu && <div onClick={() => setAcaoMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 25 }} />}
       <div className="card" style={{ overflowX: 'auto' }}>
-        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;vertical-align:middle;}.repo-tbl th{white-space:normal;line-height:1.15;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
+        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;vertical-align:middle;}.repo-tbl th{white-space:normal;line-height:1.15;}.repo-tbl th{white-space:normal;line-height:1.15;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
@@ -556,8 +556,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               {th('afetatempo', <>Un.<br />tempo estq</>, { textAlign: 'center' })}
               <th style={{ textAlign: 'center' }}>Estq<br />cross</th>
               {th('sugestao', 'Sugestão', { textAlign: 'center' })}
-              <th style={{ textAlign: 'right' }}>Enviar</th>
-              <th style={{ width: '118px', minWidth: '118px', maxWidth: '118px' }}>Alertas</th>
+              <th style={{ textAlign: 'center' }}>Enviar</th>
+              <th style={{ width: '118px', minWidth: '118px', maxWidth: '118px', textAlign: 'center' }}>Alertas</th>
               <th style={{ textAlign: 'center' }}>Últ.<br />envios</th>
               <th style={{ textAlign: 'center' }}>Tipo</th>
               <th>Ação</th>
@@ -623,8 +623,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                 </td>
                 <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
                 <td style={{ textAlign: 'center', fontWeight: 700 }}>{int(r.sugestao)}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                <td style={{ textAlign: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
                     <input type="number" min="0" placeholder="—" value={overrides[r.key] ?? ''} onChange={e => setFinal(r.key, e.target.value)}
                       style={{ width: '58px', height: '26px', boxSizing: 'border-box', padding: '2px 6px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '6px' }} />
                     <button disabled={!(r.final > 0)} title={r.final > 0 ? `Usar sugestão (${int(r.final)})` : 'Sem sugestão'} onClick={() => r.final > 0 && setOverride(r.key, r.final)}
@@ -632,7 +632,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
                   </div>
                 </td>
                 <td style={{ width: '118px', minWidth: '118px', maxWidth: '118px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'center' }}>
                     {alertasDe(r).map(a => {
                       const s = ALERT_STYLE[a] || { bg: '#e2e8f0', fg: '#4a5568' };
                       return <span key={a} style={{ background: s.bg, color: s.fg, fontSize: '10.5px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px', whiteSpace: 'nowrap' }}>{a}</span>;

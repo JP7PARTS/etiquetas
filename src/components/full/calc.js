@@ -340,7 +340,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
     const crossSku = cross?.map?.get((sku || '').toUpperCase()) || 0;
     const pkey = keyFor('cross', { sku });
     const melhor = melhores.has(pkey);
-    const sugestao = Math.min(Math.max(0, Math.ceil(velEsc * diasCobertura)), crossSku);
+    const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura)); // necessidade cheia; o cross é conferido na trava
     const decisao = excl.has(sku) ? 'Não enviar' : (melhor && crossSku > 0 ? 'Promover' : 'Ignorar');
     const orf = orfas.lista.find(o => o.sku === sku);
     const anuncios = anunciosDe(anunPorSku, sku, []);
@@ -361,7 +361,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
     const vels = velsDe(a.win);
     const velEsc = vels.length ? aggreg(vels, regra) : 0;
     const crossSku = cross?.map?.get((a.sku || '').toUpperCase()) || 0;
-    const sugestao = Math.min(Math.max(0, Math.ceil(velEsc * diasCobertura)), crossSku);
+    const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura)); // necessidade cheia; o cross é conferido na trava
     const decisao = excl.has(a.sku) ? 'Não enviar' : 'Promover';
     const pkey = keyFor('cross2', { sku: a.sku, anuncio });
     rows.push({
@@ -374,17 +374,15 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
     });
   }
 
-  // Trava do cross por SKU (soma pedida não passa do estoque do armazém)
+  // Trava do cross por SKU: se a necessidade total do SKU não cabe no estoque do armazém,
+  // NÃO envia parcial (evita mandar poucas unidades) — zera o envio e marca "estoura cross".
   const bySku = new Map();
   for (const r of rows) { if (!bySku.has(r.sku)) bySku.set(r.sku, []); bySku.get(r.sku).push(r); }
   for (const [, group] of bySku) {
     const disp = group[0].crossSku;
     const soma = group.reduce((s, r) => s + r.final, 0);
-    if (soma <= disp) continue;
-    let restante = disp;
-    for (const r of [...group].sort((a, b) => b.velEsc - a.velEsc)) {
-      const dar = Math.min(r.final, restante); r.final = dar; restante -= dar; r.estouraCross = true;
-    }
+    if (soma <= disp) continue; // cabe no cross → mantém o envio (necessidade cheia)
+    for (const r of group) if (r.final > 0) { r.final = 0; r.estouraCross = true; }
   }
 
   // Alertas — tendência = menor janela vs maior janela
