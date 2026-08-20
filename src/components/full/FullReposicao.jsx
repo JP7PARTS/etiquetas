@@ -531,7 +531,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
 
       {acaoMenu && <div onClick={() => setAcaoMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 25 }} />}
       <div className="card" style={{ overflowX: 'auto' }}>
-        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;vertical-align:middle;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
+        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;vertical-align:middle;}.repo-tbl th{white-space:normal;line-height:1.15;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
@@ -551,14 +551,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               {th('vel', 'Vel (' + meta.janelas.join('/') + ')', { textAlign: 'center' })}
               {th('un', 'Un', { textAlign: 'center' })}
               {th('rs', 'R$', { textAlign: 'center' })}
-              {th('estoque', 'Estoque', { textAlign: 'right' })}
+              {th('estoque', <>Estq<br />full</>, { textAlign: 'right' })}
               {th('cobertura', 'Cobertura', { textAlign: 'center' })}
-              {th('afetatempo', 'Un. tempo estq', { textAlign: 'center' })}
-              <th style={{ textAlign: 'center' }}>Cross</th>
+              {th('afetatempo', <>Un.<br />tempo estq</>, { textAlign: 'center' })}
+              <th style={{ textAlign: 'center' }}>Estq<br />cross</th>
               {th('sugestao', 'Sugestão', { textAlign: 'center' })}
               <th style={{ textAlign: 'right' }}>Enviar</th>
               <th style={{ width: '118px', minWidth: '118px', maxWidth: '118px' }}>Alertas</th>
-              <th style={{ textAlign: 'center' }}>Últ. envios</th>
+              <th style={{ textAlign: 'center' }}>Últ.<br />envios</th>
               <th style={{ textAlign: 'center' }}>Tipo</th>
               <th>Ação</th>
             </tr>
