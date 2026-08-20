@@ -17,19 +17,23 @@ const aggreg = (vels, regra) =>
   regra === 'MEDIA' ? vels.reduce((s, v) => s + v, 0) / vels.length :
   regra === 'MEDIANA' ? median(vels) : Math.max(...vels);
 
-// Conjunto de chaves "melhores": união do Top N por quantidade + Top N por receita
-// (ou método "cortes" por limiares). Sem placar/média — dois rankings puros.
+// Conjunto de chaves "melhores": união do Top N por quantidade + Top N por receita,
+// com corte extra opcional (pedido mínimo / valor mínimo). Sem placar/média.
 function calcMelhores(perfByKey, ranking) {
   const entries = [...perfByKey.entries()];
-  const metodo = ranking?.metodo || 'topN';
   const topN = ranking?.topN || 50;
   const set = new Set();
-  if (metodo === 'cortes') {
-    const cu = ranking?.corteUn || 20, cr = ranking?.corteRs || 500;
-    for (const [key, p] of entries) if (p.un >= cu || p.receita >= cr) set.add(key);
-  } else { // topN: união dos top N por quantidade e por valor
-    [...entries].sort((a, b) => b[1].un - a[1].un).slice(0, topN).forEach(([key]) => set.add(key));
-    [...entries].sort((a, b) => b[1].receita - a[1].receita).slice(0, topN).forEach(([key]) => set.add(key));
+  // União dos top N por quantidade e por valor
+  [...entries].sort((a, b) => b[1].un - a[1].un).slice(0, topN).forEach(([key]) => set.add(key));
+  [...entries].sort((a, b) => b[1].receita - a[1].receita).slice(0, topN).forEach(([key]) => set.add(key));
+  // Corte extra: dentro do Top N, exige atender ao pedido mínimo OU ao valor mínimo (só os ativos > 0)
+  const cu = ranking?.corteUn || 0, cr = ranking?.corteRs || 0;
+  if (cu > 0 || cr > 0) {
+    for (const key of [...set]) {
+      const p = perfByKey.get(key) || { un: 0, receita: 0 };
+      const ok = (cu > 0 && p.un >= cu) || (cr > 0 && p.receita >= cr);
+      if (!ok) set.delete(key);
+    }
   }
   return set;
 }

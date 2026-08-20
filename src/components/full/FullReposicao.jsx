@@ -40,7 +40,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [limiar2, setLimiar2] = useState(15);
   const [verTodos, setVerTodos] = useState(false); // por padrão, só os melhores (Top N)
   const [showRec, setShowRec] = useState(false);
-  const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 20, corteRs: 500 });
+  const [rank, setRank] = useState({ metodo: 'topN', topN: 50, corteUn: 0, corteRs: 0 });
   const [rankPor, setRankPor] = useState('anuncio'); // 'anuncio' (padrão) | 'sku'
   const [decFiltro, setDecFiltro] = useState('Todos');
   const [overrides, setOverrides] = useState({}); // codigoMl -> qty final
@@ -355,35 +355,26 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         {/* Ranking de "melhores" (define Manter/Promover) */}
         <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
           <div style={styles.group}>
-            <span style={styles.label}>Melhores por</span>
-            {[['topN', 'Top N'], ['cortes', 'Cortes']].map(([m, lbl]) => (
-              <button key={m} onClick={() => setRank(r => ({ ...r, metodo: m }))} style={{ ...styles.chip, ...(rank.metodo === m ? styles.chipOn : {}) }}>{lbl}</button>
-            ))}
-          </div>
-          <div style={styles.group}>
             <span style={styles.label}>Rank por</span>
             {[['anuncio', 'Anúncio'], ['sku', 'SKU']].map(([m, lbl]) => (
               <button key={m} onClick={() => setRankPor(m)} style={{ ...styles.chip, ...(rankPor === m ? styles.chipOn : {}) }}>{lbl}</button>
             ))}
           </div>
-          {rank.metodo !== 'cortes' ? (
-            <div style={styles.group}>
-              <span style={styles.label}>Top N</span>
-              <input type="number" min="1" value={rank.topN} onChange={e => setRank(r => ({ ...r, topN: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
-                style={styles.numInput} />
-            </div>
-          ) : (
-            <>
-              <div style={styles.group}>
-                <span style={styles.label}>≥ un/mês</span>
-                <input type="number" min="0" value={rank.corteUn} onChange={e => setRank(r => ({ ...r, corteUn: Math.max(0, parseInt(e.target.value, 10) || 0) }))} style={styles.numInput} />
-              </div>
-              <div style={styles.group}>
-                <span style={styles.label}>ou ≥ R$/mês</span>
-                <input type="number" min="0" value={rank.corteRs} onChange={e => setRank(r => ({ ...r, corteRs: Math.max(0, parseInt(e.target.value, 10) || 0) }))} style={styles.numInput} />
-              </div>
-            </>
-          )}
+          <div style={styles.group}>
+            <span style={styles.label}>Top N</span>
+            <input type="number" min="1" value={rank.topN} onChange={e => setRank(r => ({ ...r, topN: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+              style={styles.numInput} title="Melhores = Top N por quantidade + Top N por receita" />
+          </div>
+          <div style={styles.group}>
+            <span style={styles.label}>pedido mínimo</span>
+            <input type="number" min="0" value={rank.corteUn} onChange={e => setRank(r => ({ ...r, corteUn: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+              style={styles.numInput} title="Corte extra: dentro do Top N, exige ≥ este nº de unidades vendidas (0 = sem corte)" />
+          </div>
+          <div style={styles.group}>
+            <span style={styles.label}>valor mínimo</span>
+            <input type="number" min="0" value={rank.corteRs} onChange={e => setRank(r => ({ ...r, corteRs: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+              style={styles.numInput} title="Corte extra: dentro do Top N, exige ≥ esta receita (R$) (0 = sem corte). Passa quem atende o pedido mínimo OU o valor mínimo." />
+          </div>
           <div style={{ marginLeft: 'auto', fontSize: '12.5px', color: 'var(--text-muted)' }}>
             ranking: unidades e receita (Vendas)
           </div>
