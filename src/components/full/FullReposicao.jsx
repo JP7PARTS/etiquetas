@@ -415,24 +415,6 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
           <button key={t} onClick={() => toggleTipoSel(t)} title={`Mostrar/exportar Full ${lbl}`}
             style={{ ...styles.chip, ...(tipoSel.has(t) ? styles.chipOn : {}) }}>{lbl}</button>
         ))}
-        <span style={{ position: 'relative', marginLeft: '10px' }}>
-          <button onClick={() => setAlertMenu(v => !v)} title="Filtrar por alertas"
-            style={{ ...styles.chip, ...(alertFiltro.size ? styles.chipOn : {}) }}>
-            Alertas{alertFiltro.size ? ` (${alertFiltro.size})` : ''} ▾
-          </button>
-          {alertMenu && (
-            <div style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, background: 'var(--bg, #fff)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,.12)', padding: '8px', minWidth: '180px', textAlign: 'left' }}>
-              {alertasDisp.length === 0 && <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>sem alertas</div>}
-              {alertasDisp.map(([a, n]) => (
-                <label key={a} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 2px', fontSize: '12.5px', fontWeight: 400, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={alertFiltro.has(a)} onChange={() => toggleAlerta(a)} style={{ width: 'auto', flex: '0 0 auto', margin: 0, padding: 0 }} />
-                  <span style={{ flex: 1 }}>{a}</span> <span style={{ color: 'var(--text-muted)' }}>({n})</span>
-                </label>
-              ))}
-              {alertFiltro.size > 0 && <button onClick={() => setAlertFiltro(new Set())} style={{ ...styles.chip, marginTop: '6px', fontSize: '11px' }}>limpar</button>}
-            </div>
-          )}
-        </span>
         {temFiltro && (
           <button onClick={limparFiltros} title="Remover todos os filtros (busca, decisão, alertas, cross, esconder 0, tipo)"
             style={{ ...styles.chip, marginLeft: '10px' }}>✕ Limpar filtros</button>
@@ -442,6 +424,23 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
           {verTodos ? 'Ver todos' : `★ Só os melhores (${rows.filter(r => r.melhor).length})`}
         </button>
       </div>
+
+      {/* Filtro por alertas (chips, uma linha) */}
+      {alertasDisp.length > 0 && (
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
+          <span style={styles.label}>Alertas</span>
+          {alertasDisp.map(([a, n]) => {
+            const on = alertFiltro.has(a); const s = ALERT_STYLE[a] || { bg: '#e2e8f0', fg: '#4a5568' };
+            return (
+              <button key={a} onClick={() => toggleAlerta(a)}
+                style={{ ...styles.chip, ...(on ? { background: s.bg, color: s.fg, borderColor: s.fg, fontWeight: 700 } : {}) }}>
+                {a} ({n})
+              </button>
+            );
+          })}
+          {alertFiltro.size > 0 && <button onClick={() => setAlertFiltro(new Set())} style={styles.chip}>limpar alertas</button>}
+        </div>
+      )}
 
       {/* Barra de ação */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
