@@ -137,6 +137,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [alertFiltro, setAlertFiltro] = useState(new Set());
   const [crossMax, setCrossMax] = useState('');       // filtro: cross ≤ crossMax
   const [soComEnvio, setSoComEnvio] = useState(false); // filtro: só linhas com Enviar > 0
+  const [soComComentario, setSoComComentario] = useState(false); // filtro: só linhas com comentário
   const [alertMenu, setAlertMenu] = useState(false);   // dropdown de alertas no cabeçalho
   const [notando, setNotando] = useState(null);        // ref da linha com editor de nota aberto
   const [acaoMenu, setAcaoMenu] = useState(null);      // key da linha com o menu "⋮" aberto
@@ -165,6 +166,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     if (soComEnvio) arr = arr.filter(r => overrides[r.key] !== 0);
     // Filtro por tipo de envio (Geral/Grade)
     if (tipoSel.size < 2) arr = arr.filter(r => tipoSel.has(tipoDe(r)));
+    // Filtro: só linhas com comentário
+    if (soComComentario) arr = arr.filter(r => (notes[refDe(r)] || '').trim());
     if (q) {
       const qm = q.replace(/^mlb/, '');
       arr = arr.filter(r =>
@@ -178,7 +181,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio, tipoSel, gradeSet]);
+  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio, tipoSel, gradeSet, soComComentario, notes]);
 
   // Alertas presentes (para os chips de filtro), com contagem, respeitando "Só os melhores"
   const alertasDisp = useMemo(() => {
@@ -195,8 +198,9 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
     if (ativo) { setAlertFiltro(new Set()); return; }
     setVerTodos(true); setDecFiltro('Todos'); setAlertFiltro(new Set(['cross voltou']));
   };
-  const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio || tipoSel.size < 2;
-  const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); setTipoSel(new Set(['geral', 'grade'])); };
+  const comComentarioN = useMemo(() => rows.filter(r => (notes[refDe(r)] || '').trim()).length, [rows, notes]);
+  const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio || tipoSel.size < 2 || soComComentario;
+  const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); setTipoSel(new Set(['geral', 'grade'])); setSoComComentario(false); };
   const toggleTipoSel = (t) => setTipoSel(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n.size ? n : new Set(['geral', 'grade']); });
 
   // Contadores dos chips de decisão respeitam o "Só os melhores"
@@ -406,6 +410,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             ✅ cross voltou ({crossVoltouN})
           </button>
         ); })()}
+        {comComentarioN > 0 && (
+          <button onClick={() => setSoComComentario(v => !v)} title="Mostrar só anúncios com comentário"
+            style={{ ...styles.chip, marginLeft: '10px', ...(soComComentario ? { background: '#fefcbf', color: '#744210', borderColor: '#b7791f', fontWeight: 700 } : {}) }}>
+            💬 com comentário ({comComentarioN})
+          </button>
+        )}
         <span style={{ ...styles.label, marginLeft: '10px' }}>Tipo</span>
         {[['geral', 'Geral'], ['grade', 'Grade']].map(([t, lbl]) => (
           <button key={t} onClick={() => toggleTipoSel(t)} title={`Mostrar/exportar Full ${lbl}`}
