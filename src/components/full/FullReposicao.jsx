@@ -138,6 +138,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [crossMax, setCrossMax] = useState('');       // filtro: cross ≤ crossMax
   const [soComEnvio, setSoComEnvio] = useState(false); // filtro: só linhas com Enviar > 0
   const [soComComentario, setSoComComentario] = useState(false); // filtro: só linhas com comentário
+  const [sel, setSel] = useState(new Set()); // seleção em lote (keys das linhas)
   const [alertMenu, setAlertMenu] = useState(false);   // dropdown de alertas no cabeçalho
   const [notando, setNotando] = useState(null);        // ref da linha com editor de nota aberto
   const [acaoMenu, setAcaoMenu] = useState(null);      // key da linha com o menu "⋮" aberto
@@ -214,6 +215,16 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const temFiltro = busca || decFiltro !== 'Todos' || alertFiltro.size || crossMax !== '' || soComEnvio || tipoSel.size < 2 || soComComentario;
   const limparFiltros = () => { setBusca(''); setDecFiltro('Todos'); setAlertFiltro(new Set()); setCrossMax(''); setSoComEnvio(false); setTipoSel(new Set(['geral', 'grade'])); setSoComComentario(false); };
   const toggleTipoSel = (t) => setTipoSel(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n.size ? n : new Set(['geral', 'grade']); });
+
+  // ---- Seleção em lote ----
+  const toggleSel = (key) => setSel(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const limparSel = () => setSel(new Set());
+  // linhas selecionadas (objetos r)
+  const linhasSel = () => rows.filter(r => sel.has(r.key));
+  const usarSugSel = () => setOverrides(prev => { const n = { ...prev }; for (const r of linhasSel()) n[r.key] = r.final || 0; return n; });
+  const zerarSel = () => setOverrides(prev => { const n = { ...prev }; for (const r of linhasSel()) n[r.key] = 0; return n; });
+  const gradeSel = async (grade) => { for (const r of linhasSel()) { if (!refDe(r)) continue; if (grade) await marcarGrade(r); else await desmarcarGrade(r); } };
+  const naoEnviarSel = async () => { for (const r of linhasSel()) await excluir(r.sku); };
 
   // Contadores dos chips de decisão respeitam o "Só os melhores"
   const baseRows = useMemo(() => verTodos ? rows : rows.filter(r => r.melhor), [rows, verTodos]);
@@ -494,12 +505,31 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       </div>
       {msg && <div className="alert alert-success" style={{ marginBottom: '10px' }}>{msg}</div>}
 
+      {/* Barra de ações em lote (aparece quando há seleção) */}
+      {sel.size > 0 && (
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', padding: '8px 12px', background: '#ebf8ff', border: '1px solid #90cdf4', borderRadius: '8px' }}>
+          <span style={{ fontWeight: 700, fontSize: '13px' }}>{sel.size} selecionado(s)</span>
+          <button className="btn-outline" onClick={usarSugSel} title="Preencher Enviar com a sugestão nas selecionadas">↧ Usar sugestão</button>
+          <button className="btn-outline" onClick={zerarSel} title="Zerar o Enviar nas selecionadas">Zerar</button>
+          <button className="btn-outline" onClick={() => gradeSel(true)} title="Marcar as selecionadas como Full grade">Marcar Grade</button>
+          <button className="btn-outline" onClick={() => gradeSel(false)} title="Voltar as selecionadas para Full geral">Marcar Geral</button>
+          <button className="btn-outline" onClick={naoEnviarSel} title="Marcar as selecionadas como Não enviar">🚫 Não enviar</button>
+          <button className="btn-outline" onClick={limparSel} style={{ marginLeft: 'auto' }}>✕ Limpar seleção</button>
+        </div>
+      )}
+
       {acaoMenu && <div onClick={() => setAcaoMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 25 }} />}
       <div className="card" style={{ overflowX: 'auto' }}>
         <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;vertical-align:middle;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
+              <th style={{ textAlign: 'center' }} title="Selecionar todas as linhas visíveis">
+                <input type="checkbox" style={{ width: 'auto', margin: 0 }}
+                  checked={view.length > 0 && view.every(r => sel.has(r.key))}
+                  ref={el => { if (el) el.indeterminate = view.some(r => sel.has(r.key)) && !view.every(r => sel.has(r.key)); }}
+                  onChange={e => { const on = e.target.checked; setSel(prev => { const n = new Set(prev); view.forEach(r => on ? n.add(r.key) : n.delete(r.key)); return n; }); }} />
+              </th>
               {th('rqtd', 'R.Qtd', { textAlign: 'left' })}
               {th('rval', 'R.Val', { textAlign: 'left' })}
               {th('sku', 'SKU', { textAlign: 'center' })}
@@ -523,7 +553,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
             </tr>
             {/* Linha de filtros por coluna */}
             <tr style={{ background: 'var(--bg-muted, #f7fafc)' }}>
-              <th colSpan={13}></th>
+              <th colSpan={14}></th>
               <th style={{ textAlign: 'right' }} title="Mostrar só linhas com cross ≤ valor">
                 <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>≤ </span>
                 <input type="number" min="0" value={crossMax} onChange={e => setCrossMax(e.target.value)} placeholder="cross"
@@ -541,7 +571,10 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
           <tbody>
             {view.map(r => (
               <React.Fragment key={r.key}>
-              <tr>
+              <tr style={sel.has(r.key) ? { background: '#ebf8ff' } : undefined}>
+                <td style={{ textAlign: 'center' }}>
+                  <input type="checkbox" style={{ width: 'auto', margin: 0 }} checked={sel.has(r.key)} onChange={() => toggleSel(r.key)} />
+                </td>
                 <td style={{ textAlign: 'left', fontWeight: 700, color: r.rankQtd ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por quantidade vendida">{r.rankQtd ? '#' + r.rankQtd : '—'}</td>
                 <td style={{ textAlign: 'left', fontWeight: 700, color: r.rankValor ? 'var(--text-primary)' : 'var(--text-muted)' }} title="posição por receita">{r.rankValor ? '#' + r.rankValor : '—'}</td>
                 <td style={{ fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap', textAlign: 'center' }}>{r.sku}</td>
@@ -623,7 +656,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
               </tr>
               {notando === refDe(r) && refDe(r) && (
                 <tr>
-                  <td colSpan={20} style={{ background: 'var(--bg-muted, #f7fafc)' }}>
+                  <td colSpan={21} style={{ background: 'var(--bg-muted, #f7fafc)' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '4px 2px' }}>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', paddingTop: '4px' }}>💬 {r.sku}:</span>
                       <textarea autoFocus rows={2} value={notes[refDe(r)] || ''} onChange={e => saveNote(refDe(r), e.target.value)}
