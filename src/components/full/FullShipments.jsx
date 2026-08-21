@@ -29,6 +29,7 @@ export default function FullShipments({ user }) {
   const [repo, setRepo] = useState(() => cache.repo);    // { resumo, vendas, cross } p/ reposição
   const [calcing, setCalcing] = useState(false);
   const [calcErr, setCalcErr] = useState('');
+  const [envioEdit, setEnvioEdit] = useState(null); // { id, name, items } a carregar na reposição
   const inputs = useRef({});
 
   useEffect(() => { loadLists(); }, []);
@@ -90,6 +91,22 @@ export default function FullShipments({ user }) {
       setAnalysis(null);
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function editar(l) {
+    if (!repo) {
+      setError('Para editar um envio, primeiro suba os relatórios e clique em "Calcular reposição" (as quantidades salvas serão aplicadas na tabela).');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setError('');
+    try {
+      const res = await api.get(`/full/shipments/${l.id}`);
+      setEnvioEdit({ id: res.data.id, name: res.data.name, items: res.data.items || [] });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      setError('Erro ao abrir o envio: ' + (err.response?.data?.error || err.message));
     }
   }
 
@@ -175,7 +192,8 @@ export default function FullShipments({ user }) {
           <div className="page-header" style={{ marginTop: '18px', marginBottom: 0 }}>
             <h2 style={{ margin: 0 }}>Reposição sugerida</h2>
           </div>
-          <FullReposicao resumo={repo.resumo} vendas={repo.vendas} cross={repo.cross} desempenho={repo.desempenho} />
+          <FullReposicao resumo={repo.resumo} vendas={repo.vendas} cross={repo.cross} desempenho={repo.desempenho}
+            envioEdit={envioEdit} onEditConsumed={() => setEnvioEdit(null)} />
         </>
       )}
 
@@ -217,6 +235,8 @@ export default function FullShipments({ user }) {
                     <td style={{ whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--text-muted)' }}>{fmtDate(l.created_at)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                        <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => editar(l)}
+                          title={repo ? 'Carrega as quantidades deste envio na tabela para alterar' : 'Calcule a reposição primeiro'}>✏️ Editar</button>
                         <button className="btn-danger" style={{ padding: '5px 10px' }} onClick={() => remove(l)}>Excluir</button>
                       </div>
                     </td>

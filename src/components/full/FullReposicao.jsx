@@ -32,7 +32,7 @@ const DEC_STYLE = {
 };
 
 // resumo já parseado. vendas = {7,15,30} (7/15 podem ser null), cross, desempenho opcionais.
-export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
+export default function FullReposicao({ resumo, vendas, cross, desempenho, envioEdit, onEditConsumed }) {
   const [regra, setRegra] = useState('MAX');
   const [dias, setDias] = useState(30);
   const [janelasTxt, setJanelasTxt] = useState('7, 15, 30');
@@ -54,6 +54,8 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   const [busca, setBusca] = useState('');
   const [showOrfas, setShowOrfas] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [envioId, setEnvioId] = useState(null);   // id do envio salvo em edição (null = novo)
+  const [envioNome, setEnvioNome] = useState('');  // nome do envio em edição
   const [msg, setMsg] = useState('');
   const [copiado, setCopiado] = useState(null); // key da linha cujo título acabou de ser copiado
   const copiarTitulo = (r) => {
@@ -298,15 +300,41 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       setMsg('Erro ao gerar a planilha: ' + (err.message || err));
     }
   }
-  async function salvar() {
-    const nome = window.prompt('Nome do envio:', `Envio Full ${new Date().toLocaleDateString('pt-BR')}`);
+  // Carregar um envio salvo para edição: aplica as quantidades como overrides (casa por key; fallback por Código ML).
+  useEffect(() => {
+    if (!envioEdit) return;
+    const ov = {};
+    for (const it of (envioEdit.items || [])) {
+      const k = it.key || it.codigo_ml || (it.sku ? 'cross:' + it.sku : '');
+      if (k) ov[k] = Number(it.qty) || 0;
+    }
+    setOverrides(ov);
+    setEnvioId(envioEdit.id);
+    setEnvioNome(envioEdit.name || '');
+    setMsg(`✏️ Editando o envio salvo "${envioEdit.name || ''}". Ajuste as quantidades e clique em "Atualizar envio".`);
+    if (onEditConsumed) onEditConsumed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [envioEdit]);
+
+  async function salvar(asNew) {
+    const sugerido = envioId && !asNew ? envioNome : `Envio Full ${new Date().toLocaleDateString('pt-BR')}`;
+    const nome = window.prompt(envioId && !asNew ? 'Atualizar o envio (nome):' : 'Nome do novo envio:', sugerido);
     if (!nome || !nome.trim()) return;
-    const items = rows.filter(r => finalOf(r) > 0 && tipoSel.has(tipoDe(r))).map(r => ({ codigo_ml: r.codigoMl, sku: r.sku, qty: finalOf(r) }));
+    const items = rows.filter(r => finalOf(r) > 0 && tipoSel.has(tipoDe(r)))
+      .map(r => ({ codigo_ml: r.codigoMl, sku: r.sku, anuncio: r.anuncio || '', key: r.key, qty: finalOf(r) }));
     if (items.length === 0) { setMsg('Nenhuma quantidade a enviar.'); return; }
     setSaving(true); setMsg('');
     try {
-      await api.post('/full/shipments', { name: nome.trim(), params: { regra, diasCobertura: dias }, items });
-      setMsg('✅ Envio salvo! (aparece em "envios salvos" e alimenta os últimos envios)');
+      if (envioId && !asNew) {
+        await api.put(`/full/shipments/${envioId}`, { name: nome.trim(), params: { regra, diasCobertura: dias }, items });
+        setEnvioNome(nome.trim());
+        setMsg('✅ Envio atualizado! As alterações ficam salvas para editar depois.');
+      } else {
+        const res = await api.post('/full/shipments', { name: nome.trim(), params: { regra, diasCobertura: dias }, items });
+        setEnvioId(res.data?.id || null);
+        setEnvioNome(nome.trim());
+        setMsg('✅ Envio salvo! Fica em "envios salvos" e pode ser alterado depois (botão Editar).');
+      }
       const r = await api.get('/full/shipments/historico');
       const map = {}; (r.data || []).forEach(x => { map[x.codigo_ml] = Number(x.total) || 0; });
       setHistorico(map);
@@ -514,7 +542,15 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
         <button className="btn-outline" onClick={usarSugestoes} title="Preenche o campo Enviar com a sugestão em todas as linhas visíveis">↧ Usar sugestões</button>
         <button className="btn-outline" onClick={limparEnvios} title="Zera o campo Enviar nas linhas visíveis">Limpar</button>
         <button className="btn-outline" onClick={exportarML} title="Gera a planilha no modelo oficial do ML (colunas A–F)">📤 Exportar planilha do ML</button>
-        <button className="btn-primary" onClick={salvar} disabled={saving}>{saving ? 'Salvando...' : '💾 Salvar envio'}</button>
+        {envioId ? (
+          <>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }} title="Você está editando um envio salvo">✏️ Editando: {envioNome}</span>
+            <button className="btn-primary" onClick={() => salvar(false)} disabled={saving}>{saving ? 'Salvando...' : '💾 Atualizar envio'}</button>
+            <button className="btn-outline" onClick={() => salvar(true)} disabled={saving} title="Salva uma cópia como um novo envio">Salvar como novo</button>
+          </>
+        ) : (
+          <button className="btn-primary" onClick={() => salvar(false)} disabled={saving}>{saving ? 'Salvando...' : '💾 Salvar envio'}</button>
+        )}
       </div>
       {msg && <div className="alert alert-success" style={{ marginBottom: '10px' }}>{msg}</div>}
 

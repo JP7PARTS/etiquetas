@@ -11,6 +11,8 @@ function cleanItems(raw) {
   return raw.map(it => ({
     codigo_ml: String(it.codigo_ml || ''),
     sku: String(it.sku || ''),
+    anuncio: String(it.anuncio || ''),
+    key: String(it.key || ''),
     qty: Math.max(0, parseInt(it.qty, 10) || 0),
   })).filter(it => it.codigo_ml || it.sku);
 }
