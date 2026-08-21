@@ -273,8 +273,10 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
   }
 
   async function exportarML() {
-    const itens = rows.filter(r => finalOf(r) > 0 && r.codigoMl && tipoSel.has(tipoDe(r)));
-    if (itens.length === 0) { setMsg('Nenhum item com Código ML para exportar.'); return; }
+    // Inclui itens com Enviar > 0 que tenham ao menos SKU + (Código ML OU MLB do anúncio).
+    // Candidatos do cross (Promover, ainda sem Código ML) entram pelo SKU + MLB.
+    const itens = rows.filter(r => finalOf(r) > 0 && r.sku && (r.codigoMl || r.anuncio) && tipoSel.has(tipoDe(r)));
+    if (itens.length === 0) { setMsg('Nenhum item para exportar.'); return; }
     const sufTipo = tipoSel.size < 2 ? (tipoSel.has('grade') ? 'grade_' : 'geral_') : '';
     try {
       const XLSX = await import('xlsx');
@@ -283,15 +285,15 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho }) {
       const ws = wb.Sheets['Seleção de produtos'];
       let rr = 6;
       for (const r of itens) {
-        XLSX.utils.sheet_add_aoa(ws, [[r.sku, String(r.gtin || ''), r.codigoMl, String(r.anuncio || ''), '', finalOf(r)]], { origin: 'A' + rr });
+        XLSX.utils.sheet_add_aoa(ws, [[r.sku, String(r.gtin || ''), String(r.codigoMl || ''), String(r.anuncio || ''), '', finalOf(r)]], { origin: 'A' + rr });
         rr++;
       }
       ws['!ref'] = 'A1:F' + (rr - 1);
       const d = new Date();
       const nome = `envio_full_${sufTipo}${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(2)}.xlsx`;
       XLSX.writeFile(wb, nome);
-      const promoverFora = rows.filter(r => r.decisao === 'Promover' && finalOf(r) > 0 && !r.codigoMl).length;
-      setMsg(`✅ Planilha do ML gerada (${itens.length} itens).` + (promoverFora ? ` ⚠️ ${promoverFora} itens "Promover" ficaram de fora (ainda sem Código ML no Full — habilite-os no Full primeiro).` : ''));
+      const semCml = itens.filter(r => !r.codigoMl).length;
+      setMsg(`✅ Planilha do ML gerada (${itens.length} itens).` + (semCml ? ` (${semCml} sem Código ML — vão pelo SKU + MLB; confira se o ML aceita.)` : ''));
     } catch (err) {
       setMsg('Erro ao gerar a planilha: ' + (err.message || err));
     }
