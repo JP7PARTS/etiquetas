@@ -179,6 +179,16 @@ export default function FullTempoEstoque({ user }) {
     }
   }
 
+  async function excluirComentario(id) {
+    if (!window.confirm('Remover este comentário?')) return;
+    try {
+      await api.delete(`/full/tempo-estoque/comentarios/${id}`);
+      setComments(cs => cs.filter(c => c.id !== id));
+    } catch (err) {
+      setError('Erro ao remover comentário: ' + (err.response?.data?.error || err.message));
+    }
+  }
+
   async function exportar() {
     if (!sel) return;
     try {
@@ -305,8 +315,8 @@ export default function FullTempoEstoque({ user }) {
                     <td style={{ textAlign: 'right', color: '#c05621', fontWeight: 700 }}>{int(it.un_tempo)}</td>
                     <td style={{ textAlign: 'right' }}>{int(it.un_vendidas)}</td>
                     {prev && <td style={{ whiteSpace: 'nowrap', color: it.evol ? EVOL[it.evol].color : 'var(--text-muted)', fontWeight: 600 }} title={it.evol ? EVOL[it.evol].hint : ''}>{it.evol ? EVOL[it.evol].label : '—'}</td>}
-                    <td><TrilhaCell ref_={it.ref} area="anuncio" byRef={byRef} onComentar={comentar} expandRef={expandRef} setExpandRef={setExpandRef} /></td>
-                    <td><TrilhaCell ref_={it.ref} area="preco" byRef={byRef} onComentar={comentar} expandRef={expandRef} setExpandRef={setExpandRef} /></td>
+                    <td><TrilhaCell ref_={it.ref} area="anuncio" byRef={byRef} onComentar={comentar} onExcluir={excluirComentario} expandRef={expandRef} setExpandRef={setExpandRef} /></td>
+                    <td><TrilhaCell ref_={it.ref} area="preco" byRef={byRef} onComentar={comentar} onExcluir={excluirComentario} expandRef={expandRef} setExpandRef={setExpandRef} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -345,11 +355,12 @@ export default function FullTempoEstoque({ user }) {
 }
 
 // Célula de uma trilha (Anúncio ou Preço): status atual + último comentário + adicionar/histórico
-function TrilhaCell({ ref_, area, byRef, onComentar, expandRef, setExpandRef }) {
+function TrilhaCell({ ref_, area, byRef, onComentar, onExcluir, expandRef, setExpandRef }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState('');
   const [texto, setTexto] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savingQuick, setSavingQuick] = useState(false);
 
   const arr = byRef[ref_]?.[area] || [];
   let curStatus = null; for (let i = arr.length - 1; i >= 0; i--) { if (arr[i].status) { curStatus = arr[i]; break; } }
@@ -365,6 +376,14 @@ function TrilhaCell({ ref_, area, byRef, onComentar, expandRef, setExpandRef }) 
     if (ok) { setStatus(''); setTexto(''); setOpen(false); }
   }
 
+  // Menu rápido: grava só o status, sem comentário
+  async function mudarStatus(v) {
+    if (savingQuick) return;
+    setSavingQuick(true);
+    await onComentar(ref_, area, v, '');
+    setSavingQuick(false);
+  }
+
   if (!ref_) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
 
   return (
@@ -374,6 +393,11 @@ function TrilhaCell({ ref_, area, byRef, onComentar, expandRef, setExpandRef }) 
           color: opt ? opt.color : 'var(--text-muted)', background: opt ? opt.bg : 'transparent', border: '1px solid ' + (opt ? opt.color : 'var(--border)') }}>
           {opt ? opt.label : 'A revisar'}
         </span>
+        <select value={curStatus?.status || 'pendente'} disabled={savingQuick} onChange={e => mudarStatus(e.target.value)}
+          title="Alterar status (grava sem comentário)" style={{ padding: '2px 4px', fontSize: '11px', maxWidth: '130px' }}>
+          <option value="pendente">A revisar</option>
+          {AREAS.find(a => a.key === area).options.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+        </select>
         {curStatus && <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{fmtDay(curStatus.created_at)} · {curStatus.created_by_name}</span>}
       </div>
       {ultTexto && (
@@ -407,7 +431,9 @@ function TrilhaCell({ ref_, area, byRef, onComentar, expandRef, setExpandRef }) 
             return (
               <div key={c.id} style={{ fontSize: '11.5px', marginBottom: '5px' }}>
                 <span style={{ color: 'var(--text-muted)' }}>{fmtDate(c.created_at)} · {c.created_by_name}</span>
-                {c.status && <span style={{ marginLeft: '5px', fontWeight: 700, color: o ? o.color : 'inherit' }}>[{o ? o.label : c.status}]</span>}
+                {c.status && <span style={{ marginLeft: '5px', fontWeight: 700, color: o ? o.color : 'inherit' }}>[{o ? o.label : (c.status === 'pendente' ? 'A revisar' : c.status)}]</span>}
+                {onExcluir && <button onClick={() => onExcluir(c.id)} title="Remover comentário"
+                  style={{ marginLeft: '6px', border: 'none', background: 'none', cursor: 'pointer', color: '#c53030', fontSize: '11px', padding: 0 }}>🗑</button>}
                 {c.texto && <div style={{ color: 'var(--text-secondary)' }}>{c.texto}</div>}
               </div>
             );

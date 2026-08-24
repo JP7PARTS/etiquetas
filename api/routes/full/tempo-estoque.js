@@ -128,6 +128,18 @@ router.post('/comentarios', async (req, res) => {
   }
 });
 
+// DELETE /comentarios/:id — remove um comentário
+router.delete('/comentarios/:id', async (req, res) => {
+  try {
+    const result = await db.query('DELETE FROM full_tempo_comentarios WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Comentário não encontrado' });
+    res.json({ message: 'Comentário removido' });
+  } catch (err) {
+    console.error('DELETE /full/tempo-estoque/comentarios/:id error:', err);
+    res.status(500).json({ error: 'Erro ao remover comentário' });
+  }
+});
+
 // GET /:id — lista completa com itens
 router.get('/:id', async (req, res) => {
   try {
