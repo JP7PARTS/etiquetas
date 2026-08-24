@@ -6,6 +6,9 @@ const { authenticate, requireAdmin } = require('../../middleware/auth');
 const router = express.Router();
 router.use(authenticate, requireAdmin);
 
+function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+function numArr(v) { return Array.isArray(v) ? v.map(num) : []; }
+
 function cleanItems(raw) {
   if (!Array.isArray(raw)) return null;
   return raw.map(it => ({
@@ -14,6 +17,17 @@ function cleanItems(raw) {
     anuncio: String(it.anuncio || ''),
     key: String(it.key || ''),
     qty: Math.max(0, parseInt(it.qty, 10) || 0),
+    // Snapshot para editar o envio depois sem precisar dos relatórios
+    gtin: String(it.gtin || ''),
+    titulo: String(it.titulo || ''),
+    vels: numArr(it.vels),
+    vel: num(it.vel),
+    estoque: num(it.estoque),
+    cross: num(it.cross),
+    sugestao: num(it.sugestao),
+    decisao: String(it.decisao || ''),
+    cobertura: it.cobertura == null ? null : num(it.cobertura),
+    afeta_tempo: num(it.afeta_tempo),
   })).filter(it => it.codigo_ml || it.sku);
 }
 

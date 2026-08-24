@@ -3,6 +3,7 @@ import api from '../../utils/api.js';
 import { parseFullResumo, parseVendas, parseCross, parseDesempenho } from './parsers.js';
 import FullAnalysis from './FullAnalysis.jsx';
 import FullReposicao from './FullReposicao.jsx';
+import FullEnvioEditor from './FullEnvioEditor.jsx';
 
 function fmtDate(s) { try { return new Date(s).toLocaleString('pt-BR'); } catch { return s; } }
 
@@ -30,6 +31,7 @@ export default function FullShipments({ user }) {
   const [calcing, setCalcing] = useState(false);
   const [calcErr, setCalcErr] = useState('');
   const [envioEdit, setEnvioEdit] = useState(null); // { id, name, items } a carregar na reposição
+  const [editorEnvio, setEditorEnvio] = useState(null); // envio salvo aberto no editor (snapshot)
   const inputs = useRef({});
 
   useEffect(() => { loadLists(); }, []);
@@ -95,15 +97,10 @@ export default function FullShipments({ user }) {
   }
 
   async function editar(l) {
-    if (!repo) {
-      setError('Para editar um envio, primeiro suba os relatórios e clique em "Calcular reposição" (as quantidades salvas serão aplicadas na tabela).');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
     setError('');
     try {
       const res = await api.get(`/full/shipments/${l.id}`);
-      setEnvioEdit({ id: res.data.id, name: res.data.name, items: res.data.items || [] });
+      setEditorEnvio(res.data);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setError('Erro ao abrir o envio: ' + (err.response?.data?.error || err.message));
@@ -130,6 +127,10 @@ export default function FullShipments({ user }) {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
+
+      {editorEnvio && (
+        <FullEnvioEditor envio={editorEnvio} onClose={() => setEditorEnvio(null)} onSaved={loadLists} />
+      )}
 
       {/* Upload dos 5 relatórios crus */}
       <div className="card">
@@ -236,7 +237,7 @@ export default function FullShipments({ user }) {
                     <td>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                         <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => editar(l)}
-                          title={repo ? 'Carrega as quantidades deste envio na tabela para alterar' : 'Calcule a reposição primeiro'}>✏️ Editar</button>
+                          title="Abre o envio salvo para ajustar as quantidades (sem precisar dos relatórios)">✏️ Editar</button>
                         <button className="btn-danger" style={{ padding: '5px 10px' }} onClick={() => remove(l)}>Excluir</button>
                       </div>
                     </td>

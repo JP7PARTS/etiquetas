@@ -321,16 +321,23 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
     const nome = window.prompt(envioId && !asNew ? 'Atualizar o envio (nome):' : 'Nome do novo envio:', sugerido);
     if (!nome || !nome.trim()) return;
     const items = rows.filter(r => finalOf(r) > 0 && tipoSel.has(tipoDe(r)))
-      .map(r => ({ codigo_ml: r.codigoMl, sku: r.sku, anuncio: r.anuncio || '', key: r.key, qty: finalOf(r) }));
+      .map(r => ({
+        codigo_ml: r.codigoMl, sku: r.sku, anuncio: r.anuncio || '', key: r.key, qty: finalOf(r),
+        // snapshot p/ editar depois sem os relatórios
+        gtin: r.gtin || '', titulo: r.tituloTop || r.produto || '', vels: r.vels || [], vel: r.velEsc,
+        estoque: r.estoque, cross: r.crossSku, sugestao: r.sugestao, decisao: r.decisao || '',
+        cobertura: r.coberturaDias ?? null, afeta_tempo: r.afetamTempo || 0,
+      }));
     if (items.length === 0) { setMsg('Nenhuma quantidade a enviar.'); return; }
+    const params = { regra, diasCobertura: dias, janelas: meta.janelas, span: meta.realSpan };
     setSaving(true); setMsg('');
     try {
       if (envioId && !asNew) {
-        await api.put(`/full/shipments/${envioId}`, { name: nome.trim(), params: { regra, diasCobertura: dias }, items });
+        await api.put(`/full/shipments/${envioId}`, { name: nome.trim(), params, items });
         setEnvioNome(nome.trim());
         setMsg('✅ Envio atualizado! As alterações ficam salvas para editar depois.');
       } else {
-        const res = await api.post('/full/shipments', { name: nome.trim(), params: { regra, diasCobertura: dias }, items });
+        const res = await api.post('/full/shipments', { name: nome.trim(), params, items });
         setEnvioId(res.data?.id || null);
         setEnvioNome(nome.trim());
         setMsg('✅ Envio salvo! Fica em "envios salvos" e pode ser alterado depois (botão Editar).');
