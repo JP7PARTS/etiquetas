@@ -50,6 +50,15 @@ export default function FullTempoEstoque({ user }) {
   const [evolFiltro, setEvolFiltro] = useState('todos');
   const [expandRef, setExpandRef] = useState(null); // ref com histórico aberto
   const [showResolvidos, setShowResolvidos] = useState(false);
+  const [copiado, setCopiado] = useState(null); // ref cujo título acabou de ser copiado
+
+  const copiarTitulo = (it) => {
+    const t = it.titulo || '';
+    if (!t) return;
+    const ok = () => { setCopiado(it.ref); setTimeout(() => setCopiado(c => (c === it.ref ? null : c)), 1200); };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(t).then(ok).catch(() => {});
+    else { try { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ok(); } catch {} }
+  };
 
   useEffect(() => { load(); }, []);
 
@@ -138,6 +147,14 @@ export default function FullTempoEstoque({ user }) {
     return arr.filter(it => it.evol === evolFiltro);
   }, [sel, prevRefs, evolFiltro]);
 
+  // Rótulo das janelas de velocidade e período do relatório (do 1º item que tiver)
+  const janelasInfo = useMemo(() => {
+    const it = (sel?.items || []).find(x => x.janelas?.length) || (sel?.items || [])[0];
+    const jan = it?.janelas?.length ? it.janelas : [7, 15, 30];
+    const span = it?.span || null;
+    return { label: jan.join('/'), span };
+  }, [sel]);
+
   // Produtos que saíram da lista (estavam na anterior e não estão na atual) = resolvidos
   const resolvidos = useMemo(() => {
     if (!prev || !sel) return [];
@@ -166,14 +183,14 @@ export default function FullTempoEstoque({ user }) {
     if (!sel) return;
     try {
       const XLSX = await import('xlsx');
-      const header = ['SKU', 'MLB', 'Código ML', 'Título', 'Estoque Full', 'Média venda/dia', 'Un. tempo estq', 'Un. vendidas', 'Evolução', 'Anúncio (status)', 'Anúncio (comentário)', 'Preço (status)', 'Preço (comentário)'];
+      const header = ['SKU', 'MLB', 'Código ML', 'Título', 'Estoque Full', `Vel (${janelasInfo.label})`, 'Un. tempo estq', 'Un. vendidas (Full)', 'Evolução', 'Anúncio (status)', 'Anúncio (comentário)', 'Preço (status)', 'Preço (comentário)'];
       const aoa = [header];
       for (const it of itensView) {
         const sA = statusAtual(it.ref, 'anuncio'); const cA = ultimoComentario(it.ref, 'anuncio');
         const sP = statusAtual(it.ref, 'preco'); const cP = ultimoComentario(it.ref, 'preco');
         aoa.push([
           it.sku, it.anuncio ? 'MLB' + it.anuncio : '', it.codigo_ml || '', it.titulo || '',
-          Number(it.estoque_full) || 0, Number(it.media_venda) || 0, Number(it.un_tempo) || 0, Number(it.un_vendidas) || 0,
+          Number(it.estoque_full) || 0, it.vels?.length ? it.vels.map(v => dec(v)).join('/') : dec(it.media_venda), Number(it.un_tempo) || 0, Number(it.un_vendidas) || 0,
           it.evol ? EVOL[it.evol].label.replace(/^[^ ]+ /, '') : '',
           sA ? (areaOpt('anuncio', sA.status)?.label || sA.status) : '', cA?.texto || '',
           sP ? (areaOpt('preco', sP.status)?.label || sP.status) : '', cP?.texto || '',
@@ -265,11 +282,12 @@ export default function FullTempoEstoque({ user }) {
             <table style={{ fontSize: '13px' }}>
               <thead>
                 <tr>
-                  <th>SKU</th><th>MLB</th><th>Código ML</th><th>Título</th>
+                  <th>SKU</th><th>MLB</th><th>Código ML</th>
+                  <th style={{ textAlign: 'center' }} title="Título do anúncio (passe o mouse; clique para copiar)">Tít.</th>
                   <th style={{ textAlign: 'right' }}>Estq Full</th>
-                  <th style={{ textAlign: 'right' }}>Média/dia</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }} title="Velocidade de venda (un/dia) por janela — igual ao relatório do Full">Vel ({janelasInfo.label})</th>
                   <th style={{ textAlign: 'right' }}>Un. tempo</th>
-                  <th style={{ textAlign: 'right' }}>Un. vend.</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title={`Unidades vendidas pelo Full no período do relatório${janelasInfo.span ? ` (~${Math.round(janelasInfo.span)} dias)` : ''}`}>Un. vend. (Full)</th>
                   {prev && <th>Evolução</th>}
                   <th style={{ minWidth: '220px' }}>Anúncio</th>
                   <th style={{ minWidth: '220px' }}>Preço</th>
@@ -281,9 +299,9 @@ export default function FullTempoEstoque({ user }) {
                     <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{it.sku}</td>
                     <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}>{it.anuncio ? 'MLB' + it.anuncio : '—'}</td>
                     <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}>{it.codigo_ml || '—'}</td>
-                    <td style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={it.titulo}>{it.titulo || '—'}</td>
+                    <td style={{ textAlign: 'center', cursor: 'pointer' }} title={(it.titulo || '') + ' — clique para copiar o título'} onClick={() => copiarTitulo(it)}>{copiado === it.ref ? '✅' : 'ℹ️'}</td>
                     <td style={{ textAlign: 'right' }}>{int(it.estoque_full)}</td>
-                    <td style={{ textAlign: 'right' }}>{dec(it.media_venda)}</td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{it.vels?.length ? it.vels.map(dec).join('/') : dec(it.media_venda)}</td>
                     <td style={{ textAlign: 'right', color: '#c05621', fontWeight: 700 }}>{int(it.un_tempo)}</td>
                     <td style={{ textAlign: 'right' }}>{int(it.un_vendidas)}</td>
                     {prev && <td style={{ whiteSpace: 'nowrap', color: it.evol ? EVOL[it.evol].color : 'var(--text-muted)', fontWeight: 600 }} title={it.evol ? EVOL[it.evol].hint : ''}>{it.evol ? EVOL[it.evol].label : '—'}</td>}

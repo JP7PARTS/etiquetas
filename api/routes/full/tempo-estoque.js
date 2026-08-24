@@ -36,6 +36,7 @@ const ensureTables = () => {
 router.use(async (req, res, next) => { try { await ensureTables(); next(); } catch (e) { console.error('ensure full_tempo_estoque:', e); res.status(500).json({ error: 'Erro ao preparar tabelas' }); } });
 
 function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+function numArr(v) { return Array.isArray(v) ? v.map(num) : []; }
 
 function cleanItems(raw) {
   if (!Array.isArray(raw)) return null;
@@ -47,6 +48,9 @@ function cleanItems(raw) {
     titulo: String(it.titulo || ''),
     estoque_full: num(it.estoque_full),
     media_venda: num(it.media_venda),
+    vels: numArr(it.vels),
+    janelas: numArr(it.janelas),
+    span: it.span == null ? null : num(it.span),
     un_tempo: num(it.un_tempo),
     un_vendidas: num(it.un_vendidas),
     cobertura: it.cobertura == null ? null : num(it.cobertura),
