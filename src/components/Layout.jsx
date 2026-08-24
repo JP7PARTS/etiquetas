@@ -11,13 +11,13 @@ const navSections = [
       { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
       { id: 'import-sales', label: 'Importar Vendas', icon: '📥', roles: ['admin', 'user'] },
       { id: 'picking', label: 'Listas de Picking', icon: '🧺', roles: ['admin', 'user'] },
-      { id: 'full-tempo', label: 'Tempo de estoque', icon: '⏳', roles: ['admin', 'user'] },
     ],
   },
   {
     title: 'Admin',
     items: [
       { id: 'full', label: 'Envio Full', icon: '🚚', roles: ['admin'] },
+      { id: 'full-tempo', label: 'Tempo de estoque', icon: '⏳', roles: ['admin'] },
       { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
       { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
       { id: 'history', label: 'Histórico', icon: '🕑', roles: ['admin'] },

@@ -7,7 +7,7 @@ const db = require('../../db');
 const { authenticate, requireAdmin } = require('../../middleware/auth');
 
 const router = express.Router();
-router.use(authenticate);
+router.use(authenticate, requireAdmin);
 
 // Garante as tabelas (idempotente), sem depender de rodar o init.sql em produção.
 let ready = null;
@@ -53,8 +53,8 @@ function cleanItems(raw) {
   })).filter(it => it.ref || it.sku);
 }
 
-// POST / — cria uma lista (admin)
-router.post('/', requireAdmin, async (req, res) => {
+// POST / — cria uma lista
+router.post('/', async (req, res) => {
   const name = (req.body.name || '').trim();
   const items = cleanItems(req.body.items);
   if (!name) return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -136,8 +136,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// DELETE /:id — exclui a lista (admin)
-router.delete('/:id', requireAdmin, async (req, res) => {
+// DELETE /:id — exclui a lista
+router.delete('/:id', async (req, res) => {
   try {
     const result = await db.query('DELETE FROM full_tempo_estoque WHERE id = $1 RETURNING id', [req.params.id]);
     if (!result.rows[0]) return res.status(404).json({ error: 'Lista não encontrada' });

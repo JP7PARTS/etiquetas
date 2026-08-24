@@ -64,7 +64,7 @@ export default function App() {
     content = <PickingLists user={user} />;
   } else if (page === 'full' && user.role === 'admin') {
     content = <FullShipments user={user} />;
-  } else if (page === 'full-tempo') {
+  } else if (page === 'full-tempo' && user.role === 'admin') {
     content = <FullTempoEstoque user={user} />;
   } else if (page === 'import-sales') {
     content = <ImportSales user={user} onSendToLote={items => { setLoteSeed(items); setPage('generate-sku'); }} />;
