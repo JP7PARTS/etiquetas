@@ -114,6 +114,30 @@ CREATE TABLE IF NOT EXISTS full_grade (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Tempo de estoque: listas salvas (retrato por data) dos produtos que pagam
+-- tarifa de armazenagem; encaminhadas para revisão de Anúncio e de Preço.
+CREATE TABLE IF NOT EXISTS full_tempo_estoque (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  created_by INTEGER,
+  created_by_name VARCHAR(100),
+  items JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_full_tempo_estoque_created_at ON full_tempo_estoque (created_at DESC);
+
+-- Comentários datados por anúncio e por trilha (append-only). area = 'anuncio' | 'preco'.
+CREATE TABLE IF NOT EXISTS full_tempo_comentarios (
+  id SERIAL PRIMARY KEY,
+  ref VARCHAR(60) NOT NULL,
+  area VARCHAR(20) NOT NULL,
+  status VARCHAR(30),
+  texto TEXT,
+  created_by_name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_full_tempo_comentarios_ref ON full_tempo_comentarios (ref);
+
 -- Default admin user: admin@jp7parts.com.br / admin123
 -- Password hash generated with bcrypt rounds=10
 INSERT INTO users (username, email, password_hash, role)

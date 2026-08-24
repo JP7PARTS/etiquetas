@@ -343,6 +343,33 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
     } finally { setSaving(false); }
   }
 
+  // Salva a lista de produtos com "unidades em tempo de estoque" (armazenagem) para
+  // encaminhar às trilhas de revisão de Anúncio e Preço (tópico "Tempo de estoque").
+  async function salvarTempoEstoque() {
+    const itens = rows.filter(r => r.afetamTempo > 0).map(r => ({
+      ref: refDe(r),
+      codigo_ml: r.codigoMl || '',
+      sku: r.sku,
+      anuncio: r.anuncio || '',
+      titulo: r.tituloTop || r.produto || '',
+      estoque_full: r.estoque,
+      media_venda: r.velEsc,
+      un_tempo: r.afetamTempo,
+      un_vendidas: r.perf?.un || 0,
+      cobertura: r.coberturaDias ?? null,
+    }));
+    if (itens.length === 0) { setMsg('Nenhum produto com unidades em tempo de estoque.'); return; }
+    const nome = window.prompt('Nome da lista de tempo de estoque:', `Tempo de estoque ${new Date().toLocaleDateString('pt-BR')}`);
+    if (!nome || !nome.trim()) return;
+    setSaving(true); setMsg('');
+    try {
+      await api.post('/full/tempo-estoque', { name: nome.trim(), items: itens });
+      setMsg(`✅ Lista salva (${itens.length} produtos). Veja no tópico "Tempo de estoque" para encaminhar às revisões.`);
+    } catch (err) {
+      setMsg('Erro ao salvar a lista: ' + (err.response?.data?.error || err.message));
+    } finally { setSaving(false); }
+  }
+
   const th = (key, label, extra) => (
     <th onClick={key ? () => clickSort(key) : undefined}
       style={{ cursor: key ? 'pointer' : 'default', whiteSpace: 'nowrap', ...(extra || {}) }}>
@@ -542,6 +569,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
         <button className="btn-outline" onClick={usarSugestoes} title="Preenche o campo Enviar com a sugestão em todas as linhas visíveis">↧ Usar sugestões</button>
         <button className="btn-outline" onClick={limparEnvios} title="Zera o campo Enviar nas linhas visíveis">Limpar</button>
         <button className="btn-outline" onClick={exportarML} title="Gera a planilha no modelo oficial do ML (colunas A–F)">📤 Exportar planilha do ML</button>
+        <button className="btn-outline" onClick={salvarTempoEstoque} disabled={saving} title="Salva os produtos com unidades em tempo de estoque para encaminhar às revisões de Anúncio e Preço">⏳ Salvar lista (tempo de estoque)</button>
         {envioId ? (
           <>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }} title="Você está editando um envio salvo">✏️ Editando: {envioNome}</span>

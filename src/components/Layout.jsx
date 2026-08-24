@@ -11,6 +11,7 @@ const navSections = [
       { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
       { id: 'import-sales', label: 'Importar Vendas', icon: '📥', roles: ['admin', 'user'] },
       { id: 'picking', label: 'Listas de Picking', icon: '🧺', roles: ['admin', 'user'] },
+      { id: 'full-tempo', label: 'Tempo de estoque', icon: '⏳', roles: ['admin', 'user'] },
     ],
   },
   {

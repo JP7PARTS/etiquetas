@@ -12,6 +12,7 @@ import ImportSales from './components/ImportSales.jsx';
 import SkuRequests from './components/SkuRequests.jsx';
 import PickingLists from './components/PickingLists.jsx';
 import FullShipments from './components/full/FullShipments.jsx';
+import FullTempoEstoque from './components/full/FullTempoEstoque.jsx';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -63,6 +64,8 @@ export default function App() {
     content = <PickingLists user={user} />;
   } else if (page === 'full' && user.role === 'admin') {
     content = <FullShipments user={user} />;
+  } else if (page === 'full-tempo') {
+    content = <FullTempoEstoque user={user} />;
   } else if (page === 'import-sales') {
     content = <ImportSales user={user} onSendToLote={items => { setLoteSeed(items); setPage('generate-sku'); }} />;
   } else if (page === 'generate-custom') {
