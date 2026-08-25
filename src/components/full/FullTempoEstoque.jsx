@@ -149,6 +149,7 @@ export default function FullTempoEstoque({ user }) {
           case 'vel': return Number(it.media_venda) || 0;
           case 'un_tempo': return Number(it.un_tempo) || 0;
           case 'un_vend': return Number(it.un_vendidas) || 0;
+          case 'cobertura': return it.cobertura == null ? Infinity : Number(it.cobertura);
           case 'evol': return it.evol ? EVOL[it.evol].rank : 9;
           default: return 0;
         }
@@ -217,14 +218,14 @@ export default function FullTempoEstoque({ user }) {
     if (!sel) return;
     try {
       const XLSX = await import('xlsx');
-      const header = ['SKU', 'MLB', 'Código ML', 'Título', 'Estoque Full', `Vel (${janelasInfo.label})`, 'Un. tempo estq', 'Un. vendidas (Full)', 'Evolução', 'Anúncio (status)', 'Anúncio (comentário)', 'Preço (status)', 'Preço (comentário)'];
+      const header = ['SKU', 'MLB', 'Código ML', 'Título', 'Estoque Full', 'Cobertura (dias)', `Vel (${janelasInfo.label})`, 'Un. tempo estq', 'Un. vendidas (Full)', 'Evolução', 'Anúncio (status)', 'Anúncio (comentário)', 'Preço (status)', 'Preço (comentário)'];
       const aoa = [header];
       for (const it of itensView) {
         const sA = statusAtual(it.ref, 'anuncio'); const cA = ultimoComentario(it.ref, 'anuncio');
         const sP = statusAtual(it.ref, 'preco'); const cP = ultimoComentario(it.ref, 'preco');
         aoa.push([
           it.sku, it.anuncio ? 'MLB' + it.anuncio : '', it.codigo_ml || '', it.titulo || '',
-          Number(it.estoque_full) || 0, it.vels?.length ? it.vels.map(v => dec(v)).join('/') : dec(it.media_venda), Number(it.un_tempo) || 0, Number(it.un_vendidas) || 0,
+          Number(it.estoque_full) || 0, it.cobertura == null ? '' : Math.round(Number(it.cobertura)), it.vels?.length ? it.vels.map(v => dec(v)).join('/') : dec(it.media_venda), Number(it.un_tempo) || 0, Number(it.un_vendidas) || 0,
           it.evol ? EVOL[it.evol].label.replace(/^[^ ]+ /, '') : '',
           sA ? (areaOpt('anuncio', sA.status)?.label || sA.status) : '', cA?.texto || '',
           sP ? (areaOpt('preco', sP.status)?.label || sP.status) : '', cP?.texto || '',
@@ -320,6 +321,7 @@ export default function FullTempoEstoque({ user }) {
                   <th>MLB</th><th>Código ML</th>
                   <th style={{ textAlign: 'center' }} title="Título do anúncio (passe o mouse; clique para copiar)">Tít.</th>
                   <th style={{ textAlign: 'right', cursor: 'pointer' }} title="Ordenar por estoque no Full" onClick={() => clickSort('estoque')}>Estq Full{sortArrow('estoque')}</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap', cursor: 'pointer' }} title="Dias de estoque restantes = estoque atual ÷ velocidade de venda — clique para ordenar" onClick={() => clickSort('cobertura')}>Cobertura{sortArrow('cobertura')}</th>
                   <th style={{ textAlign: 'center', whiteSpace: 'nowrap', cursor: 'pointer' }} title="Velocidade de venda (un/dia) — clique para ordenar" onClick={() => clickSort('vel')}>Vel ({janelasInfo.label}){sortArrow('vel')}</th>
                   <th style={{ textAlign: 'right', cursor: 'pointer' }} title="Ordenar por unidades em tempo de estoque" onClick={() => clickSort('un_tempo')}>Un. tempo{sortArrow('un_tempo')}</th>
                   <th style={{ textAlign: 'right', whiteSpace: 'nowrap', cursor: 'pointer' }} title={`Unidades vendidas pelo Full no período do relatório${janelasInfo.span ? ` (~${Math.round(janelasInfo.span)} dias)` : ''} — clique para ordenar`} onClick={() => clickSort('un_vend')}>Un. vend. (Full){sortArrow('un_vend')}</th>
@@ -336,6 +338,7 @@ export default function FullTempoEstoque({ user }) {
                     <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '12px' }}>{it.codigo_ml || '—'}</td>
                     <td style={{ textAlign: 'center', cursor: 'pointer' }} title={(it.titulo || '') + ' — clique para copiar o título'} onClick={() => copiarTitulo(it)}>{copiado === it.ref ? '✅' : 'ℹ️'}</td>
                     <td style={{ textAlign: 'right' }}>{int(it.estoque_full)}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="dias de estoque restantes (estoque ÷ velocidade)">{it.cobertura == null ? <span style={{ color: 'var(--text-muted)' }}>—</span> : `${int(it.cobertura)}d`}</td>
                     <td style={{ textAlign: 'center', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{it.vels?.length ? it.vels.map(dec).join('/') : dec(it.media_venda)}</td>
                     <td style={{ textAlign: 'right', color: '#c05621', fontWeight: 700 }}>{int(it.un_tempo)}</td>
                     <td style={{ textAlign: 'right' }}>{int(it.un_vendidas)}</td>
