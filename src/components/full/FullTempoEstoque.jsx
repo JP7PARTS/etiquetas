@@ -51,6 +51,10 @@ export default function FullTempoEstoque({ user }) {
   const [expandRef, setExpandRef] = useState(null); // ref com histórico aberto
   const [showResolvidos, setShowResolvidos] = useState(false);
   const [copiado, setCopiado] = useState(null); // ref cujo título acabou de ser copiado
+  const [sort, setSort] = useState({ key: null, dir: 'desc' }); // null = ordem padrão (evolução)
+
+  const clickSort = (key) => setSort(s => s.key === key ? (s.dir === 'desc' ? { key, dir: 'asc' } : { key: null, dir: 'desc' }) : { key, dir: 'desc' });
+  const sortArrow = (key) => sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '';
 
   const copiarTitulo = (it) => {
     const t = it.titulo || '';
@@ -137,15 +141,35 @@ export default function FullTempoEstoque({ user }) {
 
   const itensView = useMemo(() => {
     const arr = (sel?.items || []).map(it => ({ ...it, evol: evolDe(it) }));
-    arr.sort((a, b) => {
-      const ra = a.evol ? EVOL[a.evol].rank : 9;
-      const rb = b.evol ? EVOL[b.evol].rank : 9;
-      if (ra !== rb) return ra - rb;
-      return (Number(b.un_tempo) || 0) - (Number(a.un_tempo) || 0);
-    });
+    if (sort.key) {
+      const sv = (it) => {
+        switch (sort.key) {
+          case 'sku': return it.sku || '';
+          case 'estoque': return Number(it.estoque_full) || 0;
+          case 'vel': return Number(it.media_venda) || 0;
+          case 'un_tempo': return Number(it.un_tempo) || 0;
+          case 'un_vend': return Number(it.un_vendidas) || 0;
+          case 'evol': return it.evol ? EVOL[it.evol].rank : 9;
+          default: return 0;
+        }
+      };
+      arr.sort((a, b) => {
+        const va = sv(a), vb = sv(b);
+        const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+        return sort.dir === 'asc' ? cmp : -cmp;
+      });
+    } else {
+      // Padrão: por evolução (críticos → novos → girando), depois un. tempo desc
+      arr.sort((a, b) => {
+        const ra = a.evol ? EVOL[a.evol].rank : 9;
+        const rb = b.evol ? EVOL[b.evol].rank : 9;
+        if (ra !== rb) return ra - rb;
+        return (Number(b.un_tempo) || 0) - (Number(a.un_tempo) || 0);
+      });
+    }
     if (evolFiltro === 'todos') return arr;
     return arr.filter(it => it.evol === evolFiltro);
-  }, [sel, prevRefs, evolFiltro]);
+  }, [sel, prevRefs, evolFiltro, sort]);
 
   // Rótulo das janelas de velocidade e período do relatório (do 1º item que tiver)
   const janelasInfo = useMemo(() => {
@@ -292,13 +316,14 @@ export default function FullTempoEstoque({ user }) {
             <table style={{ fontSize: '13px' }}>
               <thead>
                 <tr>
-                  <th>SKU</th><th>MLB</th><th>Código ML</th>
+                  <th style={{ cursor: 'pointer' }} title="Ordenar por SKU" onClick={() => clickSort('sku')}>SKU{sortArrow('sku')}</th>
+                  <th>MLB</th><th>Código ML</th>
                   <th style={{ textAlign: 'center' }} title="Título do anúncio (passe o mouse; clique para copiar)">Tít.</th>
-                  <th style={{ textAlign: 'right' }}>Estq Full</th>
-                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }} title="Velocidade de venda (un/dia) por janela — igual ao relatório do Full">Vel ({janelasInfo.label})</th>
-                  <th style={{ textAlign: 'right' }}>Un. tempo</th>
-                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title={`Unidades vendidas pelo Full no período do relatório${janelasInfo.span ? ` (~${Math.round(janelasInfo.span)} dias)` : ''}`}>Un. vend. (Full)</th>
-                  {prev && <th>Evolução</th>}
+                  <th style={{ textAlign: 'right', cursor: 'pointer' }} title="Ordenar por estoque no Full" onClick={() => clickSort('estoque')}>Estq Full{sortArrow('estoque')}</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap', cursor: 'pointer' }} title="Velocidade de venda (un/dia) — clique para ordenar" onClick={() => clickSort('vel')}>Vel ({janelasInfo.label}){sortArrow('vel')}</th>
+                  <th style={{ textAlign: 'right', cursor: 'pointer' }} title="Ordenar por unidades em tempo de estoque" onClick={() => clickSort('un_tempo')}>Un. tempo{sortArrow('un_tempo')}</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap', cursor: 'pointer' }} title={`Unidades vendidas pelo Full no período do relatório${janelasInfo.span ? ` (~${Math.round(janelasInfo.span)} dias)` : ''} — clique para ordenar`} onClick={() => clickSort('un_vend')}>Un. vend. (Full){sortArrow('un_vend')}</th>
+                  {prev && <th style={{ cursor: 'pointer' }} title="Ordenar por evolução" onClick={() => clickSort('evol')}>Evolução{sortArrow('evol')}</th>}
                   <th style={{ minWidth: '220px' }}>Anúncio</th>
                   <th style={{ minWidth: '220px' }}>Preço</th>
                 </tr>
