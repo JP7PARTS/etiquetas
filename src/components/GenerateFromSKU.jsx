@@ -701,7 +701,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                   {[['comprimento_cm', 'Compr. cm'], ['largura_cm', 'Larg. cm'], ['altura_cm', 'Alt. cm'], ['peso_kg', 'Peso kg']].map(([n, lb]) => (
                     <div key={n}>
                       <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>{lb}</label>
-                      <input type="number" min="0" step="0.1" value={newSku[n] ?? ''} onChange={e => setNewSku(f => ({ ...f, [n]: e.target.value }))} />
+                      <input type="number" min="0" step="any" value={newSku[n] ?? ''} onChange={e => setNewSku(f => ({ ...f, [n]: e.target.value }))} />
                     </div>
                   ))}
                 </div>

@@ -594,7 +594,7 @@ export default function ImportSales({ user, onSendToLote }) {
                   {[['comprimento_cm', 'Compr. cm'], ['largura_cm', 'Larg. cm'], ['altura_cm', 'Alt. cm'], ['peso_kg', 'Peso kg']].map(([n, lb]) => (
                     <div key={n}>
                       <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>{lb}</label>
-                      <input type="number" min="0" step="0.1" value={skuForm[n] ?? ''} onChange={e => setSkuForm(f => ({ ...f, [n]: e.target.value }))} />
+                      <input type="number" min="0" step="any" value={skuForm[n] ?? ''} onChange={e => setSkuForm(f => ({ ...f, [n]: e.target.value }))} />
                     </div>
                   ))}
                 </div>

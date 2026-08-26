@@ -570,7 +570,7 @@ export default function SKUManagement() {
                   ].map(f => (
                     <div key={f.name}>
                       <label htmlFor={'modal-' + f.name} style={{fontSize:'11.5px', color:'var(--text-muted)', display:'block', marginBottom:'3px'}}>{f.label}</label>
-                      <input id={'modal-' + f.name} name={f.name} type="number" min="0" step="0.1"
+                      <input id={'modal-' + f.name} name={f.name} type="number" min="0" step="any"
                         value={form[f.name]} onChange={handleFormChange} placeholder={f.ph} />
                     </div>
                   ))}

@@ -130,7 +130,7 @@ export default function Embalagens() {
                   {[['comprimento_cm', 'Compr.'], ['largura_cm', 'Larg.'], ['altura_cm', 'Alt.']].map(([n, lb]) => (
                     <div key={n}>
                       <label style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>{lb} (cm)</label>
-                      <input type="number" min="0" step="0.1" value={form[n]} onChange={e => setForm(f => ({ ...f, [n]: e.target.value }))} />
+                      <input type="number" min="0" step="any" value={form[n]} onChange={e => setForm(f => ({ ...f, [n]: e.target.value }))} />
                     </div>
                   ))}
                 </div>
