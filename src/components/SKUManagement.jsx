@@ -376,11 +376,13 @@ export default function SKUManagement() {
                     </td>
                     <td style={{whiteSpace:'nowrap', fontSize:'12.5px'}}>
                       {(s.comprimento_cm || s.largura_cm || s.altura_cm || s.peso_kg) ? (
-                        <span title="C×L×A (cm) · peso (kg)">
-                          {(s.comprimento_cm != null || s.largura_cm != null || s.altura_cm != null)
-                            && <span>{[s.comprimento_cm, s.largura_cm, s.altura_cm].map(v => v != null ? (+v) : '?').join('×')} cm</span>}
-                          {s.peso_kg != null && <span style={{color:'var(--text-secondary)'}}> · {(+s.peso_kg)} kg</span>}
-                        </span>
+                        (() => { const pv = pesoVolumetrico(s.comprimento_cm, s.largura_cm, s.altura_cm);
+                          return <span title="C×L×A (cm) · peso (kg) · peso volumétrico (C×L×A÷6000)">
+                            {(s.comprimento_cm != null || s.largura_cm != null || s.altura_cm != null)
+                              && <span>{[s.comprimento_cm, s.largura_cm, s.altura_cm].map(v => v != null ? (+v) : '?').join('×')} cm</span>}
+                            {s.peso_kg != null && <span style={{color:'var(--text-secondary)'}}> · {(+s.peso_kg)} kg</span>}
+                            {pv != null && <div style={{fontSize:'11px', color:'var(--text-muted)'}}>vol {pv.toLocaleString('pt-BR', { minimumFractionDigits: pv < 1 ? 3 : 1, maximumFractionDigits: 3 })} kg</div>}
+                          </span>; })()
                       ) : <span style={{color:'var(--text-muted)'}}>—</span>}
                     </td>
                     <td>
