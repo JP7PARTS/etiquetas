@@ -17,6 +17,15 @@ function medidasDe(sku) {
   return { dims, peso, vol };
 }
 
+// Linha "prefixo: C×L×A cm · vol X kg" (modo papelão, 2 marketplaces)
+function LinhaMedidaGen({ prefixo, c, l, a }) {
+  const nc = nnum(c), nl = nnum(l), na = nnum(a);
+  const has = nc != null || nl != null || na != null;
+  const vol = (nc > 0 && nl > 0 && na > 0) ? (nc * nl * na) / 6000 : null;
+  if (!has && vol == null) return null;
+  return <div><b style={{ color: 'var(--text-secondary)' }}>{prefixo}:</b> {has ? `${[nc, nl, na].map(v => v != null ? v : '?').join('×')} cm` : '—'}{vol != null && <span style={{ color: 'var(--text-muted)' }}> · vol {kg(vol)} kg</span>}</div>;
+}
+
 const TIPO_ENVIO_LABEL = {
   propria: { txt: '📦 Emb. própria', color: '#2b6cb0', bg: '#ebf8ff' },
   sem: { txt: '⚠️ Sem embalagem', color: '#c05621', bg: '#fffaf0' },
@@ -395,18 +404,24 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                           {sku.tipo_envio && TIPO_ENVIO_LABEL[sku.tipo_envio] && (() => { const t = TIPO_ENVIO_LABEL[sku.tipo_envio];
                             const nome = sku.tipo_envio === 'padrao' ? (embMap[sku.embalagem_id]?.nome || 'padrão') : '';
                             return <div style={{ marginBottom: '2px' }}><span style={{ display: 'inline-block', padding: '1px 7px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, color: t.color, background: t.bg }}>{t.txt}{nome ? ' ' + nome : ''}</span></div>; })()}
-                          {(() => { const m = medidasDe(sku);
+                          {sku.tipo_envio === 'papelao' ? (
+                            <div>
+                              {nnum(sku.peso_kg) != null && <div>Peso {kg(nnum(sku.peso_kg))} kg</div>}
+                              <LinhaMedidaGen prefixo="ML" c={sku.comprimento_cm} l={sku.largura_cm} a={sku.altura_cm} />
+                              <LinhaMedidaGen prefixo="Shopee" c={sku.shopee_comprimento_cm} l={sku.shopee_largura_cm} a={sku.shopee_altura_cm} />
+                              {(sku.papelao_full_cm != null || sku.papelao_shopee_cm != null) && (
+                                <div style={{ fontSize: '11px', color: '#744210' }}>
+                                  ✂️ ML {sku.papelao_full_cm != null ? (+sku.papelao_full_cm) + 'cm' : '—'} · Shopee {sku.papelao_shopee_cm != null ? (+sku.papelao_shopee_cm) + 'cm' : '—'}
+                                </div>
+                              )}
+                            </div>
+                          ) : (() => { const m = medidasDe(sku);
                             if (!m) return !sku.tipo_envio && <span style={{ color: 'var(--text-muted)' }}>—</span>;
                             return <div>
                               {m.dims && <div>{m.dims}{m.peso ? ` · ${m.peso}` : ''}</div>}
                               {!m.dims && m.peso && <div>{m.peso}</div>}
                               {m.vol && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.vol}</div>}
                             </div>; })()}
-                          {sku.tipo_envio === 'papelao' && (sku.papelao_full_cm != null || sku.papelao_shopee_cm != null) && (
-                            <div style={{ fontSize: '11px', color: '#744210' }}>
-                              ✂️ Full {sku.papelao_full_cm != null ? (+sku.papelao_full_cm) + 'cm' : '—'} · Shopee {sku.papelao_shopee_cm != null ? (+sku.papelao_shopee_cm) + 'cm' : '—'}
-                            </div>
-                          )}
                         </td>
                         <td style={styles.colAction}>
                           <button

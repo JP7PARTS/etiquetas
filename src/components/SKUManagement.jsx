@@ -18,6 +18,17 @@ function pesoVolumetrico(c, l, a) {
   if (!(nc > 0) || !(nl > 0) || !(na > 0)) return null;
   return (nc * nl * na) / 6000;
 }
+const fmtVol = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: n < 1 ? 3 : 1, maximumFractionDigits: 3 });
+// Linha "prefixo: C×L×A cm · vol X kg" para o modo papelão (2 marketplaces)
+function LinhaMedida({ prefixo, c, l, a }) {
+  const has = c != null || l != null || a != null;
+  const pv = pesoVolumetrico(c, l, a);
+  if (!has && pv == null) return null;
+  return <div style={{ fontSize: '11.5px' }}>
+    <b style={{ color: 'var(--text-secondary)' }}>{prefixo}:</b> {has ? `${[c, l, a].map(v => v != null ? (+v) : '?').join('×')} cm` : '—'}
+    {pv != null && <span style={{ color: 'var(--text-muted)' }}> · vol {fmtVol(pv)} kg</span>}
+  </div>;
+}
 
 export default function SKUManagement() {
   const backdropDown = useRef(false);
@@ -421,7 +432,18 @@ export default function SKUManagement() {
                         return <div style={{marginBottom:'2px'}}>
                           <span style={{display:'inline-block', padding:'1px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:700, color:t.color, background:t.bg}}>{t.txt}{nome ? ' ' + nome : ''}</span>
                         </div>; })()}
-                      {(s.comprimento_cm || s.largura_cm || s.altura_cm || s.peso_kg) ? (
+                      {s.tipo_envio === 'papelao' ? (
+                        <div>
+                          {s.peso_kg != null && <div style={{fontSize:'11.5px', color:'var(--text-secondary)'}}>Peso {(+s.peso_kg)} kg</div>}
+                          <LinhaMedida prefixo="ML" c={s.comprimento_cm} l={s.largura_cm} a={s.altura_cm} />
+                          <LinhaMedida prefixo="Shopee" c={s.shopee_comprimento_cm} l={s.shopee_largura_cm} a={s.shopee_altura_cm} />
+                          {(s.papelao_full_cm != null || s.papelao_shopee_cm != null) && (
+                            <div style={{fontSize:'11px', color:'#744210', marginTop:'2px'}}>
+                              ✂️ ML {s.papelao_full_cm != null ? (+s.papelao_full_cm) + 'cm' : '—'} · Shopee {s.papelao_shopee_cm != null ? (+s.papelao_shopee_cm) + 'cm' : '—'}
+                            </div>
+                          )}
+                        </div>
+                      ) : (s.comprimento_cm || s.largura_cm || s.altura_cm || s.peso_kg) ? (
                         (() => { const pv = pesoVolumetrico(s.comprimento_cm, s.largura_cm, s.altura_cm);
                           return <span title="C×L×A (cm) · peso (kg) · peso volumétrico (C×L×A÷6000)">
                             {(s.comprimento_cm != null || s.largura_cm != null || s.altura_cm != null)
@@ -429,12 +451,7 @@ export default function SKUManagement() {
                             {s.peso_kg != null && <span style={{color:'var(--text-secondary)'}}> · {(+s.peso_kg)} kg</span>}
                             {pv != null && <div style={{fontSize:'11px', color:'var(--text-muted)'}}>vol {pv.toLocaleString('pt-BR', { minimumFractionDigits: pv < 1 ? 3 : 1, maximumFractionDigits: 3 })} kg</div>}
                           </span>; })()
-                      ) : (s.tipo_envio === 'papelao' ? null : <span style={{color:'var(--text-muted)'}}>—</span>)}
-                      {s.tipo_envio === 'papelao' && (s.papelao_full_cm != null || s.papelao_shopee_cm != null) && (
-                        <div style={{fontSize:'11px', color:'#744210', marginTop:'2px'}}>
-                          ✂️ Full {s.papelao_full_cm != null ? (+s.papelao_full_cm) + 'cm' : '—'} · Shopee {s.papelao_shopee_cm != null ? (+s.papelao_shopee_cm) + 'cm' : '—'}
-                        </div>
-                      )}
+                      ) : <span style={{color:'var(--text-muted)'}}>—</span>}
                     </td>
                     <td>
                       <div style={{display:'flex', gap:'6px', justifyContent:'flex-end'}}>
@@ -608,7 +625,7 @@ export default function SKUManagement() {
                   <input name="peso_kg" type="number" min="0" step="any" value={form.peso_kg} onChange={handleFormChange} placeholder="0,300" style={{maxWidth:'160px'}} />
                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginTop:'10px'}}>
                     {[
-                      { titulo:'Full (Mercado Livre)', c:'comprimento_cm', l:'largura_cm', a:'altura_cm', corte:'papelao_full_cm' },
+                      { titulo:'Mercado Livre', c:'comprimento_cm', l:'largura_cm', a:'altura_cm', corte:'papelao_full_cm' },
                       { titulo:'Shopee', c:'shopee_comprimento_cm', l:'shopee_largura_cm', a:'shopee_altura_cm', corte:'papelao_shopee_cm' },
                     ].map(blk => {
                       const pv = pesoVolumetrico(form[blk.c], form[blk.l], form[blk.a]);
