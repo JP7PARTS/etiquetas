@@ -4,6 +4,19 @@ import ZPLOutput from './ZPLOutput.jsx';
 import { normalizeQuantity, copyZPL } from '../utils/zpl.js';
 import { backdropHandlers } from '../utils/backdrop.js';
 
+// Medidas da embalagem (envio) para exibição: "C×L×A cm · P kg · vol V kg".
+// Volumétrico = C×L×A(cm) / 6000, só quando as 3 medidas existem.
+const nnum = (v) => { if (v == null || v === '') return null; const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
+const kg = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: n < 1 ? 3 : 1, maximumFractionDigits: 3 });
+function medidasDe(sku) {
+  const c = nnum(sku.comprimento_cm), l = nnum(sku.largura_cm), a = nnum(sku.altura_cm), p = nnum(sku.peso_kg);
+  if (c == null && l == null && a == null && p == null) return null;
+  const dims = (c != null || l != null || a != null) ? `${[c, l, a].map(v => v != null ? v : '?').join('×')} cm` : null;
+  const peso = p != null ? `${kg(p)} kg` : null;
+  const vol = (c > 0 && l > 0 && a > 0) ? `vol ${kg((c * l * a) / 6000)} kg` : null;
+  return { dims, peso, vol };
+}
+
 let rowSeq = 1;
 function newRow(sku = null) {
   return { id: rowSeq++, selected: sku, search: sku ? sku.sku : '', quantity: 1, useAlt: false };
@@ -341,6 +354,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                       <th style={styles.colSku}>SKU</th>
                       <th style={styles.colDesc}>Descrição</th>
                       <th style={styles.colLocal}>Local</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: '12px', whiteSpace: 'nowrap' }}>Medidas</th>
                       <th style={styles.colAction}>Ação</th>
                     </tr>
                   </thead>
@@ -366,6 +380,15 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                         </td>
                         <td style={styles.colLocal}>
                           {sku.local ? <span style={styles.badge}>{sku.local}</span> : <span style={{color: 'var(--text-muted)'}}>—</span>}
+                        </td>
+                        <td style={{ padding: '8px 10px', fontSize: '12px', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
+                          {(() => { const m = medidasDe(sku);
+                            if (!m) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                            return <div>
+                              {m.dims && <div>{m.dims}{m.peso ? ` · ${m.peso}` : ''}</div>}
+                              {!m.dims && m.peso && <div>{m.peso}</div>}
+                              {m.vol && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.vol}</div>}
+                            </div>; })()}
                         </td>
                         <td style={styles.colAction}>
                           <button
