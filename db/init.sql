@@ -17,8 +17,17 @@ CREATE TABLE IF NOT EXISTS skus (
   descricao_curta VARCHAR(100),
   descricao_curta_2 VARCHAR(100),
   local VARCHAR(100),
+  comprimento_cm NUMERIC(8,1),
+  largura_cm NUMERIC(8,1),
+  altura_cm NUMERIC(8,1),
+  peso_kg NUMERIC(8,3),
   created_at TIMESTAMP DEFAULT NOW()
 );
+-- Medidas/peso da embalagem (envio) — para bancos que já tinham a tabela skus
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS comprimento_cm NUMERIC(8,1);
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS largura_cm NUMERIC(8,1);
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS altura_cm NUMERIC(8,1);
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS peso_kg NUMERIC(8,3);
 
 CREATE TABLE IF NOT EXISTS warning_labels (
   id SERIAL PRIMARY KEY,

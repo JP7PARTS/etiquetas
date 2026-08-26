@@ -321,7 +321,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                   ) : tableSearch.trim() && (
                     isAdmin ? (
                       <button type="button" className="btn-primary" style={{ marginTop: '10px' }}
-                        onClick={() => { setNewSku({ sku: tableSearch.trim().toUpperCase(), descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '' }); setNewErr(''); }}>
+                        onClick={() => { setNewSku({ sku: tableSearch.trim().toUpperCase(), descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '' }); setNewErr(''); }}>
                         ➕ Cadastrar SKU
                       </button>
                     ) : (
@@ -659,6 +659,17 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
               <div className="form-group">
                 <label>Localização</label>
                 <input value={newSku.local} onChange={e => setNewSku(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div className="form-group">
+                <label>Medidas da embalagem (envio) — opcional</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {[['comprimento_cm', 'Compr. cm'], ['largura_cm', 'Larg. cm'], ['altura_cm', 'Alt. cm'], ['peso_kg', 'Peso kg']].map(([n, lb]) => (
+                    <div key={n}>
+                      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>{lb}</label>
+                      <input type="number" min="0" step="0.1" value={newSku[n] ?? ''} onChange={e => setNewSku(f => ({ ...f, [n]: e.target.value }))} />
+                    </div>
+                  ))}
+                </div>
               </div>
               <div style={styles.modalFooter}>
                 <button type="button" className="btn-secondary" onClick={() => setNewSku(null)}>Cancelar</button>

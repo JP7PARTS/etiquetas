@@ -2,7 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
 import { backdropHandlers } from '../utils/backdrop.js';
 
-const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', descricao_curta_2: '', local: '' };
+const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', descricao_curta_2: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '' };
+
+// Peso volumétrico (kg) = C×L×A(cm) / 6000 (divisor padrão ML/Correios). Só com as 3 medidas.
+function pesoVolumetrico(c, l, a) {
+  const nc = parseFloat(String(c).replace(',', '.')), nl = parseFloat(String(l).replace(',', '.')), na = parseFloat(String(a).replace(',', '.'));
+  if (!(nc > 0) || !(nl > 0) || !(na > 0)) return null;
+  return (nc * nl * na) / 6000;
+}
 
 export default function SKUManagement() {
   const backdropDown = useRef(false);
@@ -39,6 +46,7 @@ export default function SKUManagement() {
     const iSku = idx('sku');
     if (iSku === -1) return { rows: [], error: 'A planilha precisa de uma coluna "sku".' };
     const iL = idx('descricao_longa'), iC = idx('descricao_curta'), iC2 = idx('descricao_curta_2'), iLoc = idx('local');
+    const iComp = idx('comprimento_cm'), iLarg = idx('largura_cm'), iAlt = idx('altura_cm'), iPeso = idx('peso_kg');
     const rows = [];
     for (let n = 1; n < lines.length; n++) {
       const c = splitLine(lines[n]);
@@ -50,6 +58,10 @@ export default function SKUManagement() {
         descricao_curta: iC > -1 ? c[iC] || '' : '',
         descricao_curta_2: iC2 > -1 ? c[iC2] || '' : '',
         local: iLoc > -1 ? c[iLoc] || '' : '',
+        comprimento_cm: iComp > -1 ? c[iComp] || '' : '',
+        largura_cm: iLarg > -1 ? c[iLarg] || '' : '',
+        altura_cm: iAlt > -1 ? c[iAlt] || '' : '',
+        peso_kg: iPeso > -1 ? c[iPeso] || '' : '',
       });
     }
     return { rows, error: rows.length === 0 ? 'Nenhum SKU válido encontrado na planilha.' : '' };
@@ -105,10 +117,10 @@ export default function SKUManagement() {
     URL.revokeObjectURL(url);
   }
 
-  const CSV_HEADER = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local';
+  const CSV_HEADER = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local;comprimento_cm;largura_cm;altura_cm;peso_kg';
 
   function downloadTemplate() {
-    saveCSV(CSV_HEADER + '\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1\n', 'modelo_skus.csv');
+    saveCSV(CSV_HEADER + '\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1;20;15;10;0.300\n', 'modelo_skus.csv');
   }
 
   const [exporting, setExporting] = useState(false);
@@ -117,7 +129,7 @@ export default function SKUManagement() {
     try {
       const res = await api.get('/skus'); // todos, sem filtro
       const rows = res.data.map(s =>
-        [s.sku, s.descricao_longa, s.descricao_curta, s.descricao_curta_2, s.local].map(csvField).join(';')
+        [s.sku, s.descricao_longa, s.descricao_curta, s.descricao_curta_2, s.local, s.comprimento_cm, s.largura_cm, s.altura_cm, s.peso_kg].map(csvField).join(';')
       );
       const stamp = new Date().toISOString().slice(0, 10);
       saveCSV(CSV_HEADER + '\n' + rows.join('\n') + '\n', `skus_${stamp}.csv`);
@@ -161,6 +173,10 @@ export default function SKUManagement() {
       descricao_curta: sku.descricao_curta || '',
       descricao_curta_2: sku.descricao_curta_2 || '',
       local: sku.local || '',
+      comprimento_cm: sku.comprimento_cm ?? '',
+      largura_cm: sku.largura_cm ?? '',
+      altura_cm: sku.altura_cm ?? '',
+      peso_kg: sku.peso_kg ?? '',
     });
     setEditId(sku.id);
     setModal('edit');
@@ -325,6 +341,7 @@ export default function SKUManagement() {
                   <th>Descrição Curta</th>
                   <th>Descrição Longa</th>
                   <th>Local</th>
+                  <th>Medidas</th>
                   <th style={{textAlign:'right'}}>Ações</th>
                 </tr>
               </thead>
@@ -356,6 +373,15 @@ export default function SKUManagement() {
                         ? <span style={styles.localBadge}>{s.local}</span>
                         : <span style={{color:'var(--text-muted)'}}>—</span>
                       }
+                    </td>
+                    <td style={{whiteSpace:'nowrap', fontSize:'12.5px'}}>
+                      {(s.comprimento_cm || s.largura_cm || s.altura_cm || s.peso_kg) ? (
+                        <span title="C×L×A (cm) · peso (kg)">
+                          {(s.comprimento_cm != null || s.largura_cm != null || s.altura_cm != null)
+                            && <span>{[s.comprimento_cm, s.largura_cm, s.altura_cm].map(v => v != null ? (+v) : '?').join('×')} cm</span>}
+                          {s.peso_kg != null && <span style={{color:'var(--text-secondary)'}}> · {(+s.peso_kg)} kg</span>}
+                        </span>
+                      ) : <span style={{color:'var(--text-muted)'}}>—</span>}
                     </td>
                     <td>
                       <div style={{display:'flex', gap:'6px', justifyContent:'flex-end'}}>
@@ -472,6 +498,29 @@ export default function SKUManagement() {
                   maxLength={100}
                 />
               </div>
+              <div className="form-group">
+                <label>Medidas da embalagem (envio)</label>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'8px'}}>
+                  {[
+                    { name:'comprimento_cm', label:'Compr. (cm)', ph:'20' },
+                    { name:'largura_cm', label:'Larg. (cm)', ph:'15' },
+                    { name:'altura_cm', label:'Alt. (cm)', ph:'10' },
+                    { name:'peso_kg', label:'Peso (kg)', ph:'0,300' },
+                  ].map(f => (
+                    <div key={f.name}>
+                      <label htmlFor={'modal-' + f.name} style={{fontSize:'11.5px', color:'var(--text-muted)', display:'block', marginBottom:'3px'}}>{f.label}</label>
+                      <input id={'modal-' + f.name} name={f.name} type="number" min="0" step="0.1"
+                        value={form[f.name]} onChange={handleFormChange} placeholder={f.ph} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{fontSize:'11.5px', color:'var(--text-muted)', marginTop:'6px'}}>
+                  {(() => { const pv = pesoVolumetrico(form.comprimento_cm, form.largura_cm, form.altura_cm);
+                    return pv != null
+                      ? <>Peso volumétrico calculado: <b>{pv.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</b> (C×L×A ÷ 6000)</>
+                      : 'Preencha C, L e A para calcular o peso volumétrico. Opcional — preencha aos poucos.'; })()}
+                </div>
+              </div>
               <div style={{display:'flex', gap:'8px', justifyContent:'flex-end', paddingTop:'8px', borderTop:'1px solid var(--border)'}}>
                 <button type="button" className="btn-secondary" onClick={closeModal}>
                   Cancelar
@@ -511,7 +560,7 @@ export default function SKUManagement() {
               </ol>
 
               <p style={{fontSize:'12px', color:'var(--text-muted)', marginBottom:'14px'}}>
-                Colunas: <code style={styles.code}>sku</code>, <code style={styles.code}>descricao_longa</code>, <code style={styles.code}>descricao_curta</code>, <code style={styles.code}>descricao_curta_2</code>, <code style={styles.code}>local</code>. Só <b>sku</b> é obrigatório. SKUs já existentes são atualizados.
+                Colunas: <code style={styles.code}>sku</code>, <code style={styles.code}>descricao_longa</code>, <code style={styles.code}>descricao_curta</code>, <code style={styles.code}>descricao_curta_2</code>, <code style={styles.code}>local</code>, <code style={styles.code}>comprimento_cm</code>, <code style={styles.code}>largura_cm</code>, <code style={styles.code}>altura_cm</code>, <code style={styles.code}>peso_kg</code>. Só <b>sku</b> é obrigatório. SKUs já existentes são atualizados.
               </p>
 
               <div style={{marginBottom:'8px'}}>

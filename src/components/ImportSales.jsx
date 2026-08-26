@@ -7,7 +7,7 @@ function nowLocal() {
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-const emptySku = { sku: '', descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '' };
+const emptySku = { sku: '', descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '' };
 
 const MESES = {
   janeiro: 0, fevereiro: 1, 'março': 2, marco: 2, abril: 3, maio: 4, junho: 5,
@@ -587,6 +587,17 @@ export default function ImportSales({ user, onSendToLote }) {
               <div className="form-group">
                 <label>Localização</label>
                 <input value={skuForm.local} onChange={e => setSkuForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div className="form-group">
+                <label>Medidas da embalagem (envio) — opcional</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {[['comprimento_cm', 'Compr. cm'], ['largura_cm', 'Larg. cm'], ['altura_cm', 'Alt. cm'], ['peso_kg', 'Peso kg']].map(([n, lb]) => (
+                    <div key={n}>
+                      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>{lb}</label>
+                      <input type="number" min="0" step="0.1" value={skuForm[n] ?? ''} onChange={e => setSkuForm(f => ({ ...f, [n]: e.target.value }))} />
+                    </div>
+                  ))}
+                </div>
               </div>
               <div style={styles.modalFooter}>
                 <button type="button" className="btn-secondary" onClick={() => setSkuForm(null)}>Cancelar</button>

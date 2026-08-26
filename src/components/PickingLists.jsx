@@ -4,7 +4,7 @@ import { backdropHandlers } from '../utils/backdrop.js';
 
 function fmtDate(s) { try { return new Date(s).toLocaleString('pt-BR'); } catch { return s; } }
 
-const emptySku = { sku: '', descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '' };
+const emptySku = { sku: '', descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '' };
 
 export default function PickingLists({ user }) {
   const isAdmin = user?.role === 'admin';
@@ -425,6 +425,17 @@ export default function PickingLists({ user }) {
               <div className="form-group">
                 <label>Localização</label>
                 <input value={skuForm.local} onChange={e => setSkuForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
+              </div>
+              <div className="form-group">
+                <label>Medidas da embalagem (envio) — opcional</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {[['comprimento_cm', 'Compr. cm'], ['largura_cm', 'Larg. cm'], ['altura_cm', 'Alt. cm'], ['peso_kg', 'Peso kg']].map(([n, lb]) => (
+                    <div key={n}>
+                      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>{lb}</label>
+                      <input type="number" min="0" step="0.1" value={skuForm[n] ?? ''} onChange={e => setSkuForm(f => ({ ...f, [n]: e.target.value }))} />
+                    </div>
+                  ))}
+                </div>
               </div>
               <div style={styles.modalFooter}>
                 <button type="button" className="btn-secondary" onClick={() => setSkuForm(null)}>Cancelar</button>

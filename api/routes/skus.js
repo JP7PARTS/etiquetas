@@ -4,6 +4,23 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Garante as colunas de medidas/peso (idempotente), sem depender de migração manual.
+let ready = null;
+const ensureColumns = () => {
+  if (!ready) ready = db.query(`
+    ALTER TABLE skus
+      ADD COLUMN IF NOT EXISTS comprimento_cm NUMERIC(8,1),
+      ADD COLUMN IF NOT EXISTS largura_cm NUMERIC(8,1),
+      ADD COLUMN IF NOT EXISTS altura_cm NUMERIC(8,1),
+      ADD COLUMN IF NOT EXISTS peso_kg NUMERIC(8,3)
+  `).catch(e => { ready = null; throw e; });
+  return ready;
+};
+router.use(async (req, res, next) => { try { await ensureColumns(); next(); } catch (e) { console.error('ensure skus columns:', e); res.status(500).json({ error: 'Erro ao preparar tabela de SKUs' }); } });
+
+// '' / inválido -> null; senão número (medidas/peso)
+const numOrNull = (v) => { if (v === '' || v == null) return null; const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
+
 // GET /api/skus
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -53,14 +70,19 @@ router.post('/import', authenticate, requireAdmin, async (req, res) => {
     if (!sku) { ignorados++; continue; }
     try {
       await db.query(
-        `INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (sku) DO UPDATE SET
            descricao_longa = EXCLUDED.descricao_longa,
            descricao_curta = EXCLUDED.descricao_curta,
            descricao_curta_2 = EXCLUDED.descricao_curta_2,
-           local = EXCLUDED.local`,
-        [sku, it.descricao_longa || null, it.descricao_curta || null, it.descricao_curta_2 || null, it.local || null]
+           local = EXCLUDED.local,
+           comprimento_cm = EXCLUDED.comprimento_cm,
+           largura_cm = EXCLUDED.largura_cm,
+           altura_cm = EXCLUDED.altura_cm,
+           peso_kg = EXCLUDED.peso_kg`,
+        [sku, it.descricao_longa || null, it.descricao_curta || null, it.descricao_curta_2 || null, it.local || null,
+         numOrNull(it.comprimento_cm), numOrNull(it.largura_cm), numOrNull(it.altura_cm), numOrNull(it.peso_kg)]
       );
       processados++;
     } catch (err) {
@@ -74,15 +96,16 @@ router.post('/import', authenticate, requireAdmin, async (req, res) => {
 
 // POST /api/skus
 router.post('/', authenticate, requireAdmin, async (req, res) => {
-  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local } = req.body;
+  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg } = req.body;
   if (!sku) {
     return res.status(400).json({ error: 'SKU é obrigatório' });
   }
 
   try {
     const result = await db.query(
-      'INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null]
+      'INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null,
+       numOrNull(comprimento_cm), numOrNull(largura_cm), numOrNull(altura_cm), numOrNull(peso_kg)]
     );
     // Cadastrar resolve automaticamente uma eventual solicitação pendente
     await db.query('DELETE FROM sku_requests WHERE UPPER(sku) = UPPER($1)', [sku.trim()]).catch(() => {});
@@ -98,15 +121,16 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
 // PUT /api/skus/:id
 router.put('/:id', authenticate, requireAdmin, async (req, res) => {
-  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local } = req.body;
+  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg } = req.body;
   if (!sku) {
     return res.status(400).json({ error: 'SKU é obrigatório' });
   }
 
   try {
     const result = await db.query(
-      'UPDATE skus SET sku = $1, descricao_longa = $2, descricao_curta = $3, descricao_curta_2 = $4, local = $5 WHERE id = $6 RETURNING *',
-      [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null, req.params.id]
+      'UPDATE skus SET sku = $1, descricao_longa = $2, descricao_curta = $3, descricao_curta_2 = $4, local = $5, comprimento_cm = $6, largura_cm = $7, altura_cm = $8, peso_kg = $9 WHERE id = $10 RETURNING *',
+      [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null,
+       numOrNull(comprimento_cm), numOrNull(largura_cm), numOrNull(altura_cm), numOrNull(peso_kg), req.params.id]
     );
     if (!result.rows[0]) {
       return res.status(404).json({ error: 'SKU não encontrado' });
