@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Login from './components/Login.jsx';
 import Layout from './components/Layout.jsx';
 import SKUManagement from './components/SKUManagement.jsx';
+import Embalagens from './components/Embalagens.jsx';
 import GenerateFromSKU from './components/GenerateFromSKU.jsx';
 import GenerateCustom from './components/GenerateCustom.jsx';
 import WarningLabels from './components/WarningLabels.jsx';
@@ -52,6 +53,8 @@ export default function App() {
   let content;
   if (page === 'skus' && user.role === 'admin') {
     content = <SKUManagement />;
+  } else if (page === 'embalagens' && user.role === 'admin') {
+    content = <Embalagens />;
   } else if (page === 'users' && user.role === 'admin') {
     content = <UserManagement user={user} />;
   } else if (page === 'history' && user.role === 'admin') {

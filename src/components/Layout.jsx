@@ -19,6 +19,7 @@ const navSections = [
       { id: 'full', label: 'Envio Full', icon: '🚚', roles: ['admin'] },
       { id: 'full-tempo', label: 'Tempo de estoque', icon: '⏳', roles: ['admin'] },
       { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
+      { id: 'embalagens', label: 'Embalagens', icon: '📮', roles: ['admin'] },
       { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
       { id: 'history', label: 'Histórico', icon: '🕑', roles: ['admin'] },
       { id: 'sku-usage', label: 'Ranking SKUs', icon: '📊', roles: ['admin'] },

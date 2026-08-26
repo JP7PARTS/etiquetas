@@ -2,7 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
 import { backdropHandlers } from '../utils/backdrop.js';
 
-const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', descricao_curta_2: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '' };
+const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', descricao_curta_2: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '', tipo_envio: '', embalagem_id: '' };
+
+// Rótulo do tipo de envio para a coluna Medidas
+const TIPO_ENVIO_LABEL = {
+  propria: { txt: '📦 Emb. própria', color: '#2b6cb0', bg: '#ebf8ff' },
+  sem: { txt: '⚠️ Sem embalagem', color: '#c05621', bg: '#fffaf0' },
+  padrao: { txt: '📦', color: '#276749', bg: '#f0fff4' }, // nome da embalagem entra ao lado
+};
 
 // Peso volumétrico (kg) = C×L×A(cm) / 6000 (divisor padrão ML/Correios). Só com as 3 medidas.
 function pesoVolumetrico(c, l, a) {
@@ -29,10 +36,14 @@ export default function SKUManagement() {
   const [importRows, setImportRows] = useState(null);
   const [importErr, setImportErr] = useState('');
   const [importing, setImporting] = useState(false);
+  const [embalagens, setEmbalagens] = useState([]);
 
   useEffect(() => {
     loadSKUs();
+    api.get('/embalagens').then(r => setEmbalagens(r.data || [])).catch(() => {});
   }, []);
+
+  const embMap = React.useMemo(() => { const m = {}; embalagens.forEach(e => { m[e.id] = e; }); return m; }, [embalagens]);
 
   // ---- Importação de planilha CSV ----
   function parseCSV(text) {
@@ -46,7 +57,7 @@ export default function SKUManagement() {
     const iSku = idx('sku');
     if (iSku === -1) return { rows: [], error: 'A planilha precisa de uma coluna "sku".' };
     const iL = idx('descricao_longa'), iC = idx('descricao_curta'), iC2 = idx('descricao_curta_2'), iLoc = idx('local');
-    const iComp = idx('comprimento_cm'), iLarg = idx('largura_cm'), iAlt = idx('altura_cm'), iPeso = idx('peso_kg');
+    const iComp = idx('comprimento_cm'), iLarg = idx('largura_cm'), iAlt = idx('altura_cm'), iPeso = idx('peso_kg'), iTipo = idx('tipo_envio');
     const rows = [];
     for (let n = 1; n < lines.length; n++) {
       const c = splitLine(lines[n]);
@@ -62,6 +73,7 @@ export default function SKUManagement() {
         largura_cm: iLarg > -1 ? c[iLarg] || '' : '',
         altura_cm: iAlt > -1 ? c[iAlt] || '' : '',
         peso_kg: iPeso > -1 ? c[iPeso] || '' : '',
+        tipo_envio: iTipo > -1 ? (c[iTipo] || '').trim().toLowerCase() : '',
       });
     }
     return { rows, error: rows.length === 0 ? 'Nenhum SKU válido encontrado na planilha.' : '' };
@@ -117,10 +129,10 @@ export default function SKUManagement() {
     URL.revokeObjectURL(url);
   }
 
-  const CSV_HEADER = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local;comprimento_cm;largura_cm;altura_cm;peso_kg';
+  const CSV_HEADER = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local;comprimento_cm;largura_cm;altura_cm;peso_kg;tipo_envio';
 
   function downloadTemplate() {
-    saveCSV(CSV_HEADER + '\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1;20;15;10;0.300\n', 'modelo_skus.csv');
+    saveCSV(CSV_HEADER + '\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1;20;15;10;0.300;padrao\n', 'modelo_skus.csv');
   }
 
   const [exporting, setExporting] = useState(false);
@@ -129,7 +141,7 @@ export default function SKUManagement() {
     try {
       const res = await api.get('/skus'); // todos, sem filtro
       const rows = res.data.map(s =>
-        [s.sku, s.descricao_longa, s.descricao_curta, s.descricao_curta_2, s.local, s.comprimento_cm, s.largura_cm, s.altura_cm, s.peso_kg].map(csvField).join(';')
+        [s.sku, s.descricao_longa, s.descricao_curta, s.descricao_curta_2, s.local, s.comprimento_cm, s.largura_cm, s.altura_cm, s.peso_kg, s.tipo_envio].map(csvField).join(';')
       );
       const stamp = new Date().toISOString().slice(0, 10);
       saveCSV(CSV_HEADER + '\n' + rows.join('\n') + '\n', `skus_${stamp}.csv`);
@@ -177,6 +189,8 @@ export default function SKUManagement() {
       largura_cm: sku.largura_cm ?? '',
       altura_cm: sku.altura_cm ?? '',
       peso_kg: sku.peso_kg ?? '',
+      tipo_envio: sku.tipo_envio || '',
+      embalagem_id: sku.embalagem_id ?? '',
     });
     setEditId(sku.id);
     setModal('edit');
@@ -191,6 +205,21 @@ export default function SKUManagement() {
   function handleFormChange(e) {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: name === 'sku' ? value.toUpperCase() : value }));
+  }
+
+  function handleTipoEnvio(v) {
+    // Ao sair de "padrão", desvincula a embalagem (as medidas já digitadas ficam)
+    setForm(f => ({ ...f, tipo_envio: v, ...(v !== 'padrao' ? { embalagem_id: '' } : {}) }));
+  }
+
+  function escolherEmbalagem(id) {
+    const e = embMap[id];
+    setForm(f => ({
+      ...f,
+      embalagem_id: id,
+      // auto-preenche C×L×A (editável); peso segue manual
+      ...(e ? { comprimento_cm: e.comprimento_cm ?? '', largura_cm: e.largura_cm ?? '', altura_cm: e.altura_cm ?? '' } : {}),
+    }));
   }
 
   async function handleSave(e) {
@@ -375,6 +404,11 @@ export default function SKUManagement() {
                       }
                     </td>
                     <td style={{whiteSpace:'nowrap', fontSize:'12.5px'}}>
+                      {s.tipo_envio && TIPO_ENVIO_LABEL[s.tipo_envio] && (() => { const t = TIPO_ENVIO_LABEL[s.tipo_envio];
+                        const nome = s.tipo_envio === 'padrao' ? (embMap[s.embalagem_id]?.nome || 'padrão') : '';
+                        return <div style={{marginBottom:'2px'}}>
+                          <span style={{display:'inline-block', padding:'1px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:700, color:t.color, background:t.bg}}>{t.txt}{nome ? ' ' + nome : ''}</span>
+                        </div>; })()}
                       {(s.comprimento_cm || s.largura_cm || s.altura_cm || s.peso_kg) ? (
                         (() => { const pv = pesoVolumetrico(s.comprimento_cm, s.largura_cm, s.altura_cm);
                           return <span title="C×L×A (cm) · peso (kg) · peso volumétrico (C×L×A÷6000)">
@@ -501,6 +535,31 @@ export default function SKUManagement() {
                 />
               </div>
               <div className="form-group">
+                <label htmlFor="modal-tipo-envio">Tipo de envio</label>
+                <select id="modal-tipo-envio" name="tipo_envio" value={form.tipo_envio} onChange={e => handleTipoEnvio(e.target.value)}>
+                  <option value="">Não definido</option>
+                  <option value="propria">Embalagem própria (do anúncio)</option>
+                  <option value="padrao">Embalagem padrão (P/M/G)</option>
+                  <option value="sem">Sem embalagem (sempre embalar)</option>
+                </select>
+                {form.tipo_envio === 'padrao' && (
+                  <div style={{marginTop:'8px'}}>
+                    <label htmlFor="modal-embalagem" style={{fontSize:'12px', color:'var(--text-muted)'}}>Embalagem</label>
+                    <select id="modal-embalagem" value={form.embalagem_id} onChange={e => escolherEmbalagem(e.target.value)}>
+                      <option value="">Escolher...</option>
+                      {embalagens.map(e => (
+                        <option key={e.id} value={e.id}>
+                          {e.nome}{(e.comprimento_cm != null || e.largura_cm != null || e.altura_cm != null) ? ` (${[e.comprimento_cm, e.largura_cm, e.altura_cm].map(v => v != null ? (+v) : '?').join('×')} cm)` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <div style={{fontSize:'11.5px', color:'var(--text-muted)', marginTop:'4px'}}>
+                      {embalagens.length === 0 ? 'Nenhuma embalagem cadastrada — crie em "Embalagens".' : 'As medidas abaixo são preenchidas pela embalagem (você pode ajustar). O peso é manual.'}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
                 <label>Medidas da embalagem (envio)</label>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'8px'}}>
                   {[
@@ -562,7 +621,7 @@ export default function SKUManagement() {
               </ol>
 
               <p style={{fontSize:'12px', color:'var(--text-muted)', marginBottom:'14px'}}>
-                Colunas: <code style={styles.code}>sku</code>, <code style={styles.code}>descricao_longa</code>, <code style={styles.code}>descricao_curta</code>, <code style={styles.code}>descricao_curta_2</code>, <code style={styles.code}>local</code>, <code style={styles.code}>comprimento_cm</code>, <code style={styles.code}>largura_cm</code>, <code style={styles.code}>altura_cm</code>, <code style={styles.code}>peso_kg</code>. Só <b>sku</b> é obrigatório. SKUs já existentes são atualizados.
+                Colunas: <code style={styles.code}>sku</code>, <code style={styles.code}>descricao_longa</code>, <code style={styles.code}>descricao_curta</code>, <code style={styles.code}>descricao_curta_2</code>, <code style={styles.code}>local</code>, <code style={styles.code}>comprimento_cm</code>, <code style={styles.code}>largura_cm</code>, <code style={styles.code}>altura_cm</code>, <code style={styles.code}>peso_kg</code>, <code style={styles.code}>tipo_envio</code> (propria/padrao/sem). Só <b>sku</b> é obrigatório. SKUs já existentes são atualizados.
               </p>
 
               <div style={{marginBottom:'8px'}}>

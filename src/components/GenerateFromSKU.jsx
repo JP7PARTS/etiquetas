@@ -17,6 +17,12 @@ function medidasDe(sku) {
   return { dims, peso, vol };
 }
 
+const TIPO_ENVIO_LABEL = {
+  propria: { txt: '📦 Emb. própria', color: '#2b6cb0', bg: '#ebf8ff' },
+  sem: { txt: '⚠️ Sem embalagem', color: '#c05621', bg: '#fffaf0' },
+  padrao: { txt: '📦', color: '#276749', bg: '#f0fff4' },
+};
+
 let rowSeq = 1;
 function newRow(sku = null) {
   return { id: rowSeq++, selected: sku, search: sku ? sku.sku : '', quantity: 1, useAlt: false };
@@ -25,6 +31,8 @@ function newRow(sku = null) {
 export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
   const isAdmin = user?.role === 'admin';
   const [skus, setSkus] = useState([]);
+  const [embalagens, setEmbalagens] = useState([]);
+  const embMap = React.useMemo(() => { const m = {}; embalagens.forEach(e => { m[e.id] = e; }); return m; }, [embalagens]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -78,6 +86,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
 
   useEffect(() => {
     loadSKUs();
+    api.get('/embalagens').then(r => setEmbalagens(r.data || [])).catch(() => {});
     // Recarrega o catálogo ao voltar o foco para a aba (pega SKUs recém-cadastrados)
     const onFocus = () => loadSKUs(true);
     window.addEventListener('focus', onFocus);
@@ -382,8 +391,11 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                           {sku.local ? <span style={styles.badge}>{sku.local}</span> : <span style={{color: 'var(--text-muted)'}}>—</span>}
                         </td>
                         <td style={{ padding: '8px 10px', fontSize: '12px', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
+                          {sku.tipo_envio && TIPO_ENVIO_LABEL[sku.tipo_envio] && (() => { const t = TIPO_ENVIO_LABEL[sku.tipo_envio];
+                            const nome = sku.tipo_envio === 'padrao' ? (embMap[sku.embalagem_id]?.nome || 'padrão') : '';
+                            return <div style={{ marginBottom: '2px' }}><span style={{ display: 'inline-block', padding: '1px 7px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, color: t.color, background: t.bg }}>{t.txt}{nome ? ' ' + nome : ''}</span></div>; })()}
                           {(() => { const m = medidasDe(sku);
-                            if (!m) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                            if (!m) return !sku.tipo_envio && <span style={{ color: 'var(--text-muted)' }}>—</span>;
                             return <div>
                               {m.dims && <div>{m.dims}{m.peso ? ` · ${m.peso}` : ''}</div>}
                               {!m.dims && m.peso && <div>{m.peso}</div>}

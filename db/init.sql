@@ -28,6 +28,19 @@ ALTER TABLE skus ADD COLUMN IF NOT EXISTS comprimento_cm NUMERIC(8,1);
 ALTER TABLE skus ADD COLUMN IF NOT EXISTS largura_cm NUMERIC(8,1);
 ALTER TABLE skus ADD COLUMN IF NOT EXISTS altura_cm NUMERIC(8,1);
 ALTER TABLE skus ADD COLUMN IF NOT EXISTS peso_kg NUMERIC(8,3);
+-- Tipo de envio + embalagem padrão vinculada
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS tipo_envio VARCHAR(20);
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS embalagem_id INTEGER;
+
+-- Embalagens padrão (P/M/G) com medidas conhecidas — auto-preenchem os SKUs
+CREATE TABLE IF NOT EXISTS embalagens (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(60) NOT NULL,
+  comprimento_cm NUMERIC(8,1),
+  largura_cm NUMERIC(8,1),
+  altura_cm NUMERIC(8,1),
+  created_at TIMESTAMP DEFAULT NOW()
+);
 
 CREATE TABLE IF NOT EXISTS warning_labels (
   id SERIAL PRIMARY KEY,
