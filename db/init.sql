@@ -31,6 +31,12 @@ ALTER TABLE skus ADD COLUMN IF NOT EXISTS peso_kg NUMERIC(8,3);
 -- Tipo de envio + embalagem padrão vinculada
 ALTER TABLE skus ADD COLUMN IF NOT EXISTS tipo_envio VARCHAR(20);
 ALTER TABLE skus ADD COLUMN IF NOT EXISTS embalagem_id INTEGER;
+-- Rolo de papelão: medidas Shopee (Full reusa comprimento/largura/altura) + comprimento a cortar
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS shopee_comprimento_cm NUMERIC(8,1);
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS shopee_largura_cm NUMERIC(8,1);
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS shopee_altura_cm NUMERIC(8,1);
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS papelao_full_cm NUMERIC(8,1);
+ALTER TABLE skus ADD COLUMN IF NOT EXISTS papelao_shopee_cm NUMERIC(8,1);
 
 -- Embalagens padrão (P/M/G) com medidas conhecidas — auto-preenchem os SKUs
 CREATE TABLE IF NOT EXISTS embalagens (

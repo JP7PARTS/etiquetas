@@ -14,7 +14,12 @@ const ensureColumns = () => {
       ADD COLUMN IF NOT EXISTS altura_cm NUMERIC(8,1),
       ADD COLUMN IF NOT EXISTS peso_kg NUMERIC(8,3),
       ADD COLUMN IF NOT EXISTS tipo_envio VARCHAR(20),
-      ADD COLUMN IF NOT EXISTS embalagem_id INTEGER
+      ADD COLUMN IF NOT EXISTS embalagem_id INTEGER,
+      ADD COLUMN IF NOT EXISTS shopee_comprimento_cm NUMERIC(8,1),
+      ADD COLUMN IF NOT EXISTS shopee_largura_cm NUMERIC(8,1),
+      ADD COLUMN IF NOT EXISTS shopee_altura_cm NUMERIC(8,1),
+      ADD COLUMN IF NOT EXISTS papelao_full_cm NUMERIC(8,1),
+      ADD COLUMN IF NOT EXISTS papelao_shopee_cm NUMERIC(8,1)
   `).catch(e => { ready = null; throw e; });
   return ready;
 };
@@ -22,7 +27,7 @@ router.use(async (req, res, next) => { try { await ensureColumns(); next(); } ca
 
 // '' / inválido -> null; senão número (medidas/peso)
 const numOrNull = (v) => { if (v === '' || v == null) return null; const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
-const TIPOS_ENVIO = ['propria', 'padrao', 'sem'];
+const TIPOS_ENVIO = ['propria', 'padrao', 'sem', 'papelao'];
 const tipoEnvio = (v) => TIPOS_ENVIO.includes(v) ? v : null;
 const intOrNull = (v) => { if (v === '' || v == null) return null; const n = parseInt(v, 10); return Number.isInteger(n) ? n : null; };
 
@@ -75,8 +80,8 @@ router.post('/import', authenticate, requireAdmin, async (req, res) => {
     if (!sku) { ignorados++; continue; }
     try {
       await db.query(
-        `INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg, tipo_envio, embalagem_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg, tipo_envio, embalagem_id, shopee_comprimento_cm, shopee_largura_cm, shopee_altura_cm, papelao_full_cm, papelao_shopee_cm)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          ON CONFLICT (sku) DO UPDATE SET
            descricao_longa = EXCLUDED.descricao_longa,
            descricao_curta = EXCLUDED.descricao_curta,
@@ -87,10 +92,17 @@ router.post('/import', authenticate, requireAdmin, async (req, res) => {
            altura_cm = EXCLUDED.altura_cm,
            peso_kg = EXCLUDED.peso_kg,
            tipo_envio = EXCLUDED.tipo_envio,
-           embalagem_id = EXCLUDED.embalagem_id`,
+           embalagem_id = EXCLUDED.embalagem_id,
+           shopee_comprimento_cm = EXCLUDED.shopee_comprimento_cm,
+           shopee_largura_cm = EXCLUDED.shopee_largura_cm,
+           shopee_altura_cm = EXCLUDED.shopee_altura_cm,
+           papelao_full_cm = EXCLUDED.papelao_full_cm,
+           papelao_shopee_cm = EXCLUDED.papelao_shopee_cm`,
         [sku, it.descricao_longa || null, it.descricao_curta || null, it.descricao_curta_2 || null, it.local || null,
          numOrNull(it.comprimento_cm), numOrNull(it.largura_cm), numOrNull(it.altura_cm), numOrNull(it.peso_kg),
-         tipoEnvio(it.tipo_envio), intOrNull(it.embalagem_id)]
+         tipoEnvio(it.tipo_envio), intOrNull(it.embalagem_id),
+         numOrNull(it.shopee_comprimento_cm), numOrNull(it.shopee_largura_cm), numOrNull(it.shopee_altura_cm),
+         numOrNull(it.papelao_full_cm), numOrNull(it.papelao_shopee_cm)]
       );
       processados++;
     } catch (err) {
@@ -104,16 +116,17 @@ router.post('/import', authenticate, requireAdmin, async (req, res) => {
 
 // POST /api/skus
 router.post('/', authenticate, requireAdmin, async (req, res) => {
-  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg, tipo_envio, embalagem_id } = req.body;
+  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg, tipo_envio, embalagem_id, shopee_comprimento_cm, shopee_largura_cm, shopee_altura_cm, papelao_full_cm, papelao_shopee_cm } = req.body;
   if (!sku) {
     return res.status(400).json({ error: 'SKU é obrigatório' });
   }
 
   try {
     const result = await db.query(
-      'INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg, tipo_envio, embalagem_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+      'INSERT INTO skus (sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg, tipo_envio, embalagem_id, shopee_comprimento_cm, shopee_largura_cm, shopee_altura_cm, papelao_full_cm, papelao_shopee_cm) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
       [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null,
-       numOrNull(comprimento_cm), numOrNull(largura_cm), numOrNull(altura_cm), numOrNull(peso_kg), tipoEnvio(tipo_envio), intOrNull(embalagem_id)]
+       numOrNull(comprimento_cm), numOrNull(largura_cm), numOrNull(altura_cm), numOrNull(peso_kg), tipoEnvio(tipo_envio), intOrNull(embalagem_id),
+       numOrNull(shopee_comprimento_cm), numOrNull(shopee_largura_cm), numOrNull(shopee_altura_cm), numOrNull(papelao_full_cm), numOrNull(papelao_shopee_cm)]
     );
     // Cadastrar resolve automaticamente uma eventual solicitação pendente
     await db.query('DELETE FROM sku_requests WHERE UPPER(sku) = UPPER($1)', [sku.trim()]).catch(() => {});
@@ -129,16 +142,17 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
 // PUT /api/skus/:id
 router.put('/:id', authenticate, requireAdmin, async (req, res) => {
-  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg, tipo_envio, embalagem_id } = req.body;
+  const { sku, descricao_longa, descricao_curta, descricao_curta_2, local, comprimento_cm, largura_cm, altura_cm, peso_kg, tipo_envio, embalagem_id, shopee_comprimento_cm, shopee_largura_cm, shopee_altura_cm, papelao_full_cm, papelao_shopee_cm } = req.body;
   if (!sku) {
     return res.status(400).json({ error: 'SKU é obrigatório' });
   }
 
   try {
     const result = await db.query(
-      'UPDATE skus SET sku = $1, descricao_longa = $2, descricao_curta = $3, descricao_curta_2 = $4, local = $5, comprimento_cm = $6, largura_cm = $7, altura_cm = $8, peso_kg = $9, tipo_envio = $10, embalagem_id = $11 WHERE id = $12 RETURNING *',
+      'UPDATE skus SET sku = $1, descricao_longa = $2, descricao_curta = $3, descricao_curta_2 = $4, local = $5, comprimento_cm = $6, largura_cm = $7, altura_cm = $8, peso_kg = $9, tipo_envio = $10, embalagem_id = $11, shopee_comprimento_cm = $12, shopee_largura_cm = $13, shopee_altura_cm = $14, papelao_full_cm = $15, papelao_shopee_cm = $16 WHERE id = $17 RETURNING *',
       [sku.trim().toUpperCase(), descricao_longa || null, descricao_curta || null, descricao_curta_2 || null, local || null,
-       numOrNull(comprimento_cm), numOrNull(largura_cm), numOrNull(altura_cm), numOrNull(peso_kg), tipoEnvio(tipo_envio), intOrNull(embalagem_id), req.params.id]
+       numOrNull(comprimento_cm), numOrNull(largura_cm), numOrNull(altura_cm), numOrNull(peso_kg), tipoEnvio(tipo_envio), intOrNull(embalagem_id),
+       numOrNull(shopee_comprimento_cm), numOrNull(shopee_largura_cm), numOrNull(shopee_altura_cm), numOrNull(papelao_full_cm), numOrNull(papelao_shopee_cm), req.params.id]
     );
     if (!result.rows[0]) {
       return res.status(404).json({ error: 'SKU não encontrado' });

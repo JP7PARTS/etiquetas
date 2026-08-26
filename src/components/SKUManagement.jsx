@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
 import { backdropHandlers } from '../utils/backdrop.js';
 
-const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', descricao_curta_2: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '', tipo_envio: '', embalagem_id: '' };
+const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', descricao_curta_2: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '', tipo_envio: '', embalagem_id: '', shopee_comprimento_cm: '', shopee_largura_cm: '', shopee_altura_cm: '', papelao_full_cm: '', papelao_shopee_cm: '' };
 
 // Rótulo do tipo de envio para a coluna Medidas
 const TIPO_ENVIO_LABEL = {
   propria: { txt: '📦 Emb. própria', color: '#2b6cb0', bg: '#ebf8ff' },
   sem: { txt: '⚠️ Sem embalagem', color: '#c05621', bg: '#fffaf0' },
   padrao: { txt: '📦', color: '#276749', bg: '#f0fff4' }, // nome da embalagem entra ao lado
+  papelao: { txt: '📦 Papelão', color: '#744210', bg: '#fefcbf' },
 };
 
 // Peso volumétrico (kg) = C×L×A(cm) / 6000 (divisor padrão ML/Correios). Só com as 3 medidas.
@@ -58,6 +59,7 @@ export default function SKUManagement() {
     if (iSku === -1) return { rows: [], error: 'A planilha precisa de uma coluna "sku".' };
     const iL = idx('descricao_longa'), iC = idx('descricao_curta'), iC2 = idx('descricao_curta_2'), iLoc = idx('local');
     const iComp = idx('comprimento_cm'), iLarg = idx('largura_cm'), iAlt = idx('altura_cm'), iPeso = idx('peso_kg'), iTipo = idx('tipo_envio');
+    const iSC = idx('shopee_comprimento_cm'), iSL = idx('shopee_largura_cm'), iSA = idx('shopee_altura_cm'), iPF = idx('papelao_full_cm'), iPS = idx('papelao_shopee_cm');
     const rows = [];
     for (let n = 1; n < lines.length; n++) {
       const c = splitLine(lines[n]);
@@ -74,6 +76,11 @@ export default function SKUManagement() {
         altura_cm: iAlt > -1 ? c[iAlt] || '' : '',
         peso_kg: iPeso > -1 ? c[iPeso] || '' : '',
         tipo_envio: iTipo > -1 ? (c[iTipo] || '').trim().toLowerCase() : '',
+        shopee_comprimento_cm: iSC > -1 ? c[iSC] || '' : '',
+        shopee_largura_cm: iSL > -1 ? c[iSL] || '' : '',
+        shopee_altura_cm: iSA > -1 ? c[iSA] || '' : '',
+        papelao_full_cm: iPF > -1 ? c[iPF] || '' : '',
+        papelao_shopee_cm: iPS > -1 ? c[iPS] || '' : '',
       });
     }
     return { rows, error: rows.length === 0 ? 'Nenhum SKU válido encontrado na planilha.' : '' };
@@ -129,10 +136,10 @@ export default function SKUManagement() {
     URL.revokeObjectURL(url);
   }
 
-  const CSV_HEADER = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local;comprimento_cm;largura_cm;altura_cm;peso_kg;tipo_envio';
+  const CSV_HEADER = 'sku;descricao_longa;descricao_curta;descricao_curta_2;local;comprimento_cm;largura_cm;altura_cm;peso_kg;tipo_envio;shopee_comprimento_cm;shopee_largura_cm;shopee_altura_cm;papelao_full_cm;papelao_shopee_cm';
 
   function downloadTemplate() {
-    saveCSV(CSV_HEADER + '\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1;20;15;10;0.300;padrao\n', 'modelo_skus.csv');
+    saveCSV(CSV_HEADER + '\nJP7-999;Exemplo Descricao Longa;Exemplo Curta;ALT EXEMPLO;A1;20;15;10;0.300;padrao;;;;;\n', 'modelo_skus.csv');
   }
 
   const [exporting, setExporting] = useState(false);
@@ -141,7 +148,7 @@ export default function SKUManagement() {
     try {
       const res = await api.get('/skus'); // todos, sem filtro
       const rows = res.data.map(s =>
-        [s.sku, s.descricao_longa, s.descricao_curta, s.descricao_curta_2, s.local, s.comprimento_cm, s.largura_cm, s.altura_cm, s.peso_kg, s.tipo_envio].map(csvField).join(';')
+        [s.sku, s.descricao_longa, s.descricao_curta, s.descricao_curta_2, s.local, s.comprimento_cm, s.largura_cm, s.altura_cm, s.peso_kg, s.tipo_envio, s.shopee_comprimento_cm, s.shopee_largura_cm, s.shopee_altura_cm, s.papelao_full_cm, s.papelao_shopee_cm].map(csvField).join(';')
       );
       const stamp = new Date().toISOString().slice(0, 10);
       saveCSV(CSV_HEADER + '\n' + rows.join('\n') + '\n', `skus_${stamp}.csv`);
@@ -191,6 +198,11 @@ export default function SKUManagement() {
       peso_kg: sku.peso_kg ?? '',
       tipo_envio: sku.tipo_envio || '',
       embalagem_id: sku.embalagem_id ?? '',
+      shopee_comprimento_cm: sku.shopee_comprimento_cm ?? '',
+      shopee_largura_cm: sku.shopee_largura_cm ?? '',
+      shopee_altura_cm: sku.shopee_altura_cm ?? '',
+      papelao_full_cm: sku.papelao_full_cm ?? '',
+      papelao_shopee_cm: sku.papelao_shopee_cm ?? '',
     });
     setEditId(sku.id);
     setModal('edit');
@@ -417,7 +429,12 @@ export default function SKUManagement() {
                             {s.peso_kg != null && <span style={{color:'var(--text-secondary)'}}> · {(+s.peso_kg)} kg</span>}
                             {pv != null && <div style={{fontSize:'11px', color:'var(--text-muted)'}}>vol {pv.toLocaleString('pt-BR', { minimumFractionDigits: pv < 1 ? 3 : 1, maximumFractionDigits: 3 })} kg</div>}
                           </span>; })()
-                      ) : <span style={{color:'var(--text-muted)'}}>—</span>}
+                      ) : (s.tipo_envio === 'papelao' ? null : <span style={{color:'var(--text-muted)'}}>—</span>)}
+                      {s.tipo_envio === 'papelao' && (s.papelao_full_cm != null || s.papelao_shopee_cm != null) && (
+                        <div style={{fontSize:'11px', color:'#744210', marginTop:'2px'}}>
+                          ✂️ Full {s.papelao_full_cm != null ? (+s.papelao_full_cm) + 'cm' : '—'} · Shopee {s.papelao_shopee_cm != null ? (+s.papelao_shopee_cm) + 'cm' : '—'}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div style={{display:'flex', gap:'6px', justifyContent:'flex-end'}}>
@@ -540,6 +557,7 @@ export default function SKUManagement() {
                   <option value="">Não definido</option>
                   <option value="propria">Embalagem própria (do anúncio)</option>
                   <option value="padrao">Embalagem padrão (P/M/G)</option>
+                  <option value="papelao">Rolo de papelão (Full × Shopee)</option>
                   <option value="sem">Sem embalagem (sempre embalar)</option>
                 </select>
                 {form.tipo_envio === 'padrao' && (
@@ -559,6 +577,7 @@ export default function SKUManagement() {
                   </div>
                 )}
               </div>
+              {form.tipo_envio !== 'papelao' && (
               <div className="form-group">
                 <label>Medidas da embalagem (envio)</label>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'8px'}}>
@@ -582,6 +601,41 @@ export default function SKUManagement() {
                       : 'Preencha C, L e A para calcular o peso volumétrico. Opcional — preencha aos poucos.'; })()}
                 </div>
               </div>
+              )}
+              {form.tipo_envio === 'papelao' && (
+                <div className="form-group">
+                  <label>Peso (kg)</label>
+                  <input name="peso_kg" type="number" min="0" step="any" value={form.peso_kg} onChange={handleFormChange} placeholder="0,300" style={{maxWidth:'160px'}} />
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginTop:'10px'}}>
+                    {[
+                      { titulo:'Full (Mercado Livre)', c:'comprimento_cm', l:'largura_cm', a:'altura_cm', corte:'papelao_full_cm' },
+                      { titulo:'Shopee', c:'shopee_comprimento_cm', l:'shopee_largura_cm', a:'shopee_altura_cm', corte:'papelao_shopee_cm' },
+                    ].map(blk => {
+                      const pv = pesoVolumetrico(form[blk.c], form[blk.l], form[blk.a]);
+                      return (
+                        <div key={blk.titulo} style={{border:'1px solid var(--border)', borderRadius:'8px', padding:'10px'}}>
+                          <div style={{fontWeight:700, fontSize:'12.5px', marginBottom:'8px'}}>{blk.titulo}</div>
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'6px'}}>
+                            {[[blk.c,'Compr.'],[blk.l,'Larg.'],[blk.a,'Alt.']].map(([n,lb]) => (
+                              <div key={n}>
+                                <label style={{fontSize:'11px', color:'var(--text-muted)', display:'block'}}>{lb} (cm)</label>
+                                <input name={n} type="number" min="0" step="any" value={form[n]} onChange={handleFormChange} />
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{marginTop:'8px'}}>
+                            <label style={{fontSize:'11px', color:'var(--text-muted)', display:'block'}}>✂️ Papelão a cortar (cm)</label>
+                            <input name={blk.corte} type="number" min="0" step="any" value={form[blk.corte]} onChange={handleFormChange} placeholder="ex.: 40" style={{maxWidth:'140px'}} />
+                          </div>
+                          <div style={{fontSize:'11px', color:'var(--text-muted)', marginTop:'6px'}}>
+                            {pv != null ? <>Volumétrico: <b>{pv.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</b></> : 'C×L×A p/ volumétrico'}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div style={{display:'flex', gap:'8px', justifyContent:'flex-end', paddingTop:'8px', borderTop:'1px solid var(--border)'}}>
                 <button type="button" className="btn-secondary" onClick={closeModal}>
                   Cancelar

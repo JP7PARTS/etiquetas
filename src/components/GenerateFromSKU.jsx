@@ -21,6 +21,7 @@ const TIPO_ENVIO_LABEL = {
   propria: { txt: '📦 Emb. própria', color: '#2b6cb0', bg: '#ebf8ff' },
   sem: { txt: '⚠️ Sem embalagem', color: '#c05621', bg: '#fffaf0' },
   padrao: { txt: '📦', color: '#276749', bg: '#f0fff4' },
+  papelao: { txt: '📦 Papelão', color: '#744210', bg: '#fefcbf' },
 };
 
 let rowSeq = 1;
@@ -401,6 +402,11 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                               {!m.dims && m.peso && <div>{m.peso}</div>}
                               {m.vol && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.vol}</div>}
                             </div>; })()}
+                          {sku.tipo_envio === 'papelao' && (sku.papelao_full_cm != null || sku.papelao_shopee_cm != null) && (
+                            <div style={{ fontSize: '11px', color: '#744210' }}>
+                              ✂️ Full {sku.papelao_full_cm != null ? (+sku.papelao_full_cm) + 'cm' : '—'} · Shopee {sku.papelao_shopee_cm != null ? (+sku.papelao_shopee_cm) + 'cm' : '—'}
+                            </div>
+                          )}
                         </td>
                         <td style={styles.colAction}>
                           <button
