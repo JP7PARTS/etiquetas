@@ -65,27 +65,33 @@ export function computeReposicao({ resumo, vendas, cross, desempenho, excluidos,
     if (p.sku) {
       skusFull.add(p.sku);
       if (!skuToCmls.has(p.sku)) skuToCmls.set(p.sku, []);
-      skuToCmls.get(p.sku).push({ codigoMl: p.codigoMl, un30: p.un30 || 0, estoque: p.estoqueFull || 0 });
+      skuToCmls.get(p.sku).push({ codigoMl: p.codigoMl, un30: p.un30 || 0, estoque: p.estoqueFull || 0, titulo: p.produto || '' });
     }
     if (p.agrupador && p.sku) agSkuToCml.set(p.agrupador + '|' + p.sku, p.codigoMl);
     const p30 = norm(p.produto).slice(0, 30);
     if (p30 && p.agrupador && !prodToAg.has(p30)) prodToAg.set(p30, p.agrupador);
   }
 
-  // Resolve o destino (lista de [codigoMl, peso]) de uma venda órfã cujo SKU está no Full
+  // Resolve o destino (lista de [codigoMl, peso]) de uma venda órfã (migração) cujo SKU está
+  // no Full. Regra: só reconcilia se o TÍTULO casar (norm igual) — título diferente = anúncio
+  // diferente = NÃO funde. Sem casamento de título → [] (segue órfã, não é fundida).
   function resolverDestino(sku, titulo) {
     const cmls = skuToCmls.get(sku) || [];
     if (cmls.length === 0) return [];
-    if (cmls.length === 1) return [[cmls[0].codigoMl, 1]];
-    const ag = prodToAg.get(norm(titulo).slice(0, 30));
-    const alvo = ag && agSkuToCml.get(ag + '|' + sku);
-    if (alvo) return [[alvo, 1]];
-    // rateio proporcional: por un30 do ML; fallback estoque; senão igual
-    let base = cmls.map(c => c.un30);
+    const nt = norm(titulo);
+    // Casa por PREFIXO: as vendas trazem o título-base e o Resumo acrescenta a variação
+    // no fim (ex.: "... Esportivo" vs "... Esportivo Preto") — mesmo produto (migração).
+    // Título que diverge no começo (produto diferente) NÃO casa. (mín. 10 chars p/ evitar match trivial.)
+    const casa = (ct) => { const b = norm(ct); if (!b || !nt) return false; return Math.min(nt.length, b.length) < 10 ? nt === b : (nt.startsWith(b) || b.startsWith(nt)); };
+    const match = cmls.filter(c => casa(c.titulo));
+    if (match.length === 0) return [];
+    if (match.length === 1) return [[match[0].codigoMl, 1]];
+    // vários Códigos ML com o MESMO título (variações) → rateio por un30; fallback estoque; senão igual
+    let base = match.map(c => c.un30);
     let soma = base.reduce((s, v) => s + v, 0);
-    if (soma <= 0) { base = cmls.map(c => c.estoque); soma = base.reduce((s, v) => s + v, 0); }
-    if (soma <= 0) return cmls.map(c => [c.codigoMl, 1 / cmls.length]);
-    return cmls.map((c, i) => [c.codigoMl, base[i] / soma]);
+    if (soma <= 0) { base = match.map(c => c.estoque); soma = base.reduce((s, v) => s + v, 0); }
+    if (soma <= 0) return match.map(c => [c.codigoMl, 1 / match.length]);
+    return match.map((c, i) => [c.codigoMl, base[i] / soma]);
   }
 
   return _run({ resumo, vendas, cross, desempenho, excl, params: { regra, diasCobertura, ranking, janelas, reconciliar, rankPor, limiar2 }, anuncioToCml, anunSkuToCml, skuKey, skusFull, resolverDestino });
@@ -239,6 +245,22 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
   // velocidade por janela a partir de um mapa de demanda { [D]: qty }
   const velsDe = (d) => janelas.map(D => spanJ[D] > 0 ? (d[D] || 0) / spanJ[D] : 0);
 
+  // Candidatos de cross-only (SKU NÃO está no Full) agrupados por TÍTULO (não por SKU):
+  // título diferente = anúncio diferente = linha separada; título igual + MLB diferente = mesma
+  // linha (premium/clássico). Cada MLB (entrada de demAnunCross) é a unidade.
+  const crossGrupos = new Map(); // `${sku}||${normTitulo}` -> { sku, titulo, win, un, anuncios:Map, topMlb, topUn }
+  for (const [anuncio, a] of demAnunCross) {
+    if (skusFull.has(a.sku)) continue;        // SKU no Full → vai para o caminho de 2º anúncio
+    if (anuncioToCml.has(anuncio)) continue;  // anúncio já é do Full
+    const gk = a.sku + '||' + norm(a.titulo);
+    let g = crossGrupos.get(gk);
+    if (!g) { g = { sku: a.sku, titulo: a.titulo, win: {}, un: 0, anuncios: new Map(), topMlb: anuncio, topUn: -1 }; crossGrupos.set(gk, g); }
+    for (const D of janelas) g.win[D] = (g.win[D] || 0) + (a.win[D] || 0);
+    g.un += a.un;
+    g.anuncios.set(anuncio, { un: a.un, titulo: a.titulo });
+    if (a.un > g.topUn) { g.topUn = a.un; g.topMlb = anuncio; g.titulo = a.titulo; }
+  }
+
   // Ranking de "melhores" por "unidade de ranking":
   //  - rankPor='sku'    → uma entrada por SKU (comportamento clássico);
   //  - rankPor='anuncio'→ por Código ML (Full), por SKU do cross ('sku:'), por anúncio 2º (an:').
@@ -263,15 +285,24 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
       setPerf(sku, unSku.get(sku) || 0, receitaSku.get(sku) || 0, 0);
   } else {
     for (const [cml, o] of perfCml) setPerf(cml, o.un, o.receita, 0);
-    for (const [sku, o] of perfCrossSku) setPerf('sku:' + sku, o.un, o.receita, 0);
-    for (const [anuncio, o] of perfCrossAnun) setPerf('an:' + anuncio, o.un, o.receita, 0);
+    // cross2 (SKU já no Full): rank por anúncio individual
+    for (const [anuncio, o] of perfCrossAnun) {
+      const a = demAnunCross.get(anuncio);
+      if (a && skusFull.has(a.sku)) setPerf('an:' + anuncio, o.un, o.receita, 0);
+    }
+    // cross-only: rank por GRUPO de título (soma os MLBs do grupo na chave do top MLB)
+    for (const g of crossGrupos.values()) {
+      let un = 0, receita = 0;
+      for (const mlb of g.anuncios.keys()) { const o = perfCrossAnun.get(mlb); if (o) { un += o.un; receita += o.receita; } }
+      setPerf('an:' + g.topMlb, un, receita, 0);
+    }
   }
   // Só rankeamos as chaves que de fato viram LINHA na tabela — senão chaves "fantasma"
   // (SKU do cross já no Full, ou 2º anúncio abaixo do limiar) consomem posições e abrem
   // buracos no rank. rowKeys replica as condições das 3 construções de linha abaixo.
   const rowKeys = new Set();
   for (const p of resumo) rowKeys.add(keyFor('full', p));
-  for (const sku of demSkuCross.keys()) if (!skusFull.has(sku)) rowKeys.add(keyFor('cross', { sku }));
+  for (const g of crossGrupos.values()) rowKeys.add('an:' + g.topMlb);
   for (const [anuncio, a] of demAnunCross)
     if (skusFull.has(a.sku) && !anuncioToCml.has(anuncio) && (a.win[maxJ] || 0) >= limiar2)
       rowKeys.add(keyFor('cross2', { sku: a.sku, anuncio }));
@@ -332,21 +363,20 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
     };
   });
 
-  // ---- Candidatos do cross (não estão no Full) ----
-  for (const [sku, d] of demSkuCross) {
-    if (skusFull.has(sku)) continue; // migrado (SKU está no Full) — fica para a reconciliação
+  // ---- Candidatos do cross (não estão no Full) — uma linha por TÍTULO (não por SKU) ----
+  for (const g of crossGrupos.values()) {
+    const d = g.win;
     const vels = velsDe(d);
     const velEsc = vels.length ? aggreg(vels, regra) : 0;
-    const crossSku = cross?.map?.get((sku || '').toUpperCase()) || 0;
-    const pkey = keyFor('cross', { sku });
+    const crossSku = cross?.map?.get((g.sku || '').toUpperCase()) || 0;
+    const pkey = 'an:' + g.topMlb;
     const melhor = melhores.has(pkey);
     const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura)); // necessidade cheia; o cross é conferido na trava
-    const decisao = excl.has(sku) ? 'Não enviar' : (melhor && crossSku > 0 ? 'Promover' : 'Ignorar');
-    const orf = orfas.lista.find(o => o.sku === sku);
-    const anuncios = anunciosDe(anunPorSku, sku, []);
+    const decisao = excl.has(g.sku) ? 'Não enviar' : (melhor && crossSku > 0 ? 'Promover' : 'Ignorar');
+    const anuncios = [...g.anuncios.entries()].map(([mlb, v]) => ({ mlb, un: v.un, titulo: v.titulo })).sort((x, y) => y.un - x.un);
     rows.push({
-      key: 'cross:' + sku, origem: 'cross', codigoMl: '', sku, produto: orf?.titulo || sku,
-      anuncios, anuncio: (anuncios[0] && anuncios[0].mlb) || '', tituloTop: (anuncios[0] && anuncios[0].titulo) || orf?.titulo || sku,
+      key: 'cross:' + g.topMlb, origem: 'cross', codigoMl: '', sku: g.sku, produto: g.titulo || g.sku,
+      anuncios, anuncio: (anuncios[0] && anuncios[0].mlb) || g.topMlb, tituloTop: (anuncios[0] && anuncios[0].titulo) || g.titulo || g.sku,
       vels, velEsc, unMax: d[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
       melhor, rankQtd: rankQtdMap.get(pkey) || null, rankValor: rankValorMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],
