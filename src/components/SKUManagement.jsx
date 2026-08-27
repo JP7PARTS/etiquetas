@@ -19,6 +19,11 @@ function pesoVolumetrico(c, l, a) {
   return (nc * nl * na) / 6000;
 }
 const fmtVol = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: n < 1 ? 3 : 1, maximumFractionDigits: 3 });
+// Falta alguma medida essencial (Comprimento, Largura, Altura ou Peso) — o ML pune
+const numPos = (v) => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) && n > 0; };
+function faltaMedidas(s) {
+  return !numPos(s.comprimento_cm) || !numPos(s.largura_cm) || !numPos(s.altura_cm) || !numPos(s.peso_kg);
+}
 // Linha "prefixo: C×L×A cm · vol X kg" para o modo papelão (2 marketplaces)
 function LinhaMedida({ prefixo, c, l, a }) {
   const has = c != null || l != null || a != null;
@@ -36,6 +41,7 @@ export default function SKUManagement() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('');
+  const [soFaltaMedidas, setSoFaltaMedidas] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [modal, setModal] = useState(null); // null | 'create' | 'edit'
@@ -289,9 +295,12 @@ export default function SKUManagement() {
   const locais = Array.from(
     new Set(skus.map(s => (s.local || '').trim()).filter(Boolean))
   ).sort();
-  const skusVisiveis = localFilter
-    ? skus.filter(s => (s.local || '').trim() === localFilter)
-    : skus;
+  // Falta medida essencial (ML pune): C, L, A ou peso ausente/≤0
+  const faltamN = skus.filter(faltaMedidas).length;
+  const skusVisiveis = skus.filter(s =>
+    (!localFilter || (s.local || '').trim() === localFilter) &&
+    (!soFaltaMedidas || faltaMedidas(s))
+  );
 
   return (
     <div>
@@ -367,6 +376,16 @@ export default function SKUManagement() {
             ))}
           </div>
         )}
+
+        <div style={{...styles.localFilterBar, marginTop: locais.length > 0 ? '-6px' : 0}}>
+          <button
+            onClick={() => setSoFaltaMedidas(v => !v)}
+            title="Mostrar só SKUs sem Comprimento, Largura, Altura ou Peso (o ML pune medidas erradas/ausentes)"
+            style={{...styles.localChip, ...(soFaltaMedidas ? { background: '#c05621', borderColor: '#c05621', color: '#fff' } : { color: '#c05621', borderColor: '#f6ad55' })}}
+          >
+            ⚠️ Faltam medidas ({faltamN})
+          </button>
+        </div>
 
         {loading ? (
           <div style={{padding:'40px', textAlign:'center'}}>
@@ -451,7 +470,10 @@ export default function SKUManagement() {
                             {s.peso_kg != null && <span style={{color:'var(--text-secondary)'}}> · {(+s.peso_kg)} kg</span>}
                             {pv != null && <div style={{fontSize:'11px', color:'var(--text-muted)'}}>vol {pv.toLocaleString('pt-BR', { minimumFractionDigits: pv < 1 ? 3 : 1, maximumFractionDigits: 3 })} kg</div>}
                           </span>; })()
-                      ) : <span style={{color:'var(--text-muted)'}}>—</span>}
+                      ) : null}
+                      {s.tipo_envio !== 'papelao' && faltaMedidas(s) && (
+                        <div style={{fontSize:'10.5px', color:'#c05621', fontWeight:600, marginTop:'2px'}}>⚠️ faltam medidas</div>
+                      )}
                     </td>
                     <td>
                       <div style={{display:'flex', gap:'6px', justifyContent:'flex-end'}}>
@@ -478,6 +500,7 @@ export default function SKUManagement() {
             <div style={styles.tableFooter}>
               {skusVisiveis.length} SKU{skusVisiveis.length !== 1 ? 's' : ''} encontrado{skusVisiveis.length !== 1 ? 's' : ''}
               {localFilter ? ` na localização "${localFilter}"` : ''}
+              {soFaltaMedidas ? ' · faltando medidas' : (faltamN > 0 ? ` · ${faltamN} sem medidas` : '')}
             </div>
           </div>
         )}
