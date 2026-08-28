@@ -147,6 +147,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
   const [crossMax, setCrossMax] = useState('');       // filtro: cross ≤ crossMax
   const [soComEnvio, setSoComEnvio] = useState(false); // filtro: esconder Enviar = 0
   const [esconderComQtd, setEsconderComQtd] = useState(false); // filtro: esconder Enviar > 0
+  const [editandoKey, setEditandoKey] = useState(null); // linha com o campo Enviar em foco (não esconder enquanto digita)
   const [soComComentario, setSoComComentario] = useState(false); // filtro: só linhas com comentário
   const [sel, setSel] = useState(new Set()); // seleção em lote (keys das linhas)
   const [alertMenu, setAlertMenu] = useState(false);   // dropdown de alertas no cabeçalho
@@ -174,8 +175,10 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
     // Filtro de coluna: cross ≤ crossMax
     if (crossMax !== '' && !isNaN(parseInt(crossMax, 10))) { const m = parseInt(crossMax, 10); arr = arr.filter(r => (r.crossSku || 0) <= m); }
     // Filtro de coluna: esconder só as linhas com Enviar explicitamente 0 (mantém as em branco)
-    if (soComEnvio) arr = arr.filter(r => overrides[r.key] !== 0);
-    if (esconderComQtd) arr = arr.filter(r => !(overrides[r.key] > 0));
+    // Exceção: nunca esconder a linha que está sendo editada (foco no campo Enviar) —
+    // senão ela some ao digitar o 1º dígito e não dá para terminar o número.
+    if (soComEnvio) arr = arr.filter(r => r.key === editandoKey || overrides[r.key] !== 0);
+    if (esconderComQtd) arr = arr.filter(r => r.key === editandoKey || !(overrides[r.key] > 0));
     // Filtro por tipo de envio (Geral/Grade)
     if (tipoSel.size < 2) arr = arr.filter(r => tipoSel.has(tipoDe(r)));
     // Filtro: só linhas com comentário
@@ -193,7 +196,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
     });
-  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio, esconderComQtd, tipoSel, gradeSet, soComComentario, notes]);
+  }, [rows, busca, sort, overrides, decFiltro, verTodos, alertFiltro, crossWait, crossMax, soComEnvio, esconderComQtd, editandoKey, tipoSel, gradeSet, soComComentario, notes]);
 
   // Alertas presentes (para os chips de filtro), com contagem, respeitando "Só os melhores"
   const alertasDisp = useMemo(() => {
@@ -702,6 +705,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
                 <td style={{ textAlign: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
                     <input type="number" min="0" placeholder="—" value={overrides[r.key] ?? ''} onChange={e => setFinal(r.key, e.target.value)}
+                      onFocus={() => setEditandoKey(r.key)} onBlur={() => setEditandoKey(k => k === r.key ? null : k)}
                       style={{ width: '58px', height: '26px', boxSizing: 'border-box', padding: '2px 6px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: '6px' }} />
                     <button disabled={!(r.final > 0)} title={r.final > 0 ? `Usar sugestão (${int(r.final)})` : 'Sem sugestão'} onClick={() => r.final > 0 && setOverride(r.key, r.final)}
                       style={{ width: '24px', height: '26px', boxSizing: 'border-box', padding: 0, fontSize: '11px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--bg-muted, #edf2f7)', cursor: r.final > 0 ? 'pointer' : 'default', opacity: r.final > 0 ? 1 : 0.35 }}>↧</button>
