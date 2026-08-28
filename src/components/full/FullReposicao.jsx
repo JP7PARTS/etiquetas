@@ -188,7 +188,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
         (r.anuncios || []).some(a => String(a.mlb || '').toLowerCase().includes(qm)));
     }
     const key = sort.key, mul = sort.dir === 'asc' ? 1 : -1;
-    const val = (r) => key === 'rqtd' ? (r.rankQtd ?? 1e9) : key === 'rval' ? (r.rankValor ?? 1e9) : key === 'sugestao' ? finalOf(r) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'afetatempo' ? (r.afetamTempo || 0) : key === 'estoque' ? r.estoque : key === 'un' ? (r.perf?.un || 0) : key === 'rs' ? (r.perf?.receita || 0) : key === 'sku' ? r.sku : r.velEsc;
+    const val = (r) => key === 'rqtd' ? (r.rankQtd ?? 1e9) : key === 'rval' ? (r.rankValor ?? 1e9) : key === 'sugestao' ? (r.sugestao || 0) : key === 'vel' ? r.velEsc : key === 'cobertura' ? (r.coberturaDias ?? 1e9) : key === 'afetatempo' ? (r.afetamTempo || 0) : key === 'estoque' ? r.estoque : key === 'un' ? (r.perf?.un || 0) : key === 'rs' ? (r.perf?.receita || 0) : key === 'sku' ? r.sku : r.velEsc;
     return [...arr].sort((a, b) => {
       const va = val(a), vb = val(b);
       return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * mul;
