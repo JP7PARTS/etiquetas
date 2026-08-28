@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
 import { backdropHandlers } from '../utils/backdrop.js';
+import PackagingFields, { PACKAGING_EMPTY } from './PackagingFields.jsx';
 
 function fmtDate(s) { try { return new Date(s).toLocaleString('pt-BR'); } catch { return s; } }
 
@@ -31,6 +32,8 @@ export default function PickingLists({ user }) {
   const lastUpdatedAt = useRef(null); // token de versão da lista aberta (controle de concorrência)
 
   useEffect(() => { loadLists(); }, []);
+  const [embalagens, setEmbalagens] = useState([]);
+  useEffect(() => { api.get('/embalagens').then(r => setEmbalagens(r.data || [])).catch(() => {}); }, []);
 
   async function fetchCatalog() {
     try { const r = await api.get('/skus'); return new Map(r.data.map(s => [s.sku.toUpperCase(), s])); }
@@ -97,7 +100,8 @@ export default function PickingLists({ user }) {
     e.preventDefault();
     setReqSaving(true); setReqErr('');
     try {
-      await api.post('/sku-requests', reqForm);
+      const dados = {}; for (const k of Object.keys(PACKAGING_EMPTY)) dados[k] = reqForm[k];
+      await api.post('/sku-requests', { sku: reqForm.sku, titulo: reqForm.titulo, local: reqForm.local, dados });
       setRequested(prev => new Set(prev).add(reqForm.sku.toUpperCase()));
       setReqForm(null);
     } catch (err) {
@@ -383,7 +387,7 @@ export default function PickingLists({ user }) {
                         </button>
                       ) : (
                         <button className="btn-outline" style={styles.rowBtn}
-                          onClick={e => { e.stopPropagation(); setReqErr(''); setReqForm({ sku: it.sku, titulo: it.descricao || '', local: it.local || '' }); }}>
+                          onClick={e => { e.stopPropagation(); setReqErr(''); setReqForm({ sku: it.sku, titulo: it.descricao || '', local: it.local || '', ...PACKAGING_EMPTY }); }}>
                           Solicitar
                         </button>
                       )
@@ -470,6 +474,7 @@ export default function PickingLists({ user }) {
                 <label>Localização (opcional)</label>
                 <input value={reqForm.local} onChange={e => setReqForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
               </div>
+              <PackagingFields form={reqForm} setForm={setReqForm} embalagens={embalagens} />
               <div style={styles.modalFooter}>
                 <button type="button" className="btn-secondary" onClick={() => setReqForm(null)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={reqSaving}>

@@ -79,8 +79,10 @@ CREATE TABLE IF NOT EXISTS sku_requests (
   local VARCHAR(20),
   requested_by INTEGER,
   requested_by_name VARCHAR(100),
+  dados JSONB,
   created_at TIMESTAMP DEFAULT NOW()
 );
+ALTER TABLE sku_requests ADD COLUMN IF NOT EXISTS dados JSONB;
 
 -- Listas de picking (geradas do Importar Vendas; abertas no tablet para separar produtos)
 CREATE TABLE IF NOT EXISTS picking_lists (

@@ -3,6 +3,7 @@ import api from '../utils/api.js';
 import ZPLOutput from './ZPLOutput.jsx';
 import { normalizeQuantity, copyZPL } from '../utils/zpl.js';
 import { backdropHandlers } from '../utils/backdrop.js';
+import PackagingFields, { PACKAGING_EMPTY, packagingFrom, faltaMedidas } from './PackagingFields.jsx';
 
 // Medidas da embalagem (envio) para exibição: "C×L×A cm · P kg · vol V kg".
 // Volumétrico = C×L×A(cm) / 6000, só quando as 3 medidas existem.
@@ -69,7 +70,9 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
     e.preventDefault();
     setReqSaving(true); setReqErr('');
     try {
-      await api.post('/sku-requests', reqForm);
+      const dados = {}; for (const k of Object.keys(PACKAGING_EMPTY)) dados[k] = reqForm[k];
+      if (reqForm.existe) dados.existe = true;
+      await api.post('/sku-requests', { sku: reqForm.sku, titulo: reqForm.titulo, local: reqForm.local, dados });
       setReqDone(reqForm.sku.trim().toUpperCase());
       setReqForm(null);
     } catch (err) {
@@ -358,7 +361,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                       </button>
                     ) : (
                       <button type="button" className="btn-primary" style={{ marginTop: '10px' }}
-                        onClick={() => { setReqForm({ sku: tableSearch.trim().toUpperCase(), titulo: '', local: '' }); setReqErr(''); }}>
+                        onClick={() => { setReqForm({ sku: tableSearch.trim().toUpperCase(), titulo: '', local: '', ...PACKAGING_EMPTY }); setReqErr(''); }}>
                         📨 Solicitar inclusão do SKU
                       </button>
                     )
@@ -422,6 +425,13 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                               {!m.dims && m.peso && <div>{m.peso}</div>}
                               {m.vol && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.vol}</div>}
                             </div>; })()}
+                          {!isAdmin && faltaMedidas(sku) && (
+                            reqDone === sku.sku.toUpperCase()
+                              ? <div style={{ fontSize: '11px', color: '#276749', fontWeight: 600, marginTop: '3px' }}>✅ solicitado</div>
+                              : <button type="button" title="Pedir ao admin para incluir as medidas deste produto"
+                                  onClick={() => { setReqForm({ sku: sku.sku, titulo: sku.descricao_curta || sku.descricao_longa || '', local: sku.local || '', existe: true, ...packagingFrom(sku) }); setReqErr(''); }}
+                                  style={{ marginTop: '3px', border: 'none', background: 'none', color: '#c05621', fontSize: '11px', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>📨 Solicitar medidas</button>
+                          )}
                         </td>
                         <td style={styles.colAction}>
                           <button
@@ -659,7 +669,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
         <div style={styles.modalOverlay} {...backdropHandlers(backdropDown, () => setReqForm(null))}>
           <div style={styles.modalCard}>
             <div style={styles.modalHeader}>
-              <h3 style={{ margin: 0, fontSize: '16px' }}>Solicitar inclusão de SKU</h3>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>{reqForm.existe ? 'Solicitar medidas do produto' : 'Solicitar inclusão de SKU'}</h3>
               <button type="button" onClick={() => setReqForm(null)} style={styles.modalClose}>✕</button>
             </div>
             <form onSubmit={sendSkuRequest} style={styles.modalBody}>
@@ -677,6 +687,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                 <label>Localização (opcional)</label>
                 <input value={reqForm.local} onChange={e => setReqForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
               </div>
+              <PackagingFields form={reqForm} setForm={setReqForm} embalagens={embalagens} />
               <div style={styles.modalFooter}>
                 <button type="button" className="btn-secondary" onClick={() => setReqForm(null)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={reqSaving}>{reqSaving ? 'Enviando...' : 'Enviar solicitação'}</button>

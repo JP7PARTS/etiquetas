@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import api from '../utils/api.js';
 import { backdropHandlers } from '../utils/backdrop.js';
+import PackagingFields, { PACKAGING_EMPTY } from './PackagingFields.jsx';
 
 function nowLocal() {
   const d = new Date();
@@ -54,6 +55,8 @@ export default function ImportSales({ user, onSendToLote }) {
   const [reqSaving, setReqSaving] = useState(false);
   const [reqErr, setReqErr] = useState('');
   const [requested, setRequested] = useState(new Set()); // SKUs já solicitados nesta sessão
+  const [embalagens, setEmbalagens] = useState([]);
+  useEffect(() => { api.get('/embalagens').then(r => setEmbalagens(r.data || [])).catch(() => {}); }, []);
   const inputRef = useRef(null);
   const backdropDown = useRef(false);
   const hydrated = useRef(false);
@@ -110,7 +113,8 @@ export default function ImportSales({ user, onSendToLote }) {
     e.preventDefault();
     setReqSaving(true); setReqErr('');
     try {
-      await api.post('/sku-requests', reqForm);
+      const dados = {}; for (const k of Object.keys(PACKAGING_EMPTY)) dados[k] = reqForm[k];
+      await api.post('/sku-requests', { sku: reqForm.sku, titulo: reqForm.titulo, local: reqForm.local, dados });
       setRequested(prev => new Set(prev).add(reqForm.sku.toUpperCase()));
       setReqForm(null);
     } catch (err) {
@@ -317,7 +321,7 @@ export default function ImportSales({ user, onSendToLote }) {
           <span style={{ fontSize: '12px', color: '#276749', fontWeight: 600 }}>Solicitado ✓</span>
         ) : (
           <button className="btn-outline" style={{ padding: '3px 10px', fontSize: '12px' }}
-            onClick={() => { setReqForm({ sku: it.code, titulo: '', local: '' }); setReqErr(''); }}>Solicitar</button>
+            onClick={() => { setReqForm({ sku: it.code, titulo: '', local: '', ...PACKAGING_EMPTY }); setReqErr(''); }}>Solicitar</button>
         )}
       </span>
     );
@@ -632,6 +636,7 @@ export default function ImportSales({ user, onSendToLote }) {
                 <label>Localização (opcional)</label>
                 <input value={reqForm.local} onChange={e => setReqForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
               </div>
+              <PackagingFields form={reqForm} setForm={setReqForm} embalagens={embalagens} />
               <div style={styles.modalFooter}>
                 <button type="button" className="btn-secondary" onClick={() => setReqForm(null)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={reqSaving}>

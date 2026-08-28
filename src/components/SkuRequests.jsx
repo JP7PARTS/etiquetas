@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api.js';
 import { backdropHandlers } from '../utils/backdrop.js';
+import PackagingFields, { PACKAGING_EMPTY, packagingFrom } from './PackagingFields.jsx';
 
-const emptySku = { sku: '', descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '', comprimento_cm: '', largura_cm: '', altura_cm: '', peso_kg: '' };
+const emptySku = { sku: '', descricao_curta: '', descricao_curta_2: '', descricao_longa: '', local: '', ...PACKAGING_EMPTY, _reqId: null };
+const TIPO_LABEL = { propria: 'Emb. própria', padrao: 'Emb. padrão', sem: 'Sem embalagem', papelao: 'Papelão' };
 
 export default function SkuRequests() {
   const [list, setList] = useState([]);
@@ -11,9 +13,10 @@ export default function SkuRequests() {
   const [skuForm, setSkuForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [skuErr, setSkuErr] = useState('');
+  const [embalagens, setEmbalagens] = useState([]);
   const backdropDown = useRef(false);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); api.get('/embalagens').then(r => setEmbalagens(r.data || [])).catch(() => {}); }, []);
 
   async function load() {
     setLoading(true); setError('');
@@ -28,7 +31,7 @@ export default function SkuRequests() {
   }
 
   function openCadastro(r) {
-    setSkuForm({ ...emptySku, sku: r.sku, descricao_curta: r.titulo || '', local: r.local || '' });
+    setSkuForm({ ...emptySku, sku: r.sku, descricao_curta: r.titulo || '', local: r.local || '', ...packagingFrom(r.dados || {}), _reqId: r.id });
     setSkuErr('');
   }
 
@@ -36,12 +39,13 @@ export default function SkuRequests() {
     e.preventDefault();
     setSaving(true); setSkuErr('');
     try {
-      await api.post('/skus', skuForm);   // backend remove a solicitação automaticamente
+      // Upsert por SKU: cria o SKU novo OU atualiza um existente (ex.: só faltavam medidas)
+      await api.post('/skus/import', { items: [skuForm] });
+      if (skuForm._reqId) await api.delete(`/sku-requests/${skuForm._reqId}`).catch(() => {});
       setSkuForm(null);
       load();
     } catch (err) {
-      if (err.response?.status === 409) { setSkuForm(null); load(); }
-      else setSkuErr(err.response?.data?.error || 'Erro ao cadastrar SKU');
+      setSkuErr(err.response?.data?.error || 'Erro ao cadastrar SKU');
     } finally {
       setSaving(false);
     }
@@ -95,7 +99,10 @@ export default function SkuRequests() {
                 {list.map(r => (
                   <tr key={r.id}>
                     <td><code style={styles.code}>{r.sku}</code></td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{r.titulo || '—'}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>
+                      {r.titulo || '—'}
+                      {r.dados?.tipo_envio && <div style={{ fontSize: '11px', color: '#744210', marginTop: '2px' }}>📦 {TIPO_LABEL[r.dados.tipo_envio] || r.dados.tipo_envio}{(r.dados.comprimento_cm || r.dados.largura_cm || r.dados.altura_cm) ? ` · ${[r.dados.comprimento_cm, r.dados.largura_cm, r.dados.altura_cm].map(v => v || '?').join('×')} cm` : ''}{r.dados.peso_kg ? ` · ${r.dados.peso_kg} kg` : ''}{r.dados.existe ? ' · (só medidas)' : ''}</div>}
+                    </td>
                     <td>{r.local ? <span style={styles.badge}>{r.local}</span> : '—'}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{r.requested_by_name || '—'}</td>
                     <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)', fontSize: '12.5px' }}>{fmtDate(r.created_at)}</td>
@@ -142,17 +149,7 @@ export default function SkuRequests() {
                 <label>Localização</label>
                 <input value={skuForm.local} onChange={e => setSkuForm(f => ({ ...f, local: e.target.value }))} maxLength={20} />
               </div>
-              <div className="form-group">
-                <label>Medidas da embalagem (envio) — opcional</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                  {[['comprimento_cm', 'Compr. cm'], ['largura_cm', 'Larg. cm'], ['altura_cm', 'Alt. cm'], ['peso_kg', 'Peso kg']].map(([n, lb]) => (
-                    <div key={n}>
-                      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>{lb}</label>
-                      <input type="number" min="0" step="any" value={skuForm[n] ?? ''} onChange={e => setSkuForm(f => ({ ...f, [n]: e.target.value }))} />
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <PackagingFields form={skuForm} setForm={setSkuForm} embalagens={embalagens} />
               <div style={styles.modalFooter}>
                 <button type="button" className="btn-secondary" onClick={() => setSkuForm(null)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar'}</button>
