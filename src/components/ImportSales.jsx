@@ -536,7 +536,7 @@ export default function ImportSales({ user, onSendToLote }) {
         )}
 
         {parsedRows.length > 0 && (
-          <div style={styles.toolbar}>
+          <div style={{ ...styles.toolbar, flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
             <div style={styles.group}>
               <span style={styles.groupLabel}>Método de venda</span>
               {CANAL_META.filter(c => canalPresent.has(c.key)).map(c => (
