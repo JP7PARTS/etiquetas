@@ -47,6 +47,38 @@ function classifyStatus(estado) {
   if (/a caminho|caminho|em rota|rota de entrega|despach|tr[âa]nsito|coleta.*realiz|retirad|correios|reagendad|atrasad/i.test(e)) return 'a_caminho';
   return 'preparar';
 }
+// Sub-estágio de um pedido "a preparar". Retorna { kind, colDate } — colDate só para coletas com data.
+// maxSaleDate serve de referência para "coleta de amanhã".
+function classifyPrep(estado, maxSaleDate) {
+  const e = String(estado || '').trim();
+  if (/emitir nf|dados fiscais/i.test(e)) return { kind: 'aguardando_nf', colDate: null };
+  if (/etiqueta pronta para impress/i.test(e)) return { kind: 'etiqueta', colDate: null };
+  if (/pronto para coleta/i.test(e)) return { kind: 'preparado', colDate: null };
+  if (/coleta de amanh/i.test(e)) {
+    const d = maxSaleDate ? new Date(maxSaleDate.getFullYear(), maxSaleDate.getMonth(), maxSaleDate.getDate() + 1) : null;
+    return { kind: 'coleta', colDate: d };
+  }
+  const md = e.match(/coleta do dia (\d{1,2}) de (\S+)/i);
+  if (md) {
+    const mi = MESES[md[2].toLowerCase()];
+    let d = null;
+    if (mi != null) {
+      const ref = maxSaleDate || new Date();
+      d = new Date(ref.getFullYear(), mi, Number(md[1]));
+      if (d < new Date(ref.getFullYear(), ref.getMonth(), ref.getDate())) d = new Date(ref.getFullYear() + 1, mi, Number(md[1]));
+    }
+    return { kind: 'coleta', colDate: d };
+  }
+  return { kind: 'outro_prep', colDate: null };
+}
+const PREP_META = [
+  { key: 'aguardando_nf', label: '📝 Aguardando NF-e' },
+  { key: 'etiqueta', label: '🖨️ Etiqueta pronta' },
+  { key: 'preparado', label: '✅ Já preparado' },
+  { key: 'proximo', label: '📅 Próximo dia de coleta' },
+  { key: 'outros_dias', label: '⏳ Outros dias' },
+  { key: 'outro_prep', label: 'Outros (a preparar)' },
+];
 const CANAL_META = [
   { key: 'cross', label: 'Coleta (cross)' },
   { key: 'full', label: 'Full' },
@@ -83,6 +115,7 @@ export default function ImportSales({ user, onSendToLote }) {
   const [pickMsg, setPickMsg] = useState('');
   const [canais, setCanais] = useState(() => new Set(['cross']));      // canais exibidos (multi)
   const [statusSel, setStatusSel] = useState(() => new Set(['preparar'])); // status exibidos (multi)
+  const [prepSel, setPrepSel] = useState(() => new Set(PREP_META.map(p => p.key))); // sub-estágios de "a preparar" (multi)
   const [skuForm, setSkuForm] = useState(null);  // null | {sku, descricao_curta, ...}
   const [savingSku, setSavingSku] = useState(false);
   const [skuErr, setSkuErr] = useState('');
@@ -126,6 +159,7 @@ export default function ImportSales({ user, onSendToLote }) {
           setMode(s.mode || 'com'); setLocalFilter(s.localFilter || ''); setOnlyMissing(!!s.onlyMissing);
           setCanais(new Set(Array.isArray(s.canais) ? s.canais : ['cross']));
           setStatusSel(new Set(Array.isArray(s.statusSel) ? s.statusSel : ['preparar']));
+          setPrepSel(new Set(Array.isArray(s.prepSel) ? s.prepSel : PREP_META.map(p => p.key)));
         }
       }
     } catch { /* ignora snapshot inválido */ }
@@ -141,10 +175,10 @@ export default function ImportSales({ user, onSendToLote }) {
         fileName, parsedRows, dateFrom, dateTo,
         selected: [...selected], selCarts: [...selCarts],
         search, sortBy, sortDir, mode, localFilter, onlyMissing,
-        canais: [...canais], statusSel: [...statusSel],
+        canais: [...canais], statusSel: [...statusSel], prepSel: [...prepSel],
       }));
     } catch { /* cota cheia — ignora */ }
-  }, [parsedRows, fileName, dateFrom, dateTo, selected, selCarts, search, sortBy, sortDir, mode, localFilter, onlyMissing, canais, statusSel]);
+  }, [parsedRows, fileName, dateFrom, dateTo, selected, selCarts, search, sortBy, sortDir, mode, localFilter, onlyMissing, canais, statusSel, prepSel]);
 
   async function sendRequest(e) {
     e.preventDefault();
@@ -232,11 +266,11 @@ export default function ImportSales({ user, onSendToLote }) {
           curCartId = ++cartSeq; curCartCanal = canal; continue;
         }
         if (curCartId && pac === 'Sim' && !comp) {                   // item de carrinho: canal herda do separador, status é o do próprio item
-          rows.push({ code, qty: q, cartId: curCartId, saleDate, canal: curCartCanal, statusCat });
+          rows.push({ code, qty: q, cartId: curCartId, saleDate, canal: curCartCanal, statusCat, estado: estado.trim() });
           continue;
         }
         curCartId = null;                                            // venda normal
-        rows.push({ code, qty: q, cartId: null, saleDate, canal, statusCat });
+        rows.push({ code, qty: q, cartId: null, saleDate, canal, statusCat, estado: estado.trim() });
       }
       if (rows.length === 0) throw new Error('Nenhum SKU válido na planilha.');
 
@@ -252,6 +286,27 @@ export default function ImportSales({ user, onSendToLote }) {
       if (inputRef.current) inputRef.current.value = '';
     }
   }
+
+  // Sub-estágio de cada linha "a preparar". "Próximo dia" = a data de coleta mais próxima do arquivo.
+  const prepSubByRow = useMemo(() => {
+    let maxSale = null;
+    for (const r of parsedRows) if (r.saleDate && (!maxSale || r.saleDate > maxSale)) maxSale = r.saleDate;
+    const info = new Map();  // row -> { kind, colDate }
+    let minCol = null;
+    for (const r of parsedRows) {
+      if (r.statusCat !== 'preparar') continue;
+      const p = classifyPrep(r.estado, maxSale);
+      info.set(r, p);
+      if (p.kind === 'coleta' && p.colDate && (!minCol || p.colDate < minCol)) minCol = p.colDate;
+    }
+    const sub = new Map();   // row -> prepSub key
+    for (const [r, p] of info) {
+      if (p.kind === 'coleta') sub.set(r, (minCol && p.colDate && p.colDate.getTime() === minCol.getTime()) ? 'proximo' : 'outros_dias');
+      else sub.set(r, p.kind);
+    }
+    return sub;
+  }, [parsedRows]);
+  const prepSubOf = r => prepSubByRow.get(r) || 'outro_prep';
 
   // Deriva itens normais + carrinhos a partir das linhas, aplicando o filtro de data/hora
   const { items, carts, detMin, detMax } = useMemo(() => {
@@ -272,6 +327,7 @@ export default function ImportSales({ user, onSendToLote }) {
       if (!inRange(r.saleDate)) continue;
       if (canais.size && !canais.has(r.canal)) continue;
       if (statusSel.size && !statusSel.has(r.statusCat)) continue;
+      if (r.statusCat === 'preparar' && prepSel.size && !prepSel.has(prepSubOf(r))) continue;
       // Modo "sem carrinho": tudo entra na soma por SKU (inclusive itens de carrinho)
       if (r.cartId && mode === 'com') {
         if (!cartMap.has(r.cartId)) cartMap.set(r.cartId, []);
@@ -289,17 +345,17 @@ export default function ImportSales({ user, onSendToLote }) {
       })),
       detMin: mn, detMax: mx,
     };
-  }, [parsedRows, dateFrom, dateTo, mode, canais, statusSel]);
+  }, [parsedRows, dateFrom, dateTo, mode, canais, statusSel, prepSel, prepSubByRow]);
 
   // Contagem de unidades por canal e por status para os chips.
   // Faceted: a contagem de cada grupo respeita a seleção do OUTRO grupo (mas não a dele mesmo).
   // canalPresent/statusPresent: quais chips existem no dataset (só filtro de data), para não sumirem.
-  const { canalCount, statusCount, canalPresent, statusPresent } = useMemo(() => {
+  const { canalCount, statusCount, canalPresent, statusPresent, prepCount, prepPresent } = useMemo(() => {
     const from = dateFrom ? new Date(dateFrom) : null;
     const to = dateTo ? new Date(dateTo) : null;
     const active = !!(from || to);
     const inRange = d => { if (!d) return !active; if (from && d < from) return false; if (to && d > to) return false; return true; };
-    const cc = {}, sc = {}, cp = new Set(), sp = new Set();
+    const cc = {}, sc = {}, cp = new Set(), sp = new Set(), pc = {}, pp = new Set();
     for (const r of parsedRows) {
       if (!inRange(r.saleDate)) continue;
       cp.add(r.canal); sp.add(r.statusCat);
@@ -307,9 +363,15 @@ export default function ImportSales({ user, onSendToLote }) {
       if (!statusSel.size || statusSel.has(r.statusCat)) cc[r.canal] = (cc[r.canal] || 0) + r.qty;
       // status: soma só linhas cujo canal está selecionado
       if (!canais.size || canais.has(r.canal)) sc[r.statusCat] = (sc[r.statusCat] || 0) + r.qty;
+      // sub-estágios de "a preparar" (respeitando o canal selecionado)
+      if (r.statusCat === 'preparar') {
+        const k = prepSubOf(r);
+        pp.add(k);
+        if (!canais.size || canais.has(r.canal)) pc[k] = (pc[k] || 0) + r.qty;
+      }
     }
-    return { canalCount: cc, statusCount: sc, canalPresent: cp, statusPresent: sp };
-  }, [parsedRows, dateFrom, dateTo, canais, statusSel]);
+    return { canalCount: cc, statusCount: sc, canalPresent: cp, statusPresent: sp, prepCount: pc, prepPresent: pp };
+  }, [parsedRows, dateFrom, dateTo, canais, statusSel, prepSubByRow]);
 
   function toggleSet(setter, key) {
     setter(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
@@ -497,6 +559,19 @@ export default function ImportSales({ user, onSendToLote }) {
               <button onClick={() => setStatusSel(new Set(STATUS_META.filter(s => statusPresent.has(s.key)).map(s => s.key)))}
                 style={styles.chip} title="Mostrar todos os status">Todos</button>
             </div>
+            {statusSel.has('preparar') && (
+              <div style={{ ...styles.group, paddingLeft: '18px', borderLeft: '2px solid var(--border)' }}>
+                <span style={styles.groupLabel}>A preparar</span>
+                {PREP_META.filter(p => prepPresent.has(p.key)).map(p => (
+                  <button key={p.key} onClick={() => toggleSet(setPrepSel, p.key)}
+                    style={{ ...styles.chip, ...(prepSel.has(p.key) ? styles.chipOn : {}) }}>
+                    {prepSel.has(p.key) ? '✓ ' : ''}{p.label} ({prepCount[p.key] || 0})
+                  </button>
+                ))}
+                <button onClick={() => setPrepSel(new Set(PREP_META.filter(p => prepPresent.has(p.key)).map(p => p.key)))}
+                  style={styles.chip} title="Mostrar todos os estágios">Todos</button>
+              </div>
+            )}
           </div>
         )}
 
