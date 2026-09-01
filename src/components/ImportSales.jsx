@@ -28,6 +28,40 @@ function fmtDT(d) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// Canal de venda a partir da coluna "Forma de entrega"
+function classifyCanal(entrega) {
+  const e = String(entrega || '');
+  if (/full/i.test(e)) return 'full';
+  if (/coleta/i.test(e)) return 'cross';
+  if (/flex/i.test(e)) return 'flex';
+  return 'outro';
+}
+// Status do pedido (ordem importa). Estado em branco → precisa preparar.
+function classifyStatus(estado) {
+  const e = String(estado || '').trim();
+  if (!e) return 'preparar';
+  if (/cancel/i.test(e)) return 'cancelado';
+  if (/devolu[çc][ãa]o|reembols|troca/i.test(e)) return 'devolucao';
+  if (/media[çc][ãa]o|reclama|disputa/i.test(e)) return 'mediacao';
+  if (/entregue/i.test(e)) return 'entregue';
+  if (/a caminho|caminho|em rota|rota de entrega|despach|tr[âa]nsito|coleta.*realiz|retirad|correios/i.test(e)) return 'a_caminho';
+  return 'preparar';
+}
+const CANAL_META = [
+  { key: 'cross', label: 'Coleta (cross)' },
+  { key: 'full', label: 'Full' },
+  { key: 'flex', label: 'Flex' },
+  { key: 'outro', label: 'Outro' },
+];
+const STATUS_META = [
+  { key: 'preparar', label: 'A preparar' },
+  { key: 'a_caminho', label: 'A caminho' },
+  { key: 'entregue', label: 'Entregue' },
+  { key: 'devolucao', label: 'Devolução' },
+  { key: 'mediacao', label: 'Mediação' },
+  { key: 'cancelado', label: 'Cancelado' },
+];
+
 export default function ImportSales({ user, onSendToLote }) {
   const isAdmin = user?.role === 'admin';
   const [fileName, setFileName] = useState('');
@@ -47,7 +81,8 @@ export default function ImportSales({ user, onSendToLote }) {
   const [pickName, setPickName] = useState(null); // null | string (modal salvar picking)
   const [pickSaving, setPickSaving] = useState(false);
   const [pickMsg, setPickMsg] = useState('');
-  const [cancelCount, setCancelCount] = useState(0); // pedidos cancelados ignorados
+  const [canais, setCanais] = useState(() => new Set(['cross']));      // canais exibidos (multi)
+  const [statusSel, setStatusSel] = useState(() => new Set(['preparar'])); // status exibidos (multi)
   const [skuForm, setSkuForm] = useState(null);  // null | {sku, descricao_curta, ...}
   const [savingSku, setSavingSku] = useState(false);
   const [skuErr, setSkuErr] = useState('');
@@ -89,7 +124,8 @@ export default function ImportSales({ user, onSendToLote }) {
           setSelected(new Set(s.selected || [])); setSelCarts(new Set(s.selCarts || []));
           setSearch(s.search || ''); setSortBy(s.sortBy || 'sku'); setSortDir(s.sortDir || 'asc');
           setMode(s.mode || 'com'); setLocalFilter(s.localFilter || ''); setOnlyMissing(!!s.onlyMissing);
-          setCancelCount(s.cancelCount || 0);
+          setCanais(new Set(Array.isArray(s.canais) ? s.canais : ['cross']));
+          setStatusSel(new Set(Array.isArray(s.statusSel) ? s.statusSel : ['preparar']));
         }
       }
     } catch { /* ignora snapshot inválido */ }
@@ -104,10 +140,11 @@ export default function ImportSales({ user, onSendToLote }) {
       sessionStorage.setItem('importSales:v1', JSON.stringify({
         fileName, parsedRows, dateFrom, dateTo,
         selected: [...selected], selCarts: [...selCarts],
-        search, sortBy, sortDir, mode, localFilter, onlyMissing, cancelCount,
+        search, sortBy, sortDir, mode, localFilter, onlyMissing,
+        canais: [...canais], statusSel: [...statusSel],
       }));
     } catch { /* cota cheia — ignora */ }
-  }, [parsedRows, fileName, dateFrom, dateTo, selected, selCarts, search, sortBy, sortDir, mode, localFilter, onlyMissing, cancelCount]);
+  }, [parsedRows, fileName, dateFrom, dateTo, selected, selCarts, search, sortBy, sortDir, mode, localFilter, onlyMissing, canais, statusSel]);
 
   async function sendRequest(e) {
     e.preventDefault();
@@ -142,7 +179,7 @@ export default function ImportSales({ user, onSendToLote }) {
   function clearImport() {
     setParsedRows([]); setFileName(''); setDateFrom(''); setDateTo('');
     setSelected(new Set()); setSelCarts(new Set()); setSearch('');
-    setLocalFilter(''); setOnlyMissing(false); setCancelCount(0); setError('');
+    setLocalFilter(''); setOnlyMissing(false); setError('');
     if (inputRef.current) inputRef.current.value = '';
   }
 
@@ -152,7 +189,7 @@ export default function ImportSales({ user, onSendToLote }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setParsing(true); setError(''); setParsedRows([]); setSelected(new Set()); setSelCarts(new Set());
-    setDateFrom(''); setDateTo(''); setCancelCount(0);
+    setDateFrom(''); setDateTo('');
     setFileName(file.name);
     try {
       const XLSX = await import('xlsx'); // carregado sob demanda (não pesa no bundle inicial)
@@ -170,13 +207,14 @@ export default function ImportSales({ user, onSendToLote }) {
       const ciComp = header.indexOf('Comprador');
       const ciData = header.indexOf('Data da venda');
       const ciEstado = header.indexOf('Estado');
+      const ciEntrega = header.indexOf('Forma de entrega');
       if (ciUn < 0) throw new Error('Não encontrei a coluna "Unidades" na planilha.');
 
-      const rows = [];       // achatado: { code, qty, cartId|null, saleDate }
+      const rows = [];       // achatado: { code, qty, cartId|null, saleDate, canal, statusCat }
       let curCartId = null;
-      let curCartCancel = false;
+      let curCartCanal = 'outro';
+      let curCartStatus = 'preparar';
       let cartSeq = 0;
-      let cancelados = 0;
       for (let i = hdrIdx + 1; i < matrix.length; i++) {
         const row = matrix[i];
         if (!Array.isArray(row)) continue;
@@ -187,20 +225,21 @@ export default function ImportSales({ user, onSendToLote }) {
         const q = qtyOf(row[ciUn]) || 1;
         const saleDate = ciData >= 0 ? parseSaleDate(row[ciData]) : null;
         const estado = ciEstado >= 0 ? String(row[ciEstado] ?? '') : '';
-        const cancelled = /cancel/i.test(estado);
+        const entrega = ciEntrega >= 0 ? String(row[ciEntrega] ?? '') : '';
+        const canal = classifyCanal(entrega);
+        const statusCat = classifyStatus(estado);
 
-        if (!code) { curCartId = ++cartSeq; curCartCancel = cancelled; continue; } // separador → inicia carrinho
-        if (curCartId && pac === 'Sim' && !comp) {                    // item de carrinho
-          if (curCartCancel || cancelled) { cancelados++; continue; } // carrinho/pedido cancelado → ignora
-          rows.push({ code, qty: q, cartId: curCartId, saleDate });
+        if (!code) {                                                 // separador → inicia carrinho
+          curCartId = ++cartSeq; curCartCanal = canal; curCartStatus = statusCat; continue;
+        }
+        if (curCartId && pac === 'Sim' && !comp) {                   // item de carrinho (herda canal/status do separador)
+          rows.push({ code, qty: q, cartId: curCartId, saleDate, canal: curCartCanal, statusCat: curCartStatus });
           continue;
         }
         curCartId = null;                                            // venda normal
-        if (cancelled) { cancelados++; continue; }                   // pedido cancelado → ignora
-        rows.push({ code, qty: q, cartId: null, saleDate });
+        rows.push({ code, qty: q, cartId: null, saleDate, canal, statusCat });
       }
-      if (rows.length === 0) throw new Error('Nenhum SKU válido na planilha (todos cancelados?).');
-      setCancelCount(cancelados);
+      if (rows.length === 0) throw new Error('Nenhum SKU válido na planilha.');
 
       // Cruza com o catálogo
       const res = await api.get('/skus');
@@ -232,6 +271,8 @@ export default function ImportSales({ user, onSendToLote }) {
     const cartMap = new Map();
     for (const r of parsedRows) {
       if (!inRange(r.saleDate)) continue;
+      if (canais.size && !canais.has(r.canal)) continue;
+      if (statusSel.size && !statusSel.has(r.statusCat)) continue;
       // Modo "sem carrinho": tudo entra na soma por SKU (inclusive itens de carrinho)
       if (r.cartId && mode === 'com') {
         if (!cartMap.has(r.cartId)) cartMap.set(r.cartId, []);
@@ -249,7 +290,26 @@ export default function ImportSales({ user, onSendToLote }) {
       })),
       detMin: mn, detMax: mx,
     };
-  }, [parsedRows, dateFrom, dateTo, mode]);
+  }, [parsedRows, dateFrom, dateTo, mode, canais, statusSel]);
+
+  // Contagem de unidades por canal e por status (respeitando só o filtro de data), para os chips
+  const { canalCount, statusCount } = useMemo(() => {
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo) : null;
+    const active = !!(from || to);
+    const inRange = d => { if (!d) return !active; if (from && d < from) return false; if (to && d > to) return false; return true; };
+    const cc = {}, sc = {};
+    for (const r of parsedRows) {
+      if (!inRange(r.saleDate)) continue;
+      cc[r.canal] = (cc[r.canal] || 0) + r.qty;
+      sc[r.statusCat] = (sc[r.statusCat] || 0) + r.qty;
+    }
+    return { canalCount: cc, statusCount: sc };
+  }, [parsedRows, dateFrom, dateTo]);
+
+  function toggleSet(setter, key) {
+    setter(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  }
 
   function toggle(code) {
     setSelected(prev => {
@@ -409,12 +469,38 @@ export default function ImportSales({ user, onSendToLote }) {
           </div>
         )}
 
+        {parsedRows.length > 0 && (
+          <div style={styles.toolbar}>
+            <div style={styles.group}>
+              <span style={styles.groupLabel}>Método de venda</span>
+              {CANAL_META.filter(c => canalCount[c.key]).map(c => (
+                <button key={c.key} onClick={() => toggleSet(setCanais, c.key)}
+                  style={{ ...styles.chip, ...(canais.has(c.key) ? styles.chipOn : {}) }}>
+                  {canais.has(c.key) ? '✓ ' : ''}{c.label} ({canalCount[c.key]})
+                </button>
+              ))}
+              <button onClick={() => setCanais(new Set(CANAL_META.filter(c => canalCount[c.key]).map(c => c.key)))}
+                style={styles.chip} title="Mostrar todos os canais">Todos</button>
+            </div>
+            <div style={styles.group}>
+              <span style={styles.groupLabel}>Status</span>
+              {STATUS_META.filter(s => statusCount[s.key]).map(s => (
+                <button key={s.key} onClick={() => toggleSet(setStatusSel, s.key)}
+                  style={{ ...styles.chip, ...(statusSel.has(s.key) ? styles.chipOn : {}) }}>
+                  {statusSel.has(s.key) ? '✓ ' : ''}{s.label} ({statusCount[s.key]})
+                </button>
+              ))}
+              <button onClick={() => setStatusSel(new Set(STATUS_META.filter(s => statusCount[s.key]).map(s => s.key)))}
+                style={styles.chip} title="Mostrar todos os status">Todos</button>
+            </div>
+          </div>
+        )}
+
         {(items.length > 0 || carts.length > 0) ? (
           <>
             <div style={styles.summary}>
               <b>{items.length}</b> SKUs · <b>{totalUnid}</b> unidades vendidas
               {carts.length > 0 && <span> · <b>{carts.length}</b> carrinho{carts.length !== 1 ? 's' : ''} 🛒</span>}
-              {cancelCount > 0 && <span style={{ color: 'var(--text-muted)' }}> · {cancelCount} cancelado{cancelCount !== 1 ? 's' : ''} ignorado{cancelCount !== 1 ? 's' : ''}</span>}
               {naoCadastrados > 0 && <span style={{ color: '#c53030' }}> · {naoCadastrados} não cadastrado{naoCadastrados !== 1 ? 's' : ''}</span>}
             </div>
 
