@@ -41,10 +41,10 @@ function classifyStatus(estado) {
   const e = String(estado || '').trim();
   if (!e) return 'preparar';
   if (/cancel/i.test(e)) return 'cancelado';
-  if (/devolu[çc][ãa]o|reembols|troca/i.test(e)) return 'devolucao';
+  if (/devolu[çc][ãa]o|devolv|reembols|troca/i.test(e)) return 'devolucao';
   if (/media[çc][ãa]o|reclama|disputa/i.test(e)) return 'mediacao';
   if (/entregue/i.test(e)) return 'entregue';
-  if (/a caminho|caminho|em rota|rota de entrega|despach|tr[âa]nsito|coleta.*realiz|retirad|correios/i.test(e)) return 'a_caminho';
+  if (/a caminho|caminho|em rota|rota de entrega|despach|tr[âa]nsito|coleta.*realiz|retirad|correios|reagendad|atrasad/i.test(e)) return 'a_caminho';
   return 'preparar';
 }
 const CANAL_META = [
@@ -213,7 +213,6 @@ export default function ImportSales({ user, onSendToLote }) {
       const rows = [];       // achatado: { code, qty, cartId|null, saleDate, canal, statusCat }
       let curCartId = null;
       let curCartCanal = 'outro';
-      let curCartStatus = 'preparar';
       let cartSeq = 0;
       for (let i = hdrIdx + 1; i < matrix.length; i++) {
         const row = matrix[i];
@@ -229,11 +228,11 @@ export default function ImportSales({ user, onSendToLote }) {
         const canal = classifyCanal(entrega);
         const statusCat = classifyStatus(estado);
 
-        if (!code) {                                                 // separador → inicia carrinho
-          curCartId = ++cartSeq; curCartCanal = canal; curCartStatus = statusCat; continue;
+        if (!code) {                                                 // separador → inicia carrinho (canal fica no separador)
+          curCartId = ++cartSeq; curCartCanal = canal; continue;
         }
-        if (curCartId && pac === 'Sim' && !comp) {                   // item de carrinho (herda canal/status do separador)
-          rows.push({ code, qty: q, cartId: curCartId, saleDate, canal: curCartCanal, statusCat: curCartStatus });
+        if (curCartId && pac === 'Sim' && !comp) {                   // item de carrinho: canal herda do separador, status é o do próprio item
+          rows.push({ code, qty: q, cartId: curCartId, saleDate, canal: curCartCanal, statusCat });
           continue;
         }
         curCartId = null;                                            // venda normal
