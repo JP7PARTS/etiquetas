@@ -292,20 +292,25 @@ export default function ImportSales({ user, onSendToLote }) {
     };
   }, [parsedRows, dateFrom, dateTo, mode, canais, statusSel]);
 
-  // Contagem de unidades por canal e por status (respeitando só o filtro de data), para os chips
-  const { canalCount, statusCount } = useMemo(() => {
+  // Contagem de unidades por canal e por status para os chips.
+  // Faceted: a contagem de cada grupo respeita a seleção do OUTRO grupo (mas não a dele mesmo).
+  // canalPresent/statusPresent: quais chips existem no dataset (só filtro de data), para não sumirem.
+  const { canalCount, statusCount, canalPresent, statusPresent } = useMemo(() => {
     const from = dateFrom ? new Date(dateFrom) : null;
     const to = dateTo ? new Date(dateTo) : null;
     const active = !!(from || to);
     const inRange = d => { if (!d) return !active; if (from && d < from) return false; if (to && d > to) return false; return true; };
-    const cc = {}, sc = {};
+    const cc = {}, sc = {}, cp = new Set(), sp = new Set();
     for (const r of parsedRows) {
       if (!inRange(r.saleDate)) continue;
-      cc[r.canal] = (cc[r.canal] || 0) + r.qty;
-      sc[r.statusCat] = (sc[r.statusCat] || 0) + r.qty;
+      cp.add(r.canal); sp.add(r.statusCat);
+      // canal: soma só linhas cujo status está selecionado
+      if (!statusSel.size || statusSel.has(r.statusCat)) cc[r.canal] = (cc[r.canal] || 0) + r.qty;
+      // status: soma só linhas cujo canal está selecionado
+      if (!canais.size || canais.has(r.canal)) sc[r.statusCat] = (sc[r.statusCat] || 0) + r.qty;
     }
-    return { canalCount: cc, statusCount: sc };
-  }, [parsedRows, dateFrom, dateTo]);
+    return { canalCount: cc, statusCount: sc, canalPresent: cp, statusPresent: sp };
+  }, [parsedRows, dateFrom, dateTo, canais, statusSel]);
 
   function toggleSet(setter, key) {
     setter(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
@@ -473,24 +478,24 @@ export default function ImportSales({ user, onSendToLote }) {
           <div style={styles.toolbar}>
             <div style={styles.group}>
               <span style={styles.groupLabel}>Método de venda</span>
-              {CANAL_META.filter(c => canalCount[c.key]).map(c => (
+              {CANAL_META.filter(c => canalPresent.has(c.key)).map(c => (
                 <button key={c.key} onClick={() => toggleSet(setCanais, c.key)}
                   style={{ ...styles.chip, ...(canais.has(c.key) ? styles.chipOn : {}) }}>
-                  {canais.has(c.key) ? '✓ ' : ''}{c.label} ({canalCount[c.key]})
+                  {canais.has(c.key) ? '✓ ' : ''}{c.label} ({canalCount[c.key] || 0})
                 </button>
               ))}
-              <button onClick={() => setCanais(new Set(CANAL_META.filter(c => canalCount[c.key]).map(c => c.key)))}
+              <button onClick={() => setCanais(new Set(CANAL_META.filter(c => canalPresent.has(c.key)).map(c => c.key)))}
                 style={styles.chip} title="Mostrar todos os canais">Todos</button>
             </div>
             <div style={styles.group}>
               <span style={styles.groupLabel}>Status</span>
-              {STATUS_META.filter(s => statusCount[s.key]).map(s => (
+              {STATUS_META.filter(s => statusPresent.has(s.key)).map(s => (
                 <button key={s.key} onClick={() => toggleSet(setStatusSel, s.key)}
                   style={{ ...styles.chip, ...(statusSel.has(s.key) ? styles.chipOn : {}) }}>
-                  {statusSel.has(s.key) ? '✓ ' : ''}{s.label} ({statusCount[s.key]})
+                  {statusSel.has(s.key) ? '✓ ' : ''}{s.label} ({statusCount[s.key] || 0})
                 </button>
               ))}
-              <button onClick={() => setStatusSel(new Set(STATUS_META.filter(s => statusCount[s.key]).map(s => s.key)))}
+              <button onClick={() => setStatusSel(new Set(STATUS_META.filter(s => statusPresent.has(s.key)).map(s => s.key)))}
                 style={styles.chip} title="Mostrar todos os status">Todos</button>
             </div>
           </div>
