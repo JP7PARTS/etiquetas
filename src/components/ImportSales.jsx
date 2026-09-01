@@ -547,6 +547,8 @@ export default function ImportSales({ user, onSendToLote }) {
               ))}
               <button onClick={() => setCanais(new Set(CANAL_META.filter(c => canalPresent.has(c.key)).map(c => c.key)))}
                 style={styles.chip} title="Mostrar todos os canais">Todos</button>
+              <button onClick={() => setCanais(new Set())}
+                style={styles.chip} title="Limpar o filtro de canal (mostra todos)">Limpar</button>
             </div>
             <div style={styles.group}>
               <span style={styles.groupLabel}>Status</span>
@@ -558,6 +560,8 @@ export default function ImportSales({ user, onSendToLote }) {
               ))}
               <button onClick={() => setStatusSel(new Set(STATUS_META.filter(s => statusPresent.has(s.key)).map(s => s.key)))}
                 style={styles.chip} title="Mostrar todos os status">Todos</button>
+              <button onClick={() => setStatusSel(new Set())}
+                style={styles.chip} title="Limpar o filtro de status (mostra todos)">Limpar</button>
             </div>
             {statusSel.has('preparar') && (
               <div style={{ ...styles.group, paddingLeft: '18px', borderLeft: '2px solid var(--border)' }}>
@@ -570,6 +574,8 @@ export default function ImportSales({ user, onSendToLote }) {
                 ))}
                 <button onClick={() => setPrepSel(new Set(PREP_META.filter(p => prepPresent.has(p.key)).map(p => p.key)))}
                   style={styles.chip} title="Mostrar todos os estágios">Todos</button>
+                <button onClick={() => setPrepSel(new Set())}
+                  style={styles.chip} title="Limpar o filtro de estágio (mostra todos)">Limpar</button>
               </div>
             )}
           </div>
