@@ -139,6 +139,7 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
   const anunPorSku = new Map(); // sku -> Map(anuncio -> { un, titulo })
   const fullUnByCml = new Map(); // cml -> total un vendidas pelo Full (diretas + reconciliadas)
   const crossFull = new Map();   // cml -> { win:{[D]:qty}, un, receita } vendas por Coleta no anúncio do Full
+  const foraDoFull = new Set();  // anúncios que venderam pelo Full mas cujo SKU não está no estoque Full (saiu do Full)
 
   const addAnun = (mapa, chave, l, peso) => {
     if (!chave) return;
@@ -208,7 +209,11 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
     }
     // segue órfã (cross-only, ou migração não resolvida)
     for (const D of janelas) if (dentro(l, D)) orfas[D] += l.un;
-    if (l.canal === 'cross') {
+    // Venda pelo Full de um SKU que NÃO está no estoque Full = anúncio que saiu do Full (migrou p/ cross).
+    // Conta como demanda do candidato (Full + cross), para o reenvio ao Full considerar tudo que girou.
+    const saiuDoFull = l.canal === 'full' && !skusFull.has(l.sku);
+    if (saiuDoFull) foraDoFull.add(l.anuncio);
+    if (l.canal === 'cross' || saiuDoFull) {
       if (!demSkuCross.has(l.sku)) demSkuCross.set(l.sku, {});
       const o = demSkuCross.get(l.sku);
       for (const D of janelas) if (dentro(l, D)) o[D] = (o[D] || 0) + l.un;
@@ -374,12 +379,14 @@ function _run({ resumo, vendas, cross, desempenho, excl, params, anuncioToCml, a
     const sugestao = Math.max(0, Math.ceil(velEsc * diasCobertura)); // necessidade cheia; o cross é conferido na trava
     const decisao = excl.has(g.sku) ? 'Não enviar' : (melhor && crossSku > 0 ? 'Promover' : 'Ignorar');
     const anuncios = [...g.anuncios.entries()].map(([mlb, v]) => ({ mlb, un: v.un, titulo: v.titulo })).sort((x, y) => y.un - x.un);
+    const saiuDoFull = [...g.anuncios.keys()].some(mlb => foraDoFull.has(mlb));
     rows.push({
       key: 'cross:' + g.topMlb, origem: 'cross', codigoMl: '', sku: g.sku, produto: g.titulo || g.sku,
       anuncios, anuncio: (anuncios[0] && anuncios[0].mlb) || g.topMlb, tituloTop: (anuncios[0] && anuncios[0].titulo) || g.titulo || g.sku,
       vels, velEsc, unMax: d[maxJ] || 0, un30ml: null, estoque: 0, semanas: null,
       crossSku, sugestao, final: decisao === 'Promover' ? sugestao : 0,
-      melhor, rankQtd: rankQtdMap.get(pkey) || null, rankValor: rankValorMap.get(pkey) || null, perf: perf(pkey), decisao, alertas: [],
+      melhor, rankQtd: rankQtdMap.get(pkey) || null, rankValor: rankValorMap.get(pkey) || null, perf: perf(pkey), decisao,
+      alertas: saiuDoFull ? ['vendeu no Full (fora do estoque atual)'] : [],
     });
   }
 
