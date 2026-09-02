@@ -18,6 +18,7 @@ const ALERT_STYLE = {
   'a caminho': { bg: '#bee3f8', fg: '#2a4365' },
   'aguardando cross': { bg: '#e2e8f0', fg: '#4a5568' },
   'cross voltou': { bg: '#9ae6b4', fg: '#22543d' },
+  'vendeu no Full (fora do estoque atual)': { bg: '#feebc8', fg: '#7b341e' },
 };
 
 const DECISOES = ['Manter', 'Promover', 'Avaliar saída', 'Ignorar'];
@@ -212,6 +213,13 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
     const ativo = alertFiltro.size === 1 && alertFiltro.has('cross voltou');
     if (ativo) { setAlertFiltro(new Set()); return; }
     setVerTodos(true); setDecFiltro('Todos'); setAlertFiltro(new Set(['cross voltou']));
+  };
+  const ALERT_SAIU_FULL = 'vendeu no Full (fora do estoque atual)';
+  const saiuFullN = useMemo(() => rows.filter(r => (r.alertas || []).includes(ALERT_SAIU_FULL)).length, [rows]);
+  const filtrarSaiuDoFull = () => {
+    const ativo = alertFiltro.size === 1 && alertFiltro.has(ALERT_SAIU_FULL);
+    if (ativo) { setAlertFiltro(new Set()); return; }
+    setVerTodos(true); setDecFiltro('Todos'); setAlertFiltro(new Set([ALERT_SAIU_FULL]));
   };
   const comComentarioN = useMemo(() => rows.filter(r => (notes[refDe(r)] || '').trim()).length, [rows, notes]);
   // Painel de resumo/saúde — números sobre TODAS as linhas
@@ -531,6 +539,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
           <button onClick={filtrarCrossVoltou} title="Anúncios cujo estoque do cross voltou — clique para ver só eles"
             style={{ ...styles.chip, marginLeft: '10px', background: s.bg, color: s.fg, borderColor: s.fg, fontWeight: 700, ...(ativo ? { outline: '2px solid ' + s.fg } : {}) }}>
             ✅ cross voltou ({crossVoltouN})
+          </button>
+        ); })()}
+        {saiuFullN > 0 && (() => { const ativo = alertFiltro.size === 1 && alertFiltro.has(ALERT_SAIU_FULL); return (
+          <button onClick={filtrarSaiuDoFull} title="Vendeu pelo Full mas saiu do estoque atual do Full — candidatos a reenvio. Clique para ver só eles."
+            style={{ ...styles.chip, marginLeft: '10px', background: '#feebc8', color: '#7b341e', borderColor: '#c05621', fontWeight: 700, ...(ativo ? { outline: '2px solid #c05621' } : {}) }}>
+            📦 saiu do Full ({saiuFullN})
           </button>
         ); })()}
         {comComentarioN > 0 && (
