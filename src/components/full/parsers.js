@@ -20,12 +20,36 @@ const pct = (v) => { const s = String(v ?? '').replace('%', '').replace(',', '.'
 //  2) fallback ancorado na coluna "Código ML" + offsets do layout do Resumo.
 
 // Offsets das colunas do Resumo relativos à coluna "Código ML" (base = Código ML).
+// Layout ANTIGO do "Relatório geral de estoque" do Full (offsets relativos à coluna Código ML).
 const RESUMO_OFFSETS = {
   codigoMl: 0, gtin: 1, sku: 2, anuncio: 3, agrupador: 4, produto: 5, tamanho: 6,
   status: 8, oferece: 9, un30: 10, rs30: 11, estMedio: 12, afetamTempo: 13, aCaminho: 14,
   naoAptas: 18, extraviadas: 19, emRevisao: 20, ocupaEspaco: 22,
   boaQualidade: 24, impulsionar: 25, colocarVenda: 26, evitarDescarte: 27, tempo: 28,
 };
+// Layout NOVO (a partir de ~set/2026): o ML inseriu "Tipo de produto" e "Produto Estrela",
+// renomeou "Unidades que afetam a métrica de Tempo de estoque" → "Estoque antigo" e moveu
+// Vendas 30d (R$/un.) para o fim. Detectado pela posição da coluna "Tempo até esgotar estoque".
+const RESUMO_OFFSETS_NEW = {
+  codigoMl: 0, gtin: 1, sku: 2, anuncio: 3, agrupador: 4, produto: 5, tamanho: 6,
+  status: 9, oferece: 10, estMedio: 11, afetamTempo: 12, tempo: 13, aCaminho: 14,
+  naoAptas: 18, ocupaEspaco: 22, boaQualidade: 24, impulsionar: 25, colocarVenda: 26,
+  evitarDescarte: 27, rs30: 28, un30: 29,
+};
+const TEMPO_RE = /semana|sem estoque|esgotar|envie mais|hoje/i;
+// Offset (relativo à coluna Código ML) da coluna "Tempo até esgotar estoque", pelo conteúdo do texto.
+function detectTempoOffset(matrix, base) {
+  const counts = {};
+  const lim = Math.min(matrix.length, 80);
+  for (let i = 0; i < lim; i++) {
+    const r = matrix[i];
+    if (!Array.isArray(r) || !CODIGO_ML_RE.test(txt(r[base]))) continue;
+    for (let o = 7; o <= 34; o++) if (TEMPO_RE.test(txt(r[base + o]))) counts[o] = (counts[o] || 0) + 1;
+  }
+  let best = -1, bestN = 0;
+  for (const o in counts) if (counts[o] > bestN) { bestN = counts[o]; best = +o; }
+  return best;
+}
 
 const CODIGO_ML_RE = /^[A-Z]{3,5}\d{4,7}$/; // ex.: RIKW39472, ULEV02571, NMVS85899
 
@@ -42,29 +66,39 @@ export async function parseFullResumo(file) {
   let map, dataStart;
   if (hdrIdx >= 0) {
     const header = matrix[hdrIdx].map(txt);
-    const col = (name) => header.indexOf(name);
+    // Primeiro o nome exato; se não achar (ML renomeou colunas), cai em pedaços do nome.
+    const pick = (exact, ...subs) => {
+      const i = header.indexOf(exact);
+      if (i >= 0) return i;
+      const low = subs.map(s => s.toLowerCase());
+      return header.findIndex(h => low.some(s => h.toLowerCase().includes(s)));
+    };
     map = {
-      codigoMl: col('Código ML'), gtin: col('Código universal'), sku: col('SKU'),
-      anuncio: col('# Anúncio'), agrupador: col('Agrupador de variações'), produto: col('Produto'),
-      tamanho: col('Tamanho'), status: col('Status do anúncio'), oferece: col('Oferece Full'),
-      un30: col('Vendas últimos 30 dias (un.)'), rs30: col('Vendas últimos 30 dias (R$)'),
-      estMedio: col('Estoque médio últimos 30 dias (un.)'),
-      afetamTempo: col('Unidades que afetam a métrica de Tempo de estoque'),
-      aCaminho: col('Unidades a caminho do Full'),
-      ocupaEspaco: col('Unidades que ocupam espaço no Full'),
-      naoAptas: col('Não aptas para venda'),
+      codigoMl: pick('Código ML'), gtin: pick('Código universal', 'código universal'), sku: pick('SKU'),
+      anuncio: pick('# Anúncio', 'anúncios com este produto', '# anúncio'), agrupador: pick('Agrupador de variações', 'agrupador'), produto: pick('Produto'),
+      tamanho: pick('Tamanho'), status: pick('Status do anúncio', 'status do anúncio'), oferece: pick('Oferece Full', 'oferece full'),
+      un30: pick('Vendas últimos 30 dias (un.)', 'unidades vendidas'),
+      rs30: header.findIndex(h => /vendas/i.test(h) && /r\$/i.test(h)),
+      estMedio: pick('Estoque médio últimos 30 dias (un.)', 'estoque médio'),
+      afetamTempo: pick('Unidades que afetam a métrica de Tempo de estoque', 'estoque antigo', 'que afetam a métrica'),
+      aCaminho: pick('Unidades a caminho do Full', 'a caminho do full', 'entrada pendente'),
+      ocupaEspaco: pick('Unidades que ocupam espaço no Full', 'ocupam espaço'),
+      naoAptas: pick('Não aptas para venda', 'não aptas'),
       extraviadas: header.findIndex(h => h.startsWith('Extraviadas')),
-      emRevisao: col('Em revisão'), evitarDescarte: col('Para evitar descarte'),
-      boaQualidade: col('Boa qualidade'), impulsionar: col('Para impulsionar vendas'),
-      colocarVenda: col('Para colocar à venda'), tempo: col('Tempo até esgotar estoque'),
+      emRevisao: pick('Em revisão'), evitarDescarte: pick('Para evitar descarte', 'evitar descarte'),
+      boaQualidade: pick('Boa qualidade'), impulsionar: pick('Para impulsionar vendas', 'impulsionar'),
+      colocarVenda: pick('Para colocar à venda', 'colocar à venda'), tempo: pick('Tempo até esgotar estoque', 'até esgotar'),
     };
     dataStart = hdrIdx + 1;
   } else {
-    // Caminho 2: fallback ancorado — acha a coluna com mais valores de Código ML
+    // Caminho 2: fallback ancorado — acha a coluna com mais valores de Código ML e detecta o layout
+    // (antigo vs novo) pela posição da coluna "Tempo até esgotar estoque".
     const base = findCodigoMlColumn(matrix);
     if (base < 0) throw new Error('Não reconheci o relatório do Full (coluna "Código ML" não encontrada). O formato pode ter mudado.');
+    const tempoOff = detectTempoOffset(matrix, base);
+    const OFF = tempoOff === RESUMO_OFFSETS_NEW.tempo ? RESUMO_OFFSETS_NEW : RESUMO_OFFSETS;
     map = {};
-    for (const k in RESUMO_OFFSETS) map[k] = base + RESUMO_OFFSETS[k];
+    for (const k in OFF) map[k] = base + OFF[k];
     dataStart = 0;
   }
 
