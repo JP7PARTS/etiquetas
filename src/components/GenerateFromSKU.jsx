@@ -28,10 +28,10 @@ function LinhaMedidaGen({ prefixo, c, l, a }) {
 }
 
 const TIPO_ENVIO_LABEL = {
-  propria: { txt: '📦 Emb. própria', color: '#2b6cb0', bg: '#ebf8ff' },
-  sem: { txt: '⚠️ Sem embalagem', color: '#c05621', bg: '#fffaf0' },
-  padrao: { txt: '📦', color: '#276749', bg: '#f0fff4' },
-  papelao: { txt: '📦 Papelão', color: '#744210', bg: '#fefcbf' },
+  propria: { txt: '📦 Emb. própria', color: 'var(--color-info-fg)', bg: 'var(--color-info-bg)' },
+  sem: { txt: '⚠️ Sem embalagem', color: 'var(--color-warning-fg)', bg: 'var(--color-warning-bg)' },
+  padrao: { txt: '📦', color: 'var(--color-success-fg)', bg: 'var(--color-success-bg)' },
+  papelao: { txt: '📦 Papelão', color: 'var(--color-warning-fg)', bg: 'var(--color-warning-bg)' },
 };
 
 let rowSeq = 1;
@@ -289,9 +289,9 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
 
       {error && <div className="alert alert-error" style={{marginBottom: '16px'}}>{error}</div>}
 
-      <div style={styles.container}>
+      <div className="split-layout">
         {/* TABELA (ESQUERDA) */}
-        <div style={styles.tablePanel}>
+        <div className="split-main">
           <div className="card" style={{height: '100%', display: 'flex', flexDirection: 'column'}}>
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px'}}>
               <h3 style={{...styles.panelTitle, margin: 0}}>Catálogo de SKUs</h3>
@@ -352,7 +352,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                 <div style={{textAlign: 'center', color: 'var(--text-muted)'}}>
                   <p>{tableSearch || localFilter ? 'Nenhum SKU encontrado' : 'Nenhum SKU disponível'}</p>
                   {tableSearch.trim() && reqDone === tableSearch.trim().toUpperCase() ? (
-                    <p style={{ color: '#276749', fontWeight: 600, marginTop: '8px' }}>✅ Solicitação enviada ao admin</p>
+                    <p style={{ color: 'var(--color-success-fg)', fontWeight: 600, marginTop: '8px' }}>✅ Solicitação enviada ao admin</p>
                   ) : tableSearch.trim() && (
                     isAdmin ? (
                       <button type="button" className="btn-primary" style={{ marginTop: '10px' }}
@@ -413,7 +413,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                               <LinhaMedidaGen prefixo="ML" c={sku.comprimento_cm} l={sku.largura_cm} a={sku.altura_cm} />
                               <LinhaMedidaGen prefixo="Shopee" c={sku.shopee_comprimento_cm} l={sku.shopee_largura_cm} a={sku.shopee_altura_cm} />
                               {(sku.papelao_full_cm != null || sku.papelao_shopee_cm != null) && (
-                                <div style={{ fontSize: '11px', color: '#744210' }}>
+                                <div style={{ fontSize: '11px', color: 'var(--color-warning-fg)' }}>
                                   ✂️ ML {sku.papelao_full_cm != null ? (+sku.papelao_full_cm) + 'cm' : '—'} · Shopee {sku.papelao_shopee_cm != null ? (+sku.papelao_shopee_cm) + 'cm' : '—'}
                                 </div>
                               )}
@@ -427,10 +427,10 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
                             </div>; })()}
                           {!isAdmin && faltaMedidas(sku) && (
                             reqDone === sku.sku.toUpperCase()
-                              ? <div style={{ fontSize: '11px', color: '#276749', fontWeight: 600, marginTop: '3px' }}>✅ solicitado</div>
+                              ? <div style={{ fontSize: '11px', color: 'var(--color-success-fg)', fontWeight: 600, marginTop: '3px' }}>✅ solicitado</div>
                               : <button type="button" title="Pedir ao admin para incluir as medidas deste produto"
                                   onClick={() => { setReqForm({ sku: sku.sku, titulo: sku.descricao_curta || sku.descricao_longa || '', local: sku.local || '', existe: true, ...packagingFrom(sku) }); setReqErr(''); }}
-                                  style={{ marginTop: '3px', border: 'none', background: 'none', color: '#c05621', fontSize: '11px', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>📨 Solicitar medidas</button>
+                                  style={{ marginTop: '3px', border: 'none', background: 'none', color: 'var(--color-warning-fg)', fontSize: '11px', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>📨 Solicitar medidas</button>
                           )}
                         </td>
                         <td style={styles.colAction}>
@@ -457,7 +457,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
         </div>
 
         {/* LOTE (DIREITA) */}
-        <div style={styles.lotePanel}>
+        <div className="split-side">
           <div className="card" style={{height: '100%', display: 'flex', flexDirection: 'column'}}>
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '8px', flexWrap: 'wrap'}}>
               <h3 style={{...styles.panelTitle, margin: 0}}>Seu Lote</h3>
@@ -630,8 +630,8 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
               {importText.trim() && (
                 <div style={styles.importPreview}>
                   <div style={{fontWeight: 700, marginBottom: importNotFound.length ? '8px' : 0}}>
-                    <span style={{color: '#276749'}}>{importMatched.length} encontrado{importMatched.length !== 1 ? 's' : ''}</span>
-                    {importNotFound.length > 0 && <span style={{color: '#c53030'}}> · {importNotFound.length} não encontrado{importNotFound.length !== 1 ? 's' : ''}</span>}
+                    <span style={{color: 'var(--color-success-fg)'}}>{importMatched.length} encontrado{importMatched.length !== 1 ? 's' : ''}</span>
+                    {importNotFound.length > 0 && <span style={{color: 'var(--color-error-fg)'}}> · {importNotFound.length} não encontrado{importNotFound.length !== 1 ? 's' : ''}</span>}
                     {importIgnoredZero > 0 && <span style={{color: 'var(--text-muted)'}}> · {importIgnoredZero} ignorado{importIgnoredZero !== 1 ? 's' : ''} (qtde 0)</span>}
                   </div>
                   {importNotFound.length > 0 && (
@@ -751,19 +751,6 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
 }
 
 const styles = {
-  container: {
-    display: 'flex',
-    gap: '20px',
-    marginBottom: '20px',
-  },
-  tablePanel: {
-    flex: '1.5',
-    minWidth: 0,
-  },
-  lotePanel: {
-    flex: '1',
-    minWidth: 0,
-  },
   panelTitle: {
     fontSize: '14px',
     fontWeight: '700',
@@ -797,7 +784,7 @@ const styles = {
     padding: '4px 10px',
     borderRadius: '16px',
     border: '1px solid var(--border)',
-    background: '#fff',
+    background: 'var(--color-card)',
     color: 'var(--text-secondary)',
     fontSize: '11.5px',
     fontWeight: '600',
@@ -817,7 +804,7 @@ const styles = {
   tableHead: {
     position: 'sticky',
     top: 0,
-    background: '#f7fafc',
+    background: 'var(--color-muted)',
     borderBottom: '1px solid var(--border)',
   },
   tableRow: {
@@ -857,12 +844,12 @@ const styles = {
     flexShrink: 0,
   },
   skuCode: {
-    background: '#f1f5f9',
+    background: 'var(--color-muted)',
     padding: '2px 6px',
     borderRadius: '4px',
     fontSize: '12px',
     fontFamily: 'monospace',
-    color: '#2b6cb0',
+    color: 'var(--color-info-fg)',
   },
   descPrimary: {
     color: 'var(--text-primary)',
@@ -894,8 +881,8 @@ const styles = {
     wordBreak: 'break-word',
   },
   badge: {
-    background: '#e6fffa',
-    color: '#276749',
+    background: 'var(--color-success-bg)',
+    color: 'var(--color-success-fg)',
     padding: '2px 7px',
     borderRadius: '4px',
     fontSize: '11px',
@@ -923,7 +910,7 @@ const styles = {
     padding: '8px 12px',
   },
   cartRow: {
-    background: '#f5f8ff',
+    background: 'var(--color-info-bg)',
     borderLeft: '3px solid #2b4c8c',
   },
   cartTag: {
@@ -931,8 +918,8 @@ const styles = {
     marginRight: '8px',
     fontSize: '10.5px',
     fontWeight: 700,
-    color: '#2b4c8c',
-    background: '#dbe8ff',
+    color: 'var(--color-info-fg)',
+    background: 'var(--color-info-bg)',
     padding: '2px 8px',
     borderRadius: '10px',
     whiteSpace: 'nowrap',
@@ -943,19 +930,19 @@ const styles = {
     gap: '8px',
   },
   skuCodeInline: {
-    background: '#f1f5f9',
+    background: 'var(--color-muted)',
     padding: '2px 6px',
     borderRadius: '3px',
     fontFamily: 'monospace',
     fontSize: '12px',
-    color: '#2b6cb0',
+    color: 'var(--color-info-fg)',
   },
   altToggle: {
     marginLeft: '8px',
     padding: '2px 8px',
     borderRadius: '12px',
     border: '1px solid var(--border)',
-    background: '#fff',
+    background: 'var(--color-card)',
     color: 'var(--text-secondary)',
     fontSize: '10.5px',
     fontWeight: '700',
@@ -971,9 +958,9 @@ const styles = {
     width: '28px',
     height: '28px',
     flexShrink: 0,
-    background: '#fff5f5',
-    color: '#e53e3e',
-    border: '1px solid #fed7d7',
+    background: 'var(--color-error-bg)',
+    color: 'var(--color-error-fg)',
+    border: '1px solid var(--color-error-border)',
     borderRadius: '4px',
     cursor: 'pointer',
     fontSize: '14px',
@@ -988,7 +975,7 @@ const styles = {
   },
   loteSummary: {
     padding: '12px',
-    background: '#f7fafc',
+    background: 'var(--color-muted)',
     borderRadius: 'var(--radius-sm)',
     marginBottom: '8px',
   },
@@ -996,13 +983,13 @@ const styles = {
     marginTop: '8px',
     fontSize: '12px',
     fontWeight: '600',
-    color: '#276749',
+    color: 'var(--color-success-fg)',
     textAlign: 'center',
   },
   clearBtn: {
-    background: '#fff5f5',
-    color: '#e53e3e',
-    border: '1px solid #fed7d7',
+    background: 'var(--color-error-bg)',
+    color: 'var(--color-error-fg)',
+    border: '1px solid var(--color-error-border)',
     borderRadius: '6px',
     padding: '5px 12px',
     fontSize: '12.5px',
@@ -1010,7 +997,7 @@ const styles = {
     cursor: 'pointer',
   },
   toolBtn: {
-    background: '#fff',
+    background: 'var(--color-card)',
     color: 'var(--text-secondary)',
     border: '1px solid var(--border)',
     borderRadius: '6px',
@@ -1029,7 +1016,7 @@ const styles = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px',
   },
   modalCard: {
-    background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '460px',
+    background: 'var(--color-card)', borderRadius: '12px', width: '100%', maxWidth: '460px',
     maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
   },
   modalHeader: {
@@ -1049,11 +1036,11 @@ const styles = {
     border: '1px solid var(--border)', borderRadius: '8px', resize: 'vertical', boxSizing: 'border-box',
   },
   importPreview: {
-    marginTop: '12px', padding: '12px', background: '#f7fafc',
+    marginTop: '12px', padding: '12px', background: 'var(--color-muted)',
     border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px',
   },
   notFoundChip: {
-    background: '#fff5f5', color: '#c53030', border: '1px solid #fed7d7',
+    background: 'var(--color-error-bg)', color: 'var(--color-error-fg)', border: '1px solid var(--color-error-border)',
     padding: '2px 7px', borderRadius: '4px', fontSize: '12px', fontFamily: 'monospace',
   },
 };

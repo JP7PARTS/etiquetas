@@ -3,3 +3,7 @@ dist/
 .env
 *.local
 .DS_Store
+
+# cache do Python gerado pelos scripts das skills
+__pycache__/
+*.pyc

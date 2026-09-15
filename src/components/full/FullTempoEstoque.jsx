@@ -16,15 +16,15 @@ const AREAS = [
   {
     key: 'anuncio', label: 'Anúncio',
     options: [
-      { v: 'revisar', label: 'Precisa mexer', color: '#c05621', bg: '#fffaf0' },
-      { v: 'ok', label: 'Revisado / OK', color: '#276749', bg: '#f0fff4' },
+      { v: 'revisar', label: 'Precisa mexer', color: 'var(--color-warning-fg)', bg: 'var(--color-warning-bg)' },
+      { v: 'ok', label: 'Revisado / OK', color: 'var(--color-success-fg)', bg: 'var(--color-success-bg)' },
     ],
   },
   {
     key: 'preco', label: 'Preço',
     options: [
-      { v: 'desconto', label: 'Dar desconto', color: '#c05621', bg: '#fffaf0' },
-      { v: 'ok', label: 'Preço OK', color: '#276749', bg: '#f0fff4' },
+      { v: 'desconto', label: 'Dar desconto', color: 'var(--color-warning-fg)', bg: 'var(--color-warning-bg)' },
+      { v: 'ok', label: 'Preço OK', color: 'var(--color-success-fg)', bg: 'var(--color-success-bg)' },
     ],
   },
 ];
@@ -32,9 +32,9 @@ const areaOpt = (areaKey, v) => AREAS.find(a => a.key === areaKey)?.options.find
 
 // Evolução (comparação com a lista anterior)
 const EVOL = {
-  critico: { label: '🔴 Crítico', color: '#c53030', rank: 0, hint: 'Continua na lista e sem venda (parado)' },
-  novo: { label: '🆕 Novo', color: '#2b6cb0', rank: 1, hint: 'Não estava na lista anterior' },
-  girando: { label: '🟡 Girando', color: '#b7791f', rank: 2, hint: 'Continua na lista, mas teve venda' },
+  critico: { label: '🔴 Crítico', color: 'var(--color-error-fg)', rank: 0, hint: 'Continua na lista e sem venda (parado)' },
+  novo: { label: '🆕 Novo', color: 'var(--color-info-fg)', rank: 1, hint: 'Não estava na lista anterior' },
+  girando: { label: '🟡 Girando', color: 'var(--color-warning-fg)', rank: 2, hint: 'Continua na lista, mas teve venda' },
 };
 
 export default function FullTempoEstoque({ user }) {
@@ -340,7 +340,7 @@ export default function FullTempoEstoque({ user }) {
                     <td style={{ textAlign: 'right' }}>{int(it.estoque_full)}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="dias de estoque restantes (estoque ÷ velocidade)">{it.cobertura == null ? <span style={{ color: 'var(--text-muted)' }}>—</span> : `${int(it.cobertura)}d`}</td>
                     <td style={{ textAlign: 'center', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{it.vels?.length ? it.vels.map(dec).join('/') : dec(it.media_venda)}</td>
-                    <td style={{ textAlign: 'right', color: '#c05621', fontWeight: 700 }}>{int(it.un_tempo)}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--color-warning-fg)', fontWeight: 700 }}>{int(it.un_tempo)}</td>
                     <td style={{ textAlign: 'right' }}>{int(it.un_vendidas)}</td>
                     {prev && <td style={{ whiteSpace: 'nowrap', color: it.evol ? EVOL[it.evol].color : 'var(--text-muted)', fontWeight: 600 }} title={it.evol ? EVOL[it.evol].hint : ''}>{it.evol ? EVOL[it.evol].label : '—'}</td>}
                     <td><TrilhaCell ref_={it.ref} area="anuncio" byRef={byRef} onComentar={comentar} onExcluir={excluirComentario} expandRef={expandRef} setExpandRef={setExpandRef} /></td>
@@ -461,7 +461,7 @@ function TrilhaCell({ ref_, area, byRef, onComentar, onExcluir, expandRef, setEx
                 <span style={{ color: 'var(--text-muted)' }}>{fmtDate(c.created_at)} · {c.created_by_name}</span>
                 {c.status && <span style={{ marginLeft: '5px', fontWeight: 700, color: o ? o.color : 'inherit' }}>[{o ? o.label : (c.status === 'pendente' ? 'A revisar' : c.status)}]</span>}
                 {onExcluir && <button onClick={() => onExcluir(c.id)} title="Remover comentário"
-                  style={{ marginLeft: '6px', border: 'none', background: 'none', cursor: 'pointer', color: '#c53030', fontSize: '11px', padding: 0 }}>🗑</button>}
+                  style={{ marginLeft: '6px', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--color-error-fg)', fontSize: '11px', padding: 0 }}>🗑</button>}
                 {c.texto && <div style={{ color: 'var(--text-secondary)' }}>{c.texto}</div>}
               </div>
             );

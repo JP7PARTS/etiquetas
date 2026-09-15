@@ -272,9 +272,9 @@ export default function UserManagement({ user }) {
 
 const styles = {
   toolbar: { display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' },
-  youTag: { marginLeft: '8px', fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', background: '#f1f5f9', padding: '2px 7px', borderRadius: '9px' },
+  youTag: { marginLeft: '8px', fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', background: 'var(--color-muted)', padding: '2px 7px', borderRadius: '9px' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
-  modal: { background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden' },
+  modal: { background: 'var(--color-card)', borderRadius: '12px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden' },
   modalHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px', borderBottom: '1px solid var(--border)' },
   modalTitle: { fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' },
   closeBtn: { background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '4px' },

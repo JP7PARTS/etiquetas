@@ -1,37 +1,93 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ChangePasswordModal from './ChangePasswordModal.jsx';
 import api from '../utils/api.js';
+
+/* Ícones SVG (traçado 1.75, 20x20). Substituem os emojis usados antes:
+   emoji varia de forma entre sistemas e não herda cor do tema. */
+const ICON_PATHS = {
+  tag: <><path d="M3 7v5.2a2 2 0 0 0 .6 1.4l7 7a2 2 0 0 0 2.8 0l5.8-5.8a2 2 0 0 0 0-2.8l-7-7A2 2 0 0 0 10.8 4H5.6A2.6 2.6 0 0 0 3 6.6Z" /><circle cx="7.5" cy="8.5" r="1.4" /></>,
+  alert: <><path d="M10.3 3.9 2.5 17.2A1.9 1.9 0 0 0 4.2 20h15.6a1.9 1.9 0 0 0 1.7-2.8L13.7 3.9a1.9 1.9 0 0 0-3.4 0Z" /><path d="M12 9v4.2" /><path d="M12 17h.01" /></>,
+  pencil: <><path d="M12.5 5.5 18 11l-9 9H3.5v-5.5Z" /><path d="m15.5 2.5 6 6" /></>,
+  inbox: <><path d="M3 13h5l1.5 3h5L16 13h5" /><path d="M5.4 4.6h13.2a2 2 0 0 1 1.9 1.4L22 13v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5l1.5-7a2 2 0 0 1 1.9-1.4Z" /></>,
+  clipboard: <><rect x="8" y="2.5" width="8" height="4" rx="1.2" /><path d="M16 4.5h2A2 2 0 0 1 20 6.5V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2" /><path d="M8.5 11.5h7" /><path d="M8.5 16h4.5" /></>,
+  truck: <><path d="M2 6.5h11v10H2z" /><path d="M13 10h4.2l2.8 3.2v3.3H13z" /><circle cx="7" cy="17.8" r="1.9" /><circle cx="16.8" cy="17.8" r="1.9" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5.3l3.3 2" /></>,
+  box: <><path d="M20.5 7.8 12 3 3.5 7.8v8.4L12 21l8.5-4.8Z" /><path d="m3.5 7.8 8.5 4.8 8.5-4.8" /><path d="M12 12.6V21" /></>,
+  mail: <><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
+  users: <><circle cx="9" cy="8" r="3.4" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16.5 5.2a3.4 3.4 0 0 1 0 5.6" /><path d="M18.2 14.2A6.5 6.5 0 0 1 21.5 20" /></>,
+  history: <><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" /><path d="M3 4v4.5h4.5" /><path d="M12 7.5V12l3 1.8" /></>,
+  chart: <><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M2.5 20h19" /></>,
+  menu: <><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /></>,
+  close: <><path d="m6 6 12 12" /><path d="m18 6-12 12" /></>,
+  lock: <><rect x="4" y="10.5" width="16" height="10" rx="2" /><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" /></>,
+  logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>,
+  sun: <><circle cx="12" cy="12" r="4.2" /><path d="M12 2v2.2M12 19.8V22M2 12h2.2M19.8 12H22M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M19.1 4.9l-1.6 1.6M6.5 17.5l-1.6 1.6" /></>,
+  moon: <><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8Z" /></>,
+};
+
+function Icon({ name, size = 20, className = '' }) {
+  const path = ICON_PATHS[name];
+  if (!path) return null;
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {path}
+    </svg>
+  );
+}
 
 const navSections = [
   {
     title: 'Geral',
     items: [
-      { id: 'generate-sku', label: 'Etiquetas produtos', icon: '🏷️', roles: ['admin', 'user'] },
-      { id: 'warning-labels', label: 'Etiquetas de Aviso', icon: '⚠️', roles: ['admin', 'user'] },
-      { id: 'generate-custom', label: 'Gerar Personalizado', icon: '✏️', roles: ['admin', 'user'] },
-      { id: 'import-sales', label: 'Importar Vendas', icon: '📥', roles: ['admin', 'user'] },
-      { id: 'picking', label: 'Listas de Picking', icon: '🧺', roles: ['admin', 'user'] },
+      { id: 'generate-sku', label: 'Etiquetas produtos', icon: 'tag', roles: ['admin', 'user'] },
+      { id: 'warning-labels', label: 'Etiquetas de Aviso', icon: 'alert', roles: ['admin', 'user'] },
+      { id: 'generate-custom', label: 'Gerar Personalizado', icon: 'pencil', roles: ['admin', 'user'] },
+      { id: 'import-sales', label: 'Importar Vendas', icon: 'inbox', roles: ['admin', 'user'] },
+      { id: 'picking', label: 'Listas de Picking', icon: 'clipboard', roles: ['admin', 'user'] },
     ],
   },
   {
     title: 'Admin',
     items: [
-      { id: 'full', label: 'Envio Full', icon: '🚚', roles: ['admin'] },
-      { id: 'full-tempo', label: 'Tempo de estoque', icon: '⏳', roles: ['admin'] },
-      { id: 'skus', label: 'Gerenciar SKUs', icon: '📦', roles: ['admin'] },
-      { id: 'embalagens', label: 'Embalagens', icon: '📮', roles: ['admin'] },
-      { id: 'users', label: 'Usuários', icon: '👥', roles: ['admin'] },
-      { id: 'history', label: 'Histórico', icon: '🕑', roles: ['admin'] },
-      { id: 'sku-usage', label: 'Ranking SKUs', icon: '📊', roles: ['admin'] },
+      { id: 'full', label: 'Envio Full', icon: 'truck', roles: ['admin'] },
+      { id: 'full-tempo', label: 'Tempo de estoque', icon: 'clock', roles: ['admin'] },
+      { id: 'skus', label: 'Gerenciar SKUs', icon: 'box', roles: ['admin'] },
+      { id: 'embalagens', label: 'Embalagens', icon: 'mail', roles: ['admin'] },
+      { id: 'users', label: 'Usuários', icon: 'users', roles: ['admin'] },
+      { id: 'history', label: 'Histórico', icon: 'history', roles: ['admin'] },
+      { id: 'sku-usage', label: 'Ranking SKUs', icon: 'chart', roles: ['admin'] },
     ],
   },
 ];
-const requestsItem = { id: 'sku-requests', label: 'Solicitações de SKU', icon: '📨' };
+const requestsItem = { id: 'sku-requests', label: 'Solicitações de SKU', icon: 'mail' };
+
+function getInitialTheme() {
+  try {
+    return document.documentElement.getAttribute('data-theme') || 'light';
+  } catch {
+    return 'light';
+  }
+}
 
 export default function Layout({ user, page, onNavigate, onLogout, children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
   const [reqCount, setReqCount] = useState(0);
+  const [theme, setTheme] = useState(getInitialTheme);
+  const sidebarRef = useRef(null);
+  const menuBtnRef = useRef(null);
 
   const visibleSections = navSections
     .map(sec => ({ ...sec, items: sec.items.filter(item => item.roles.includes(user.role)) }))
@@ -45,346 +101,167 @@ export default function Layout({ user, page, onNavigate, onLogout, children }) {
     api.get('/sku-requests/count').then(r => setReqCount(r.data.count || 0)).catch(() => {});
   }, [user.role, page]);
 
+  // Tema: persiste e aplica na raiz do documento
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('theme', theme); } catch { /* modo privado */ }
+  }, [theme]);
+
+  // Drawer mobile: Esc fecha, foco vai para o painel, rolagem do fundo trava
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        setSidebarOpen(false);
+        menuBtnRef.current?.focus();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    sidebarRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [sidebarOpen]);
+
+  function go(id) {
+    onNavigate(id);
+    setSidebarOpen(false);
+  }
+
   function renderNavButton(item, isRequests = false) {
+    const active = page === item.id;
     return (
       <button
         key={item.id}
-        onClick={() => { onNavigate(item.id); setSidebarOpen(false); }}
-        style={{ ...styles.navItem, ...(page === item.id ? styles.navItemActive : {}) }}
+        type="button"
+        className={`nav-item${active ? ' is-active' : ''}`}
+        aria-current={active ? 'page' : undefined}
+        onClick={() => go(item.id)}
       >
-        <span style={styles.navIcon}>{item.icon}</span>
-        <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
-        {isRequests && reqCount > 0 && <span style={styles.navBadge}>{reqCount}</span>}
+        <Icon name={item.icon} />
+        <span className="nav-item-label">{item.label}</span>
+        {isRequests && reqCount > 0 && (
+          <span className="nav-badge" aria-label={`${reqCount} pendentes`}>{reqCount}</span>
+        )}
       </button>
     );
   }
 
-  return (
-    <div style={styles.root}>
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          style={styles.overlay}
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+  const currentLabel = allItems.find(i => i.id === page)?.label || 'Etiquetas ZPL';
 
-      {/* Sidebar */}
-      <aside style={{ ...styles.sidebar, ...(sidebarOpen ? styles.sidebarOpen : {}) }}>
-        <div style={styles.sidebarHeader}>
-          <div style={styles.brandIcon}>ZPL</div>
-          <div>
-            <div style={styles.brandName}>Etiquetas</div>
-            <div style={styles.brandSub}>Zebra GC420T</div>
+  return (
+    <div className={`app-shell${sidebarOpen ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="sidebar-overlay"
+        aria-label="Fechar menu"
+        tabIndex={sidebarOpen ? 0 : -1}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      <aside
+        className="sidebar"
+        ref={sidebarRef}
+        tabIndex={-1}
+        aria-label="Navegação principal"
+        aria-hidden={undefined}
+      >
+        <div className="sidebar-header">
+          <div className="brand-mark" aria-hidden="true">ZPL</div>
+          <div className="brand-text">
+            <div className="brand-name">Etiquetas</div>
+            <div className="brand-sub">Zebra GC420T</div>
           </div>
+          <button
+            type="button"
+            className="sidebar-close btn-icon"
+            aria-label="Fechar menu"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <Icon name="close" size={18} />
+          </button>
         </div>
 
-        <nav style={styles.nav}>
+        <nav className="sidebar-nav">
           {visibleSections.map(sec => (
-            <div key={sec.title} style={styles.navSection}>
-              {showTitles && <div style={styles.navSectionTitle}>{sec.title}</div>}
+            <div key={sec.title} className="nav-section">
+              {showTitles && <div className="nav-section-title">{sec.title}</div>}
               {sec.items.map(item => renderNavButton(item))}
             </div>
           ))}
           {user.role === 'admin' && reqCount > 0 && (
-            <div style={styles.navFooterGroup}>
+            <div className="nav-section nav-section-footer">
               {renderNavButton(requestsItem, true)}
             </div>
           )}
         </nav>
 
-        <div style={styles.sidebarFooter}>
-          <div style={styles.userInfo}>
-            <div style={styles.userAvatar}>
+        <div className="sidebar-footer">
+          <div className="user-info">
+            <div className="user-avatar" aria-hidden="true">
               {(user.username || user.email || '?')[0].toUpperCase()}
             </div>
-            <div style={styles.userDetails}>
-              <div style={styles.userEmail}>{user.username || user.email}</div>
+            <div className="user-details">
+              <div className="user-name">{user.username || user.email}</div>
               <span className={`badge badge-${user.role}`}>{user.role}</span>
             </div>
           </div>
-          <button
-            onClick={() => setShowChangePw(true)}
-            style={styles.logoutBtn}
-            title="Trocar senha"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-          </button>
-          <button
-            onClick={onLogout}
-            style={styles.logoutBtn}
-            title="Sair"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-          </button>
+          <div className="sidebar-actions">
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
+              aria-label={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+              title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+            >
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={17} />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setShowChangePw(true)}
+              aria-label="Trocar senha"
+              title="Trocar senha"
+            >
+              <Icon name="lock" size={17} />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={onLogout}
+              aria-label="Sair da conta"
+              title="Sair"
+            >
+              <Icon name="logout" size={17} />
+            </button>
+          </div>
         </div>
       </aside>
 
       {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
 
-      {/* Main content */}
-      <div style={styles.main}>
-        {/* Mobile topbar */}
-        <header style={styles.topbar}>
+      <div className="app-main">
+        <header className="topbar">
           <button
+            type="button"
+            className="icon-btn"
+            ref={menuBtnRef}
             onClick={() => setSidebarOpen(true)}
-            style={styles.menuBtn}
-            aria-label="Menu"
+            aria-label="Abrir menu"
+            aria-expanded={sidebarOpen}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="12" x2="21" y2="12"/>
-              <line x1="3" y1="6" x2="21" y2="6"/>
-              <line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
+            <Icon name="menu" />
           </button>
-          <span style={styles.topbarTitle}>
-            {allItems.find(i => i.id === page)?.label || 'Etiquetas ZPL'}
-          </span>
+          <span className="topbar-title">{currentLabel}</span>
         </header>
 
-        <main style={{ ...styles.content, ...(['full', 'full-tempo'].includes(page) ? { maxWidth: '100%' } : {}) }}>
+        <main className={`app-content${['full', 'full-tempo'].includes(page) ? ' is-wide' : ''}`}>
           {children}
         </main>
       </div>
     </div>
   );
-}
-
-const styles = {
-  root: {
-    display: 'flex',
-    minHeight: '100vh',
-    background: 'var(--content-bg)',
-  },
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(0,0,0,0.5)',
-    zIndex: 99,
-    display: 'none',
-  },
-  sidebar: {
-    width: '240px',
-    minWidth: '240px',
-    background: 'var(--nav-bg)',
-    display: 'flex',
-    flexDirection: 'column',
-    position: 'sticky',
-    top: 0,
-    height: '100vh',
-    overflowY: 'auto',
-    zIndex: 100,
-    transition: 'transform 0.25s',
-  },
-  sidebarOpen: {},
-  sidebarHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '20px 16px',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
-  },
-  brandIcon: {
-    width: '38px',
-    height: '38px',
-    background: '#00b4d8',
-    borderRadius: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: '800',
-    fontSize: '13px',
-    color: '#fff',
-    letterSpacing: '0.05em',
-    flexShrink: 0,
-  },
-  brandName: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: '15px',
-    lineHeight: 1.2,
-  },
-  brandSub: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: '11px',
-    marginTop: '2px',
-  },
-  nav: {
-    padding: '12px 10px',
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  },
-  navItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '10px 12px',
-    borderRadius: '6px',
-    color: 'rgba(255,255,255,0.7)',
-    background: 'transparent',
-    border: 'none',
-    width: '100%',
-    textAlign: 'left',
-    fontSize: '13.5px',
-    fontWeight: '500',
-    cursor: 'pointer',
-    transition: 'background 0.15s, color 0.15s',
-  },
-  navItemActive: {
-    background: 'rgba(0,180,216,0.18)',
-    color: '#00d4ff',
-  },
-  navIcon: {
-    fontSize: '16px',
-    flexShrink: 0,
-  },
-  navSection: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-    marginBottom: '10px',
-  },
-  navSectionTitle: {
-    fontSize: '10.5px',
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.38)',
-    padding: '4px 12px',
-    marginTop: '2px',
-  },
-  navFooterGroup: {
-    marginTop: 'auto',
-    paddingTop: '10px',
-    borderTop: '1px solid rgba(255,255,255,0.08)',
-  },
-  navBadge: {
-    flexShrink: 0,
-    minWidth: '20px',
-    height: '20px',
-    padding: '0 6px',
-    borderRadius: '10px',
-    background: '#e53e3e',
-    color: '#fff',
-    fontSize: '11px',
-    fontWeight: 700,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sidebarFooter: {
-    padding: '14px 12px',
-    borderTop: '1px solid rgba(255,255,255,0.08)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-  },
-  userInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    flex: 1,
-    minWidth: 0,
-  },
-  userAvatar: {
-    width: '34px',
-    height: '34px',
-    borderRadius: '50%',
-    background: '#0077b6',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: '700',
-    fontSize: '14px',
-    flexShrink: 0,
-  },
-  userDetails: {
-    flex: 1,
-    minWidth: 0,
-  },
-  userEmail: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: '12px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    marginBottom: '3px',
-  },
-  logoutBtn: {
-    background: 'rgba(255,255,255,0.08)',
-    color: 'rgba(255,255,255,0.6)',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '7px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    transition: 'background 0.15s',
-  },
-  main: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  topbar: {
-    display: 'none',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    background: '#fff',
-    borderBottom: '1px solid var(--border)',
-    position: 'sticky',
-    top: 0,
-    zIndex: 50,
-    boxShadow: 'var(--shadow)',
-  },
-  menuBtn: {
-    background: 'transparent',
-    border: 'none',
-    color: 'var(--text-secondary)',
-    padding: '4px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-  },
-  topbarTitle: {
-    fontWeight: '600',
-    fontSize: '15px',
-    color: 'var(--text-primary)',
-  },
-  content: {
-    flex: 1,
-    padding: '28px',
-    maxWidth: '1150px',
-    width: '100%',
-  },
-};
-
-// Add responsive styles via a style tag
-if (typeof document !== 'undefined') {
-  const styleEl = document.createElement('style');
-  styleEl.textContent = `
-    @media (max-width: 768px) {
-      aside[style] { position: fixed !important; transform: translateX(-100%); }
-      .sidebar-open aside[style] { transform: translateX(0); }
-      header[style*="display: none"] { display: flex !important; }
-    }
-    @media (min-width: 769px) {
-      header { display: none !important; }
-    }
-  `;
-  document.head.appendChild(styleEl);
 }

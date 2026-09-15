@@ -218,11 +218,11 @@ function Table({ rows, cols, empty, defaultSort }) {
 
 const styles = {
   cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' },
-  card: { border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 14px', background: '#fff' },
-  cardWarn: { borderColor: '#f6ad55', background: '#fffaf0' },
+  card: { border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 14px', background: 'var(--color-card)' },
+  cardWarn: { borderColor: 'var(--color-warning-border)', background: 'var(--color-warning-bg)' },
   cardValue: { fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' },
   cardLabel: { fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' },
-  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
+  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--color-card)', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
   chipOn: { background: 'var(--btn-primary)', borderColor: 'var(--btn-primary)', color: '#fff' },
   exp: { padding: '5px 10px', fontSize: '12px' },
 };

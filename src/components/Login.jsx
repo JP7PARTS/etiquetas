@@ -94,7 +94,7 @@ const styles = {
     padding: '20px',
   },
   card: {
-    background: '#fff',
+    background: 'var(--color-card)',
     borderRadius: '16px',
     padding: '40px 36px',
     width: '100%',
@@ -110,12 +110,12 @@ const styles = {
     fontSize: '20px',
     fontWeight: '700',
     textAlign: 'center',
-    color: '#1a202c',
+    color: 'var(--color-foreground)',
     marginBottom: '4px',
   },
   subtitle: {
     textAlign: 'center',
-    color: '#718096',
+    color: 'var(--color-subtle)',
     fontSize: '13px',
     marginBottom: '28px',
   },

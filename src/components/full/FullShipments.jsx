@@ -256,5 +256,5 @@ const styles = {
   slots: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' },
   slot: { border: '1px solid var(--border)', borderRadius: '8px', padding: '12px' },
   slotLabel: { fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' },
-  soon: { marginTop: '14px', padding: '10px 14px', background: '#fffbea', border: '1px solid #f6e05e', borderRadius: '8px', fontSize: '13px', color: '#744210' },
+  soon: { marginTop: '14px', padding: '10px 14px', background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning-border)', borderRadius: '8px', fontSize: '13px', color: 'var(--color-warning-fg)' },
 };

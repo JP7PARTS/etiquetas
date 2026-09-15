@@ -6,10 +6,10 @@ const emptyForm = { sku: '', descricao_longa: '', descricao_curta: '', descricao
 
 // Rótulo do tipo de envio para a coluna Medidas
 const TIPO_ENVIO_LABEL = {
-  propria: { txt: '📦 Emb. própria', color: '#2b6cb0', bg: '#ebf8ff' },
-  sem: { txt: '⚠️ Sem embalagem', color: '#c05621', bg: '#fffaf0' },
-  padrao: { txt: '📦', color: '#276749', bg: '#f0fff4' }, // nome da embalagem entra ao lado
-  papelao: { txt: '📦 Papelão', color: '#744210', bg: '#fefcbf' },
+  propria: { txt: '📦 Emb. própria', color: 'var(--color-info-fg)', bg: 'var(--color-info-bg)' },
+  sem: { txt: '⚠️ Sem embalagem', color: 'var(--color-warning-fg)', bg: 'var(--color-warning-bg)' },
+  padrao: { txt: '📦', color: 'var(--color-success-fg)', bg: 'var(--color-success-bg)' }, // nome da embalagem entra ao lado
+  papelao: { txt: '📦 Papelão', color: 'var(--color-warning-fg)', bg: 'var(--color-warning-bg)' },
 };
 
 // Peso volumétrico (kg) = C×L×A(cm) / 6000 (divisor padrão ML/Correios). Só com as 3 medidas.
@@ -381,7 +381,7 @@ export default function SKUManagement() {
           <button
             onClick={() => setSoFaltaMedidas(v => !v)}
             title="Mostrar só SKUs sem Comprimento, Largura, Altura ou Peso (o ML pune medidas erradas/ausentes)"
-            style={{...styles.localChip, ...(soFaltaMedidas ? { background: '#c05621', borderColor: '#c05621', color: '#fff' } : { color: '#c05621', borderColor: '#f6ad55' })}}
+            style={{...styles.localChip, ...(soFaltaMedidas ? { background: '#c05621', borderColor: 'var(--color-warning-border)', color: '#fff' } : { color: 'var(--color-warning-fg)', borderColor: 'var(--color-warning-border)' })}}
           >
             ⚠️ Faltam medidas ({faltamN})
           </button>
@@ -457,7 +457,7 @@ export default function SKUManagement() {
                           <LinhaMedida prefixo="ML" c={s.comprimento_cm} l={s.largura_cm} a={s.altura_cm} />
                           <LinhaMedida prefixo="Shopee" c={s.shopee_comprimento_cm} l={s.shopee_largura_cm} a={s.shopee_altura_cm} />
                           {(s.papelao_full_cm != null || s.papelao_shopee_cm != null) && (
-                            <div style={{fontSize:'11px', color:'#744210', marginTop:'2px'}}>
+                            <div style={{fontSize:'11px', color:'var(--color-warning-fg)', marginTop:'2px'}}>
                               ✂️ ML {s.papelao_full_cm != null ? (+s.papelao_full_cm) + 'cm' : '—'} · Shopee {s.papelao_shopee_cm != null ? (+s.papelao_shopee_cm) + 'cm' : '—'}
                             </div>
                           )}
@@ -472,7 +472,7 @@ export default function SKUManagement() {
                           </span>; })()
                       ) : null}
                       {s.tipo_envio !== 'papelao' && faltaMedidas(s) && (
-                        <div style={{fontSize:'10.5px', color:'#c05621', fontWeight:600, marginTop:'2px'}}>⚠️ faltam medidas</div>
+                        <div style={{fontSize:'10.5px', color:'var(--color-warning-fg)', fontWeight:600, marginTop:'2px'}}>⚠️ faltam medidas</div>
                       )}
                     </td>
                     <td>
@@ -531,7 +531,7 @@ export default function SKUManagement() {
                   maxLength={100}
                   required
                   disabled={modal === 'edit'}
-                  style={modal === 'edit' ? {background:'#f7fafc'} : {}}
+                  style={modal === 'edit' ? {background:'var(--color-muted)'} : {}}
                 />
                 {modal === 'edit' && (
                   <div style={{fontSize:'11.5px',color:'var(--text-muted)',marginTop:'4px'}}>
@@ -855,7 +855,7 @@ const styles = {
     padding: '5px 12px',
     borderRadius: '20px',
     border: '1px solid var(--border)',
-    background: '#fff',
+    background: 'var(--color-card)',
     color: 'var(--text-secondary)',
     fontSize: '12.5px',
     fontWeight: '600',
@@ -868,16 +868,16 @@ const styles = {
     color: '#fff',
   },
   code: {
-    background: '#f1f5f9',
+    background: 'var(--color-muted)',
     padding: '2px 6px',
     borderRadius: '4px',
     fontSize: '12.5px',
     fontFamily: 'monospace',
-    color: '#2b6cb0',
+    color: 'var(--color-info-fg)',
   },
   localBadge: {
-    background: '#e6fffa',
-    color: '#276749',
+    background: 'var(--color-success-bg)',
+    color: 'var(--color-success-fg)',
     padding: '2px 7px',
     borderRadius: '4px',
     fontSize: '12px',
@@ -901,7 +901,7 @@ const styles = {
     padding: '20px',
   },
   modal: {
-    background: '#fff',
+    background: 'var(--color-card)',
     borderRadius: '12px',
     width: '100%',
     maxWidth: '520px',
@@ -934,10 +934,10 @@ const styles = {
   },
   countPill: {
     fontSize: '12px', fontWeight: 700, padding: '4px 10px', borderRadius: '14px',
-    background: '#f1f5f9', color: 'var(--text-secondary)',
+    background: 'var(--color-muted)', color: 'var(--text-secondary)',
   },
-  pillNew: { background: '#e4f2e9', color: '#276749' },
-  pillEdit: { background: '#fff4e0', color: '#9a6a00' },
+  pillNew: { background: 'var(--color-success-bg)', color: 'var(--color-success-fg)' },
+  pillEdit: { background: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' },
   tag: { fontSize: '11px', fontWeight: 700, padding: '2px 9px', borderRadius: '10px' },
   previewBox: {
     maxHeight: '220px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px',

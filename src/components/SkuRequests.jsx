@@ -101,7 +101,7 @@ export default function SkuRequests() {
                     <td><code style={styles.code}>{r.sku}</code></td>
                     <td style={{ color: 'var(--text-secondary)' }}>
                       {r.titulo || '—'}
-                      {r.dados?.tipo_envio && <div style={{ fontSize: '11px', color: '#744210', marginTop: '2px' }}>📦 {TIPO_LABEL[r.dados.tipo_envio] || r.dados.tipo_envio}{(r.dados.comprimento_cm || r.dados.largura_cm || r.dados.altura_cm) ? ` · ${[r.dados.comprimento_cm, r.dados.largura_cm, r.dados.altura_cm].map(v => v || '?').join('×')} cm` : ''}{r.dados.peso_kg ? ` · ${r.dados.peso_kg} kg` : ''}{r.dados.existe ? ' · (só medidas)' : ''}</div>}
+                      {r.dados?.tipo_envio && <div style={{ fontSize: '11px', color: 'var(--color-warning-fg)', marginTop: '2px' }}>📦 {TIPO_LABEL[r.dados.tipo_envio] || r.dados.tipo_envio}{(r.dados.comprimento_cm || r.dados.largura_cm || r.dados.altura_cm) ? ` · ${[r.dados.comprimento_cm, r.dados.largura_cm, r.dados.altura_cm].map(v => v || '?').join('×')} cm` : ''}{r.dados.peso_kg ? ` · ${r.dados.peso_kg} kg` : ''}{r.dados.existe ? ' · (só medidas)' : ''}</div>}
                     </td>
                     <td>{r.local ? <span style={styles.badge}>{r.local}</span> : '—'}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{r.requested_by_name || '—'}</td>
@@ -163,10 +163,10 @@ export default function SkuRequests() {
 }
 
 const styles = {
-  code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: '#2b6cb0' },
-  badge: { background: '#e6fffa', color: '#276749', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, fontFamily: 'monospace' },
+  code: { background: 'var(--color-muted)', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: 'var(--color-info-fg)' },
+  badge: { background: 'var(--color-success-bg)', color: 'var(--color-success-fg)', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, fontFamily: 'monospace' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
-  modalCard: { background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
+  modalCard: { background: 'var(--color-card)', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
   modalHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' },
   modalClose: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' },
   modalBody: { padding: '16px 20px', overflowY: 'auto' },

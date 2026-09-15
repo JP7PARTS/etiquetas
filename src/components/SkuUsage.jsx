@@ -163,7 +163,7 @@ export default function SkuUsage() {
               </thead>
               <tbody>
                 {filtered.map((r, i) => (
-                  <tr key={r.sku} style={r.etiquetas === 0 ? { background: '#fffaf0' } : undefined}>
+                  <tr key={r.sku} style={r.etiquetas === 0 ? { background: 'var(--color-warning-bg)' } : undefined}>
                     <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</td>
                     <td><code style={styles.code}>{r.sku}</code></td>
                     <td style={{ color: 'var(--text-secondary)' }}>
@@ -193,11 +193,11 @@ const styles = {
   controls: { display: 'flex', gap: '18px', flexWrap: 'wrap', marginBottom: '14px' },
   group: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
   groupLabel: { fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, marginRight: '2px' },
-  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
+  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--color-card)', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
   chipOn: { background: 'var(--btn-primary)', borderColor: 'var(--btn-primary)', color: '#fff' },
   dateInput: { padding: '5px 8px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12.5px' },
-  summary: { padding: '10px 14px', background: '#f7fafc', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)' },
-  code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: '#2b6cb0' },
-  neverTag: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px' },
+  summary: { padding: '10px 14px', background: 'var(--color-muted)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)' },
+  code: { background: 'var(--color-muted)', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: 'var(--color-info-fg)' },
+  neverTag: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: 'var(--color-warning-fg)', background: 'var(--color-warning-bg)', padding: '2px 8px', borderRadius: '10px' },
   footer: { padding: '10px 14px', fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' },
 };

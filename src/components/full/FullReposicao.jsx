@@ -9,27 +9,27 @@ const brl = (n) => (n || 0).toLocaleString('pt-BR', { style: 'currency', currenc
 const fmtDia = (d) => { try { return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch { return ''; } };
 
 const ALERT_STYLE = {
-  'estoura cross': { bg: '#fed7d7', fg: '#822727' },
-  'sem estoque full': { bg: '#feebc8', fg: '#7b341e' },
-  'sem venda': { bg: '#e2e8f0', fg: '#4a5568' },
-  'caindo forte': { bg: '#fefcbf', fg: '#744210' },
-  'subindo forte': { bg: '#c6f6d5', fg: '#22543d' },
+  'estoura cross': { bg: 'var(--color-error-bg)', fg: '#822727' },
+  'sem estoque full': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
+  'sem venda': { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' },
+  'caindo forte': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
+  'subindo forte': { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
   'SKU já no Full': { bg: '#e9d8fd', fg: '#553c9a' },
-  'a caminho': { bg: '#bee3f8', fg: '#2a4365' },
-  'aguardando cross': { bg: '#e2e8f0', fg: '#4a5568' },
-  'cross voltou': { bg: '#9ae6b4', fg: '#22543d' },
-  'vendeu no Full (fora do estoque atual)': { bg: '#feebc8', fg: '#7b341e' },
+  'a caminho': { bg: 'var(--color-info-bg)', fg: 'var(--color-info-fg)' },
+  'aguardando cross': { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' },
+  'cross voltou': { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
+  'vendeu no Full (fora do estoque atual)': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
 };
 
 const DECISOES = ['Manter', 'Promover', 'Avaliar saída', 'Ignorar'];
 // Chave persistente por anúncio: Código ML quando existe, senão o MLB do anúncio.
 const refDe = (r) => r.codigoMl || (r.anuncio ? 'MLB' + r.anuncio : '');
 const DEC_STYLE = {
-  'Manter': { bg: '#bee3f8', fg: '#2a4365' },
-  'Promover': { bg: '#c6f6d5', fg: '#22543d' },
-  'Avaliar saída': { bg: '#feebc8', fg: '#7b341e' },
-  'Ignorar': { bg: '#e2e8f0', fg: '#4a5568' },
-  'Não enviar': { bg: '#fed7d7', fg: '#822727' },
+  'Manter': { bg: 'var(--color-info-bg)', fg: 'var(--color-info-fg)' },
+  'Promover': { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
+  'Avaliar saída': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
+  'Ignorar': { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' },
+  'Não enviar': { bg: 'var(--color-error-bg)', fg: '#822727' },
 };
 
 // resumo já parseado. vendas = {7,15,30} (7/15 podem ser null), cross, desempenho opcionais.
@@ -402,7 +402,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
     <div>
       {/* Reconciliação de anúncios migrados */}
       {meta.reconciliadas.total > 0 && (
-        <div className="alert" style={{ marginBottom: '10px', background: '#e6fffa', border: '1px solid #38b2ac', color: '#234e52' }}>
+        <div className="alert" style={{ marginBottom: '10px', background: 'var(--color-success-bg)', border: '1px solid var(--color-accent-soft)', color: 'var(--color-success-fg)' }}>
           🔗 <b>{int(meta.reconciliadas.total)}</b> vendas de anúncios migrados atribuídas ao Código ML certo (velocidade corrigida).
           <button className="btn-outline" style={{ marginLeft: '10px', padding: '3px 10px', fontSize: '12px' }} onClick={() => setShowRec(v => !v)}>
             {showRec ? 'ocultar' : 'ver lista'}
@@ -417,12 +417,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
         </div>
       )}
       {/* Conferência vs ML (informativo — divergência é esperada durante a migração do ML) */}
-      <div className="alert" style={{ marginBottom: '10px', background: meta.validacao.pct > 40 ? '#fff5f5' : '#f7fafc', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '13px' }}>
+      <div className="alert" style={{ marginBottom: '10px', background: meta.validacao.pct > 40 ? 'var(--color-error-bg)' : 'var(--color-muted)', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '13px' }}>
         📋 Conferência vs "Vendas 30 dias" do ML: {meta.validacao.divergentes}/{meta.validacao.comparaveis} Códigos ML diferem &gt;2 un ({meta.validacao.pct.toFixed(0)}%).
         <span style={{ color: 'var(--text-muted)' }}> Parte é esperada (migração de anúncios). Só é sinal de alerta se subir muito de repente.</span>
       </div>
       {/* Órfãs restantes (cross-only ou migração não resolvida) */}
-      <div className="alert" style={{ marginBottom: '12px', background: '#fffaf0', border: '1px solid #f6ad55', color: '#744210' }}>
+      <div className="alert" style={{ marginBottom: '12px', background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning-border)', color: 'var(--color-warning-fg)' }}>
         🧩 Vendas <b>órfãs</b> restantes (anúncio sem grupo, sobretudo do cross): {meta.janelas.map(D => `${D}d ${int(meta.orfas[D])}`).join(' · ')}.
         <button className="btn-outline" style={{ marginLeft: '10px', padding: '3px 10px', fontSize: '12px' }} onClick={() => setShowOrfas(v => !v)}>
           {showOrfas ? 'ocultar' : 'ver lista'}
@@ -508,9 +508,9 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
           { lbl: 'A enviar', val: int(resumoFull.unEnv) + ' un', sub: `Geral ${int(resumoFull.unGeral)} · Grade ${int(resumoFull.unGrade)}`, fg: 'var(--brand, #2b6cb0)' },
           { lbl: 'Linhas c/ envio', val: int(resumoFull.linhasEnv) },
           { lbl: 'Sugestão (Top N)', val: int(resumoFull.sug) + ' un', sub: `Geral ${int(resumoFull.sugGeral)} · Grade ${int(resumoFull.sugGrade)}`, fg: 'var(--text-secondary)' },
-          { lbl: 'Un. tempo estoque', val: int(resumoFull.tempoUn), sub: `${resumoFull.tempoProd} produtos`, fg: '#c05621' },
-          { lbl: 'Avaliar saída', val: int(meta.decisoes?.['Avaliar saída'] || 0), fg: '#975a16' },
-          { lbl: 'Cross esgotado', val: int(resumoFull.crossEsg), sub: crossVoltouN > 0 ? `${crossVoltouN} voltaram` : '', fg: '#7b341e', subFg: '#22543d' },
+          { lbl: 'Un. tempo estoque', val: int(resumoFull.tempoUn), sub: `${resumoFull.tempoProd} produtos`, fg: 'var(--color-warning-fg)' },
+          { lbl: 'Avaliar saída', val: int(meta.decisoes?.['Avaliar saída'] || 0), fg: 'var(--color-warning-fg)' },
+          { lbl: 'Cross esgotado', val: int(resumoFull.crossEsg), sub: crossVoltouN > 0 ? `${crossVoltouN} voltaram` : '', fg: 'var(--color-warning-fg)', subFg: '#22543d' },
           { lbl: 'Com comentário', val: int(comComentarioN) },
         ].map((c, i) => (
           <div key={i} style={{ flex: '1 1 120px', minWidth: '120px', padding: '8px 10px', borderRadius: '8px', background: 'var(--bg-muted, #f7fafc)', border: '1px solid var(--border)' }}>
@@ -543,13 +543,13 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
         ); })()}
         {saiuFullN > 0 && (() => { const ativo = alertFiltro.size === 1 && alertFiltro.has(ALERT_SAIU_FULL); return (
           <button onClick={filtrarSaiuDoFull} title="Vendeu pelo Full mas saiu do estoque atual do Full — candidatos a reenvio. Clique para ver só eles."
-            style={{ ...styles.chip, marginLeft: '10px', background: '#feebc8', color: '#7b341e', borderColor: '#c05621', fontWeight: 700, ...(ativo ? { outline: '2px solid #c05621' } : {}) }}>
+            style={{ ...styles.chip, marginLeft: '10px', background: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)', borderColor: 'var(--color-warning-border)', fontWeight: 700, ...(ativo ? { outline: '2px solid var(--color-warning-border)' } : {}) }}>
             📦 saiu do Full ({saiuFullN})
           </button>
         ); })()}
         {comComentarioN > 0 && (
           <button onClick={() => setSoComComentario(v => !v)} title="Mostrar só anúncios com comentário"
-            style={{ ...styles.chip, marginLeft: '10px', ...(soComComentario ? { background: '#fefcbf', color: '#744210', borderColor: '#b7791f', fontWeight: 700 } : {}) }}>
+            style={{ ...styles.chip, marginLeft: '10px', ...(soComComentario ? { background: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)', borderColor: 'var(--color-warning-border)', fontWeight: 700 } : {}) }}>
             💬 com comentário ({comComentarioN})
           </button>
         )}
@@ -573,7 +573,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
           <span style={styles.label}>Alertas</span>
           {alertasDisp.map(([a, n]) => {
-            const on = alertFiltro.has(a); const s = ALERT_STYLE[a] || { bg: '#e2e8f0', fg: '#4a5568' };
+            const on = alertFiltro.has(a); const s = ALERT_STYLE[a] || { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' };
             return (
               <button key={a} onClick={() => toggleAlerta(a)}
                 style={{ ...styles.chip, ...(on ? { background: s.bg, color: s.fg, borderColor: s.fg, fontWeight: 700 } : {}) }}>
@@ -611,7 +611,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
 
       {/* Barra de ações em lote (aparece quando há seleção) */}
       {sel.size > 0 && (
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', padding: '8px 12px', background: '#ebf8ff', border: '1px solid #90cdf4', borderRadius: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', padding: '8px 12px', background: 'var(--color-info-bg)', border: '1px solid var(--color-info-border)', borderRadius: '8px' }}>
           <span style={{ fontWeight: 700, fontSize: '13px' }}>{sel.size} selecionado(s)</span>
           <button className="btn-outline" onClick={usarSugSel} title="Preencher Enviar com a sugestão nas selecionadas">↧ Usar sugestão</button>
           <button className="btn-outline" onClick={zerarSel} title="Zerar o Enviar nas selecionadas">Zerar</button>
@@ -679,7 +679,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
           <tbody>
             {view.map(r => (
               <React.Fragment key={r.key}>
-              <tr style={sel.has(r.key) ? { background: '#ebf8ff' } : undefined}>
+              <tr style={sel.has(r.key) ? { background: 'var(--color-info-bg)' } : undefined}>
                 <td style={{ textAlign: 'center' }}>
                   <input type="checkbox" style={{ width: 'auto', margin: 0 }} checked={sel.has(r.key)} onChange={() => toggleSel(r.key)} />
                 </td>
@@ -705,14 +705,14 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
                     <span>{int(r.estoque)}</span><span style={{ width: '15px', display: 'inline-block' }} />
                   </div>
                   {r.aCaminho > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', color: '#2a4365', fontSize: '11px' }} title="unidades a caminho do Full (entrada pendente)">
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', color: 'var(--color-info-fg)', fontSize: '11px' }} title="unidades a caminho do Full (entrada pendente)">
                       <span>{int(r.aCaminho)}</span><span style={{ width: '15px', display: 'inline-block', textAlign: 'right' }}>🚚</span>
                     </div>
                   )}
                 </td>
                 <td style={{ textAlign: 'center' }}>{r.coberturaDias == null ? '—' : int(r.coberturaDias) + 'd'}</td>
                 <td style={{ textAlign: 'center' }} title="unidades que já contam para a tarifa de Tempo de estoque (parado — risco de armazenagem)">
-                  {r.afetamTempo > 0 ? <span style={{ color: '#c05621', fontWeight: 700 }}>{int(r.afetamTempo)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                  {r.afetamTempo > 0 ? <span style={{ color: 'var(--color-warning-fg)', fontWeight: 700 }}>{int(r.afetamTempo)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                 </td>
                 <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{int(r.crossSku)}</td>
                 <td style={{ textAlign: 'center', fontWeight: 700 }}>{int(r.sugestao)}</td>
@@ -728,7 +728,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
                 <td style={{ width: '118px', minWidth: '118px', maxWidth: '118px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'center' }}>
                     {alertasDe(r).map(a => {
-                      const s = ALERT_STYLE[a] || { bg: '#e2e8f0', fg: '#4a5568' };
+                      const s = ALERT_STYLE[a] || { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' };
                       return <span key={a} style={{ background: s.bg, color: s.fg, fontSize: '10.5px', fontWeight: 700, padding: '2px 6px', borderRadius: '8px', whiteSpace: 'nowrap' }}>{a}</span>;
                     })}
                   </div>
@@ -737,7 +737,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
                 <td style={{ textAlign: 'center' }}>
                   {(() => { const grade = tipoDe(r) === 'grade'; return (
                     <button onClick={() => toggleTipo(r)} title="Alternar entre Full Geral e Full Grade"
-                      style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '10px', cursor: 'pointer', border: '1px solid ' + (grade ? '#b7791f' : 'var(--border)'), background: grade ? '#feebc8' : 'var(--bg-muted, #edf2f7)', color: grade ? '#7b341e' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                      style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 700, borderRadius: '10px', cursor: 'pointer', border: '1px solid ' + (grade ? '#b7791f' : 'var(--border)'), background: grade ? 'var(--color-warning-bg)' : 'var(--bg-muted, #edf2f7)', color: grade ? '#7b341e' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                       {grade ? 'Grade' : 'Geral'}
                     </button>
                   ); })()}
@@ -758,7 +758,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
                     )}
                     {refDe(r) && (() => { const has = !!(notes[refDe(r)] || '').trim(); const open = notando === refDe(r); return (
                       <button className="btn-outline" title={has ? notes[refDe(r)] : 'Adicionar comentário'} onClick={() => setNotando(open ? null : refDe(r))}
-                        style={{ padding: '2px 7px', fontSize: '11.5px', ...(has ? { background: '#fefcbf', borderColor: '#b7791f', color: '#744210', fontWeight: 700 } : {}) }}>💬{has ? '•' : ''}</button>
+                        style={{ padding: '2px 7px', fontSize: '11.5px', ...(has ? { background: 'var(--color-warning-bg)', borderColor: 'var(--color-warning-border)', color: 'var(--color-warning-fg)', fontWeight: 700 } : {}) }}>💬{has ? '•' : ''}</button>
                     ); })()}
                   </div>
                 </td>
@@ -788,7 +788,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
 const styles = {
   group: { display: 'flex', alignItems: 'center', gap: '6px' },
   label: { fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 },
-  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
+  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--color-card)', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
   chipOn: { background: 'var(--btn-primary)', borderColor: 'var(--btn-primary)', color: '#fff' },
   numInput: { width: '70px', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: '6px', textAlign: 'right' },
 };

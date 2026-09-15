@@ -11,11 +11,11 @@ const int = (n) => Math.round(Number(n) || 0).toLocaleString('pt-BR');
 const keyOf = (it) => it.key || it.codigo_ml || (it.sku ? 'cross:' + it.sku : '');
 
 const DEC_STYLE = {
-  'Manter': { bg: '#bee3f8', fg: '#2a4365' },
-  'Promover': { bg: '#c6f6d5', fg: '#22543d' },
-  'Avaliar saída': { bg: '#feebc8', fg: '#7b341e' },
-  'Ignorar': { bg: '#e2e8f0', fg: '#4a5568' },
-  'Não enviar': { bg: '#fed7d7', fg: '#822727' },
+  'Manter': { bg: 'var(--color-info-bg)', fg: 'var(--color-info-fg)' },
+  'Promover': { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
+  'Avaliar saída': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
+  'Ignorar': { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' },
+  'Não enviar': { bg: 'var(--color-error-bg)', fg: '#822727' },
 };
 
 export default function FullEnvioEditor({ envio, onClose, onSaved }) {

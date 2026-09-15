@@ -444,7 +444,7 @@ export default function ImportSales({ user, onSendToLote }) {
           <button className="btn-outline" style={{ padding: '3px 10px', fontSize: '12px' }}
             onClick={() => { setSkuForm({ ...emptySku, sku: it.code }); setSkuErr(''); }}>Cadastrar</button>
         ) : requested.has(it.code.toUpperCase()) ? (
-          <span style={{ fontSize: '12px', color: '#276749', fontWeight: 600 }}>Solicitado ✓</span>
+          <span style={{ fontSize: '12px', color: 'var(--color-success-fg)', fontWeight: 600 }}>Solicitado ✓</span>
         ) : (
           <button className="btn-outline" style={{ padding: '3px 10px', fontSize: '12px' }}
             onClick={() => { setReqForm({ sku: it.code, titulo: '', local: '', ...PACKAGING_EMPTY }); setReqErr(''); }}>Solicitar</button>
@@ -586,7 +586,7 @@ export default function ImportSales({ user, onSendToLote }) {
             <div style={styles.summary}>
               <b>{items.length}</b> SKUs · <b>{totalUnid}</b> unidades vendidas
               {carts.length > 0 && <span> · <b>{carts.length}</b> carrinho{carts.length !== 1 ? 's' : ''} 🛒</span>}
-              {naoCadastrados > 0 && <span style={{ color: '#c53030' }}> · {naoCadastrados} não cadastrado{naoCadastrados !== 1 ? 's' : ''}</span>}
+              {naoCadastrados > 0 && <span style={{ color: 'var(--color-error-fg)' }}> · {naoCadastrados} não cadastrado{naoCadastrados !== 1 ? 's' : ''}</span>}
             </div>
 
             <div style={styles.toolbar}>
@@ -671,7 +671,7 @@ export default function ImportSales({ user, onSendToLote }) {
                     const on = selCarts.has(c.id);
                     return (
                       <React.Fragment key={`cart-${c.id}`}>
-                        <tr style={{ background: on ? '#dbe8ff' : '#eef3ff' }}>
+                        <tr style={{ background: on ? 'var(--color-info-bg)' : '#eef3ff' }}>
                           <td style={{ textAlign: 'center' }}>
                             <input type="checkbox" checked={on} disabled={!printable}
                               onChange={() => toggleCart(c.id)} style={{ width: '16px', height: '16px', cursor: printable ? 'pointer' : 'not-allowed' }} />
@@ -694,7 +694,7 @@ export default function ImportSales({ user, onSendToLote }) {
                   })}
                   {/* SKUs normais */}
                   {filtered.map(i => (
-                    <tr key={i.code} style={!i.skuObj ? { background: '#fffaf0' } : (selected.has(i.code) ? { background: '#ebf8ff' } : undefined)}>
+                    <tr key={i.code} style={!i.skuObj ? { background: 'var(--color-warning-bg)' } : (selected.has(i.code) ? { background: 'var(--color-info-bg)' } : undefined)}>
                       <td style={{ textAlign: 'center' }}>
                         <input type="checkbox" checked={selected.has(i.code)}
                           onChange={() => toggle(i.code)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
@@ -796,7 +796,7 @@ export default function ImportSales({ user, onSendToLote }) {
               {reqErr && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{reqErr}</div>}
               <div className="form-group">
                 <label>SKU</label>
-                <input value={reqForm.sku} readOnly style={{ background: '#f7fafc' }} />
+                <input value={reqForm.sku} readOnly style={{ background: 'var(--color-muted)' }} />
               </div>
               <div className="form-group">
                 <label>Título do produto (opcional)</label>
@@ -852,21 +852,21 @@ const styles = {
   uploadRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' },
   filterBar: { display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' },
   dt: { padding: '5px 8px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12.5px' },
-  summary: { padding: '10px 14px', background: '#f7fafc', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '14px', fontSize: '14px', color: 'var(--text-secondary)' },
+  summary: { padding: '10px 14px', background: 'var(--color-muted)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '14px', fontSize: '14px', color: 'var(--text-secondary)' },
   toolbar: { display: 'flex', gap: '12px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' },
   searchWrapper: { flex: 1, minWidth: '200px', position: 'relative' },
   searchIcon: { position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' },
   group: { display: 'flex', alignItems: 'center', gap: '6px' },
   groupLabel: { fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 },
-  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
+  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--color-card)', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
   chipOn: { background: 'var(--btn-primary)', borderColor: 'var(--btn-primary)', color: '#fff' },
   selBar: { display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' },
-  code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: '#2b6cb0' },
-  naoTag: { fontSize: '11px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px' },
-  cartTag: { display: 'inline-block', marginRight: '8px', fontSize: '10.5px', fontWeight: 700, color: '#2b4c8c', background: '#dbe8ff', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
-  localTag: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: '#276749', background: '#e6fffa', padding: '2px 7px', borderRadius: '4px', fontFamily: 'monospace' },
+  code: { background: 'var(--color-muted)', padding: '2px 6px', borderRadius: '4px', fontSize: '12.5px', fontFamily: 'monospace', color: 'var(--color-info-fg)' },
+  naoTag: { fontSize: '11px', fontWeight: 700, color: 'var(--color-warning-fg)', background: 'var(--color-warning-bg)', padding: '2px 8px', borderRadius: '10px' },
+  cartTag: { display: 'inline-block', marginRight: '8px', fontSize: '10.5px', fontWeight: 700, color: 'var(--color-info-fg)', background: 'var(--color-info-bg)', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
+  localTag: { marginLeft: '8px', fontSize: '10.5px', fontWeight: 700, color: 'var(--color-success-fg)', background: 'var(--color-success-bg)', padding: '2px 7px', borderRadius: '4px', fontFamily: 'monospace' },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
-  modalCard: { background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
+  modalCard: { background: 'var(--color-card)', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
   modalHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' },
   modalClose: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' },
   modalBody: { padding: '16px 20px', overflowY: 'auto' },

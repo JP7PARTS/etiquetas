@@ -503,7 +503,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: '220px',
-    background: '#f7fafc',
+    background: 'var(--color-muted)',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-sm)',
     padding: '16px',
@@ -511,8 +511,8 @@ const styles = {
   previewImg: {
     maxWidth: '100%',
     maxHeight: '320px',
-    border: '1px solid #cbd5e0',
-    background: '#fff',
+    border: '1px solid var(--color-border-strong)',
+    background: 'var(--color-card)',
     boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
   },
   previewPlaceholder: {
@@ -530,7 +530,7 @@ const styles = {
     wordBreak: 'break-word',
     fontSize: '11.5px',
     fontFamily: "'Courier New', monospace",
-    background: '#fff5f5',
+    background: 'var(--color-error-bg)',
     padding: '8px',
     borderRadius: '4px',
   },
@@ -556,7 +556,7 @@ const styles = {
     padding: '20px',
   },
   modal: {
-    background: '#fff',
+    background: 'var(--color-card)',
     borderRadius: '12px',
     width: '100%',
     maxWidth: '520px',

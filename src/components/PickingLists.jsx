@@ -463,7 +463,7 @@ export default function PickingLists({ user }) {
               {reqErr && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{reqErr}</div>}
               <div className="form-group">
                 <label>SKU</label>
-                <input value={reqForm.sku} readOnly style={{ background: '#f7fafc' }} />
+                <input value={reqForm.sku} readOnly style={{ background: 'var(--color-muted)' }} />
               </div>
               <div className="form-group">
                 <label>Título do produto (opcional)</label>
@@ -490,26 +490,26 @@ export default function PickingLists({ user }) {
 }
 
 const styles = {
-  progWrap: { height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden', marginBottom: '3px', maxWidth: '180px' },
-  progWrapBig: { height: '12px', background: '#edf2f7', borderRadius: '6px', overflow: 'hidden' },
+  progWrap: { height: '8px', background: 'var(--color-muted)', borderRadius: '4px', overflow: 'hidden', marginBottom: '3px', maxWidth: '180px' },
+  progWrapBig: { height: '12px', background: 'var(--color-muted)', borderRadius: '6px', overflow: 'hidden' },
   progFill: { height: '100%', transition: 'width 0.2s' },
   controls: { display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' },
   group: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
   groupLabel: { fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 },
-  chip: { padding: '6px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' },
+  chip: { padding: '6px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--color-card)', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' },
   chipOn: { background: 'var(--btn-primary)', borderColor: 'var(--btn-primary)', color: '#fff' },
   localGroup: { marginBottom: '18px' },
   localHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '6px 4px', borderBottom: '2px solid var(--border)', marginBottom: '4px' },
   localTitle: { fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' },
   pickRow: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 8px', borderBottom: '1px solid var(--border)', cursor: 'pointer', userSelect: 'none' },
-  pickRowDone: { background: '#f0fff4', opacity: 0.7 },
+  pickRowDone: { background: 'var(--color-success-bg)', opacity: 0.7 },
   pickQty: { fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: '34px' },
-  code: { background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: '#2b6cb0' },
-  semTag: { fontSize: '11px', fontWeight: 700, color: '#9a6a00', background: '#fff4e0', padding: '2px 8px', borderRadius: '10px' },
+  code: { background: 'var(--color-muted)', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: 'var(--color-info-fg)' },
+  semTag: { fontSize: '11px', fontWeight: 700, color: 'var(--color-warning-fg)', background: 'var(--color-warning-bg)', padding: '2px 8px', borderRadius: '10px' },
   rowBtn: { padding: '4px 12px', fontSize: '12.5px', flexShrink: 0 },
-  reqDone: { fontSize: '12px', fontWeight: 700, color: '#276749', flexShrink: 0 },
+  reqDone: { fontSize: '12px', fontWeight: 700, color: 'var(--color-success-fg)', flexShrink: 0 },
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
-  modalCard: { background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
+  modalCard: { background: 'var(--color-card)', borderRadius: '12px', width: '100%', maxWidth: '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' },
   modalHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' },
   modalClose: { background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' },
   modalBody: { padding: '16px 20px', overflowY: 'auto' },
