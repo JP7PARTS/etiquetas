@@ -15,7 +15,7 @@ const DEC_STYLE = {
   'Promover': { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
   'Avaliar saída': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
   'Ignorar': { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' },
-  'Não enviar': { bg: 'var(--color-error-bg)', fg: '#822727' },
+  'Não enviar': { bg: 'var(--color-error-bg)', fg: 'var(--color-error-fg)' },
 };
 
 export default function FullEnvioEditor({ envio, onClose, onSaved }) {

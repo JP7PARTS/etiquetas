@@ -18,6 +18,7 @@ const fullExcluidosRoutes = require('./routes/full/excluidos');
 const fullCrossWaitRoutes = require('./routes/full/cross-wait');
 const fullGradeRoutes = require('./routes/full/grade');
 const fullTempoEstoqueRoutes = require('./routes/full/tempo-estoque');
+const reputacaoRoutes = require('./routes/reputacao');
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use('/api/full/excluidos', fullExcluidosRoutes);
 app.use('/api/full/cross-wait', fullCrossWaitRoutes);
 app.use('/api/full/grade', fullGradeRoutes);
 app.use('/api/full/tempo-estoque', fullTempoEstoqueRoutes);
+app.use('/api/reputacao', reputacaoRoutes);
 
 // 404 handler for /api routes
 app.use('/api/*', (req, res) => {

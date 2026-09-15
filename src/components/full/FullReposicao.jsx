@@ -9,12 +9,12 @@ const brl = (n) => (n || 0).toLocaleString('pt-BR', { style: 'currency', currenc
 const fmtDia = (d) => { try { return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch { return ''; } };
 
 const ALERT_STYLE = {
-  'estoura cross': { bg: 'var(--color-error-bg)', fg: '#822727' },
+  'estoura cross': { bg: 'var(--color-error-bg)', fg: 'var(--color-error-fg)' },
   'sem estoque full': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
   'sem venda': { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' },
   'caindo forte': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
   'subindo forte': { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
-  'SKU já no Full': { bg: '#e9d8fd', fg: '#553c9a' },
+  'SKU já no Full': { bg: 'var(--color-info-bg)', fg: 'var(--color-info-fg)' },
   'a caminho': { bg: 'var(--color-info-bg)', fg: 'var(--color-info-fg)' },
   'aguardando cross': { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' },
   'cross voltou': { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
@@ -29,7 +29,7 @@ const DEC_STYLE = {
   'Promover': { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
   'Avaliar saída': { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
   'Ignorar': { bg: 'var(--color-muted)', fg: 'var(--color-muted-foreground)' },
-  'Não enviar': { bg: 'var(--color-error-bg)', fg: '#822727' },
+  'Não enviar': { bg: 'var(--color-error-bg)', fg: 'var(--color-error-fg)' },
 };
 
 // resumo já parseado. vendas = {7,15,30} (7/15 podem ser null), cross, desempenho opcionais.

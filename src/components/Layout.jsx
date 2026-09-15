@@ -16,6 +16,7 @@ const ICON_PATHS = {
   mail: <><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
   users: <><circle cx="9" cy="8" r="3.4" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16.5 5.2a3.4 3.4 0 0 1 0 5.6" /><path d="M18.2 14.2A6.5 6.5 0 0 1 21.5 20" /></>,
   history: <><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" /><path d="M3 4v4.5h4.5" /><path d="M12 7.5V12l3 1.8" /></>,
+  scale: <><path d="M12 3v18" /><path d="M7 7h10" /><path d="M3.5 20h17" /><path d="M7 7 4 13h6Z" /><path d="m17 7-3 6h6Z" /></>,
   chart: <><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M2.5 20h19" /></>,
   menu: <><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /></>,
   close: <><path d="m6 6 12 12" /><path d="m18 6-12 12" /></>,
@@ -63,6 +64,7 @@ const navSections = [
     items: [
       { id: 'full', label: 'Envio Full', icon: 'truck', roles: ['admin'] },
       { id: 'full-tempo', label: 'Tempo de estoque', icon: 'clock', roles: ['admin'] },
+      { id: 'reputacao', label: 'Reclamações', icon: 'scale', roles: ['admin'] },
       { id: 'skus', label: 'Gerenciar SKUs', icon: 'box', roles: ['admin'] },
       { id: 'embalagens', label: 'Embalagens', icon: 'mail', roles: ['admin'] },
       { id: 'users', label: 'Usuários', icon: 'users', roles: ['admin'] },
