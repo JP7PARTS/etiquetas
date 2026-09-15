@@ -558,7 +558,7 @@ export default function GenerateFromSKU({ user, seed, onSeedConsumed }) {
               </div>
 
               {/* Sticky Footer - Sumário + Botão */}
-              <div style={{position: 'sticky', bottom: 0, background: 'white', borderTop: '1px solid var(--border)', padding: '16px', zIndex: 10}}>
+              <div style={{position: 'sticky', bottom: 0, background: 'var(--color-card)', borderTop: '1px solid var(--border)', padding: '16px', zIndex: 10}}>
                 {rows.length > 0 && (
                   <div style={styles.loteSummary}>
                     <div>
