@@ -5,6 +5,43 @@ import api from '../utils/api.js';
 // contestadas no ML. Sobe a planilha "Vendas com problemas", anota análise + argumento,
 // registra tentativas (IA/Humano) com protocolo e link, e acompanha o status de cada caso.
 
+// A planilha do ML traz a data da venda como texto, no formato
+// "Domingo 13 set 2026 - 06:46 hs" (mes abreviado, sem "de"). Ordenar essa
+// string como texto ordenaria pelo dia da semana, por isso a conversao.
+// Obs: o parseSaleDate de full/parsers.js NAO serve aqui — ele espera o
+// formato por extenso ("28 de agosto de 2025 14:30"), de outro relatorio.
+const MES_ABREV = {
+  jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5,
+  jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11,
+};
+
+function dataVendaMs(v) {
+  const s = String(v ?? '');
+  const ml = s.match(/(\d{1,2})\s+([a-zà-ú]{3,})\.?\s+(\d{4})(?:\s*-\s*(\d{1,2}):(\d{2}))?/i);
+  if (ml) {
+    const mo = MES_ABREV[ml[2].toLowerCase().slice(0, 3)];
+    if (mo != null) return new Date(+ml[3], mo, +ml[1], +(ml[4] || 0), +(ml[5] || 0)).getTime();
+  }
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]).getTime();
+  const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (br) return new Date(+br[3], +br[2] - 1, +br[1]).getTime();
+  return null;
+}
+
+// Mais recente primeiro. Datas ilegiveis vao para o fim em vez de embaralhar,
+// e o numero da venda (sequencial no ML) desempata para a ordem nao oscilar
+// entre um carregamento e outro.
+function porDataVendaDesc(a, b) {
+  const ta = dataVendaMs(a.data_venda);
+  const tb = dataVendaMs(b.data_venda);
+  if (ta == null && tb == null) return String(b.numero_venda).localeCompare(String(a.numero_venda));
+  if (ta == null) return 1;
+  if (tb == null) return -1;
+  if (tb !== ta) return tb - ta;
+  return String(b.numero_venda).localeCompare(String(a.numero_venda));
+}
+
 const STATUS_META = {
   a_analisar: { label: 'A analisar', bg: 'var(--color-muted)', fg: 'var(--color-foreground)', solid: '#334155' },
   reclamada: { label: 'Reclamada (aguardando)', bg: 'var(--color-info-bg)', fg: 'var(--color-info-fg)', solid: '#1e40af' },
@@ -146,8 +183,8 @@ export default function Reputacao() {
     else { try { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ok(); } catch {} }
   }
 
-  const ativos = useMemo(() => cases.filter(c => c.ativo), [cases]);
-  const saíram = useMemo(() => cases.filter(c => !c.ativo), [cases]);
+  const ativos = useMemo(() => cases.filter(c => c.ativo).sort(porDataVendaDesc), [cases]);
+  const saíram = useMemo(() => cases.filter(c => !c.ativo).sort(porDataVendaDesc), [cases]);
   const statusCount = useMemo(() => {
     const c = {}; for (const x of ativos) c[x.status] = (c[x.status] || 0) + 1; return c;
   }, [ativos]);
