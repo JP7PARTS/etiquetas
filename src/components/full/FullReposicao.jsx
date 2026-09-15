@@ -641,7 +641,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
               <th style={{ textAlign: 'center' }}>MLB</th>
               <th style={{ textAlign: 'center' }}>Código ML</th>
               <th style={{ textAlign: 'center' }}>Decisão</th>
-              {th('vel', <span style={{ whiteSpace: 'pre-line', lineHeight: 1.15 }}>{'Vel.\n' + meta.janelas.map(d => d + 'd').join('\n')}</span>, { textAlign: 'center' })}
+              {th('vel', <span style={{ whiteSpace: 'pre-line', lineHeight: 1.15, display: 'inline-block', textAlign: 'right' }}>{'Vel.\n' + meta.janelas.map(d => d + 'd').join('\n')}</span>, { textAlign: 'center' })}
               {th('un', 'Un', { textAlign: 'center' })}
               {th('rs', 'R$', { textAlign: 'center' })}
               {th('estoque', <>Estq<br />full</>, { textAlign: 'right' })}
@@ -697,7 +697,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
                 <td style={{ textAlign: 'center' }}>
                   <span style={{ ...(DEC_STYLE[r.decisao] || {}), background: (DEC_STYLE[r.decisao] || {}).bg, color: (DEC_STYLE[r.decisao] || {}).fg, fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>{r.decisao}</span>
                 </td>
-                <td style={{ textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.15, color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('\n')}</td>
+                <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}><span style={{ whiteSpace: 'pre-line', lineHeight: 1.15, display: 'inline-block', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.vels.map(v => n1(v)).join('\n')}</span></td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} title="unidades vendidas no período (base do ranking)">{int(r.perf?.un)}</td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} title="receita no período (base do ranking)">{brl(r.perf?.receita)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
