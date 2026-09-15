@@ -265,7 +265,8 @@ function CaseCard({ c, saiu, expanded, onToggle, copiado, onCopiar, onCampo, onA
       <div style={styles.caseHead} onClick={onToggle} title={expanded ? 'Recolher' : 'Expandir'}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span style={{ color: 'var(--text-muted)', fontSize: '12px', width: '12px' }}>{expanded ? '▼' : '▶'}</span>
-          <span style={styles.vendaNum}>#{c.numero_venda}</span>
+          <a href={vendaLink(c.numero_venda)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+            style={styles.vendaNum} title="Abrir a venda no Mercado Livre">#{c.numero_venda}</a>
           <span style={{ ...styles.statusBadge, background: sm.bg, color: sm.fg }}>{sm.label}</span>
           <span style={styles.miniCount} title="Tentativas com IA">🤖 {iaN}</span>
           <span style={styles.miniCount} title="Tentativas com humano">👤 {humN}</span>
@@ -282,7 +283,6 @@ function CaseCard({ c, saiu, expanded, onToggle, copiado, onCopiar, onCampo, onA
       {!expanded ? null : (<>
       <div style={{ marginTop: '6px' }} />
       <div style={styles.tituloRow}>
-        <a href={vendaLink(c.numero_venda)} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#2b6cb0', textDecoration: 'none', whiteSpace: 'nowrap' }} title="Abrir a venda no Mercado Livre">abrir venda ↗</a>
         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{c.data_venda}</span>
       </div>
       <div style={styles.titulo}>
