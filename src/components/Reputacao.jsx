@@ -236,7 +236,7 @@ export default function Reputacao() {
   );
 }
 
-function CaseCard({ c, saiu, copiado, onCopiar, onCampo, onAddTent, onDelTent, onExcluir }) {
+function CaseCard({ c, saiu, expanded, onToggle, copiado, onCopiar, onCampo, onAddTent, onDelTent, onExcluir }) {
   const [analise, setAnalise] = useState(c.analise || '');
   const [argumento, setArgumento] = useState(c.argumento || '');
   const [canal, setCanal] = useState('ia');
