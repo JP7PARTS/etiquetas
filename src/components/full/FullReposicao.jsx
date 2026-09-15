@@ -624,7 +624,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
 
       {acaoMenu && <div onClick={() => setAcaoMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 25 }} />}
       <div className="card" style={{ overflowX: 'auto' }}>
-        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;vertical-align:middle;}.repo-tbl th{white-space:normal;line-height:1.15;}.repo-tbl th{white-space:normal;line-height:1.15;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
+        <style>{`.repo-tbl{width:auto;}.repo-tbl th,.repo-tbl td{padding:5px 9px;line-height:1.25;vertical-align:middle;}.repo-tbl th{white-space:normal;line-height:1.15;text-transform:none;letter-spacing:normal;}.repo-tbl th{white-space:normal;line-height:1.15;}.repo-tbl th:first-child,.repo-tbl td:first-child{padding-left:4px;}.repo-tbl .btn-outline{padding:2px 6px !important;font-size:11px !important;}`}</style>
         <table className="repo-tbl" style={{ fontSize: '13px' }}>
           <thead>
             <tr>
@@ -641,12 +641,12 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
               <th style={{ textAlign: 'center' }}>MLB</th>
               <th style={{ textAlign: 'center' }}>Código ML</th>
               <th style={{ textAlign: 'center' }}>Decisão</th>
-              {th('vel', 'Vel (' + meta.janelas.join('/') + ')', { textAlign: 'center' })}
+              {th('vel', <span style={{ whiteSpace: 'pre-line', lineHeight: 1.15 }}>{'Vel.\n' + meta.janelas.map(d => d + 'd').join('\n')}</span>, { textAlign: 'center' })}
               {th('un', 'Un', { textAlign: 'center' })}
               {th('rs', 'R$', { textAlign: 'center' })}
               {th('estoque', <>Estq<br />full</>, { textAlign: 'right' })}
               {th('cobertura', 'Cobertura', { textAlign: 'center' })}
-              {th('afetatempo', <>Un.<br />tempo estq</>, { textAlign: 'center' })}
+              {th('afetatempo', <>Un.<br />tempo<br />estq</>, { textAlign: 'center' })}
               <th style={{ textAlign: 'center' }}>Estq<br />cross</th>
               {th('sugestao', 'Sugestão', { textAlign: 'center' })}
               <th style={{ textAlign: 'center' }}>Enviar</th>
@@ -697,7 +697,7 @@ export default function FullReposicao({ resumo, vendas, cross, desempenho, envio
                 <td style={{ textAlign: 'center' }}>
                   <span style={{ ...(DEC_STYLE[r.decisao] || {}), background: (DEC_STYLE[r.decisao] || {}).bg, color: (DEC_STYLE[r.decisao] || {}).fg, fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>{r.decisao}</span>
                 </td>
-                <td style={{ textAlign: 'center', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('/')}</td>
+                <td style={{ textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.15, color: 'var(--text-muted)' }}>{r.vels.map(v => n1(v)).join('\n')}</td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} title="unidades vendidas no período (base do ranking)">{int(r.perf?.un)}</td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} title="receita no período (base do ranking)">{brl(r.perf?.receita)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
