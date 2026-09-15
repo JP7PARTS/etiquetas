@@ -26,6 +26,24 @@ const casoLink = (p) => `https://www.mercadolivre.com.br/cases/detail/${p}`;
 const fmtDT = (s) => { try { return new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return s; } };
 const fmtDay = (s) => { if (!s) return ''; try { return new Date(s + 'T00:00:00').toLocaleDateString('pt-BR'); } catch { return s; } };
 const todayISO = () => new Date().toISOString().slice(0, 10);
+// Preenchida = tem análise E argumento → já dá pra reclamar
+const isPreenchida = (c) => !!((c.analise || '').trim() && (c.argumento || '').trim());
+// Dias até a data (positivo = faltam, 0 = hoje, negativo = venceu). Retorna null se sem data.
+function diasRestantes(dateStr) {
+  if (!dateStr) return null;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr.slice(0, 10) + 'T00:00:00');
+  if (isNaN(d)) return null;
+  return Math.round((d - hoje) / 86400000);
+}
+function aguardarTxt(dateStr) {
+  const n = diasRestantes(dateStr);
+  if (n == null) return '';
+  if (n > 1) return `faltam ${n} dias`;
+  if (n === 1) return 'falta 1 dia';
+  if (n === 0) return 'é hoje';
+  return n === -1 ? 'venceu ontem' : `venceu há ${-n} dias`;
+}
 
 export default function Reputacao() {
   const [cases, setCases] = useState([]);
@@ -36,6 +54,7 @@ export default function Reputacao() {
   const [search, setSearch] = useState('');
   const [statusFiltro, setStatusFiltro] = useState(new Set()); // vazio = todos
   const [tipoFiltro, setTipoFiltro] = useState(new Set());     // filtro por tipo de problema
+  const [preenchFiltro, setPreenchFiltro] = useState('');      // '' | 'falta' | 'pronta'
   const [showSairam, setShowSairam] = useState(false);
   const [copiado, setCopiado] = useState(null);
   const [expanded, setExpanded] = useState(new Set()); // # das vendas expandidas (padrão: todas minimizadas)
@@ -45,7 +64,13 @@ export default function Reputacao() {
   useEffect(() => { load(); }, []);
   async function load() {
     setLoading(true); setError('');
-    try { const r = await api.get('/reputacao'); setCases(r.data || []); }
+    try {
+      const r = await api.get('/reputacao');
+      const data = r.data || [];
+      setCases(data);
+      // Deixa expandidas as que faltam preencher (análise/argumento); as prontas ficam minimizadas.
+      setExpanded(new Set(data.filter(c => c.ativo && !isPreenchida(c)).map(c => c.numero_venda)));
+    }
     catch (e) { setError('Erro ao carregar: ' + (e.response?.data?.error || e.message)); }
     finally { setLoading(false); }
   }
@@ -129,13 +154,17 @@ export default function Reputacao() {
   const tipoCount = useMemo(() => {
     const c = {}; for (const x of ativos) { const t = (x.tipo_problema || '').trim(); if (t) c[t] = (c[t] || 0) + 1; } return c;
   }, [ativos]);
+  const preenchCount = useMemo(() => {
+    let pronta = 0, falta = 0; for (const x of ativos) (isPreenchida(x) ? pronta++ : falta++); return { pronta, falta };
+  }, [ativos]);
 
   const q = search.trim().toLowerCase();
   const view = useMemo(() => ativos.filter(c =>
     (!statusFiltro.size || statusFiltro.has(c.status)) &&
     (!tipoFiltro.size || tipoFiltro.has((c.tipo_problema || '').trim())) &&
+    (!preenchFiltro || (preenchFiltro === 'pronta' ? isPreenchida(c) : !isPreenchida(c))) &&
     (!q || c.numero_venda.includes(q) || (c.titulo || '').toLowerCase().includes(q))
-  ), [ativos, statusFiltro, tipoFiltro, q]);
+  ), [ativos, statusFiltro, tipoFiltro, preenchFiltro, q]);
 
   const toggleStatus = (k) => setStatusFiltro(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const toggleTipo = (k) => setTipoFiltro(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
@@ -191,6 +220,17 @@ export default function Reputacao() {
                 {tipoFiltro.size > 0 && <button onClick={() => setTipoFiltro(new Set())} style={styles.chip}>limpar</button>}
               </div>
             )}
+            <div style={styles.chipRow}>
+              <span style={styles.chipGroupLbl}>Preenchimento</span>
+              <button onClick={() => setPreenchFiltro(f => f === 'falta' ? '' : 'falta')}
+                style={{ ...styles.chip, ...(preenchFiltro === 'falta' ? { background: '#c05621', color: '#fff', borderColor: '#c05621' } : {}) }}>
+                ✍️ Falta preencher ({preenchCount.falta})
+              </button>
+              <button onClick={() => setPreenchFiltro(f => f === 'pronta' ? '' : 'pronta')}
+                style={{ ...styles.chip, ...(preenchFiltro === 'pronta' ? { background: '#276749', color: '#fff', borderColor: '#276749' } : {}) }}>
+                ✅ Pronta pra reclamar ({preenchCount.pronta})
+              </button>
+            </div>
           </>
         )}
 
@@ -258,6 +298,7 @@ function CaseCard({ c, saiu, expanded, onToggle, copiado, onCopiar, onCampo, onA
 
   const iaN = tentativas.filter(t => t.canal !== 'humano').length;
   const humN = tentativas.filter(t => t.canal === 'humano').length;
+  const pronta = isPreenchida(c);
 
   return (
     <div style={{ ...styles.caseCard, borderLeft: `5px solid ${sm.fg}`, ...(saiu ? { opacity: 0.7 } : {}) }}>
@@ -270,9 +311,16 @@ function CaseCard({ c, saiu, expanded, onToggle, copiado, onCopiar, onCampo, onA
           <span style={{ ...styles.statusBadge, background: sm.bg, color: sm.fg }}>{sm.label}</span>
           <span style={styles.miniCount} title="Tentativas com IA">🤖 {iaN}</span>
           <span style={styles.miniCount} title="Tentativas com humano">👤 {humN}</span>
-          {c.status === 'aguardar' && c.aguardar_ate && (
-            <span style={{ fontSize: '12px', color: '#7b341e', fontWeight: 600 }}>⏰ {fmtDay(c.aguardar_ate)}</span>
-          )}
+          {pronta
+            ? <span style={{ ...styles.prenBadge, background: '#c6f6d5', color: '#276749' }} title="Tem análise e argumento — já dá pra reclamar">✅ pronta</span>
+            : <span style={{ ...styles.prenBadge, background: '#feebc8', color: '#9c4221' }} title="Falta análise e/ou argumento">✍️ falta preencher</span>}
+          {c.status === 'aguardar' && c.aguardar_ate && (() => {
+            const n = diasRestantes(c.aguardar_ate);
+            const venceu = n != null && n < 0;
+            return <span style={{ fontSize: '12px', color: venceu ? '#c53030' : '#7b341e', fontWeight: 700 }}>
+              ⏰ até {fmtDay(c.aguardar_ate)} ({aguardarTxt(c.aguardar_ate)})
+            </span>;
+          })()}
         </div>
         {expanded && (
           <button onClick={(e) => { e.stopPropagation(); onExcluir(c.numero_venda); }} title="Remover caso"
@@ -383,6 +431,7 @@ const styles = {
   miniCount: { fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-hover, #f1f5f9)', padding: '1px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
   tituloRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px' },
   statusBadge: { fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
+  prenBadge: { fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
   titulo: { display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, fontSize: '14px', marginBottom: '3px' },
   infoBtn: { border: 'none', background: 'none', cursor: 'pointer', fontSize: '13px' },
   linha: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' },
