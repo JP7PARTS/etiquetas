@@ -38,7 +38,9 @@ export default function Reputacao() {
   const [tipoFiltro, setTipoFiltro] = useState(new Set());     // filtro por tipo de problema
   const [showSairam, setShowSairam] = useState(false);
   const [copiado, setCopiado] = useState(null);
+  const [expanded, setExpanded] = useState(new Set()); // # das vendas expandidas (padrão: todas minimizadas)
   const inputRef = useRef(null);
+  const toggleExpand = (numero) => setExpanded(prev => { const n = new Set(prev); n.has(numero) ? n.delete(numero) : n.add(numero); return n; });
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -195,13 +197,22 @@ export default function Reputacao() {
         {loading ? null : ativos.length === 0 ? (
           <div className="empty-state"><p>Nenhum caso ainda. Suba a planilha "Vendas com problemas" exportada do Mercado Livre.</p></div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginTop: '6px' }}>
-            {view.map(c => (
-              <CaseCard key={c.numero_venda} c={c} copiado={copiado} onCopiar={copiar}
-                onCampo={salvarCampo} onAddTent={addTentativa} onDelTent={delTentativa} onExcluir={excluirCaso} />
-            ))}
-            {view.length === 0 && <div className="empty-state"><p>Nenhum caso no filtro atual.</p></div>}
-          </div>
+          <>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+              <button className="btn-outline" style={{ padding: '5px 12px' }}
+                onClick={() => setExpanded(new Set(view.map(c => c.numero_venda)))}>▼ Expandir todas</button>
+              <button className="btn-outline" style={{ padding: '5px 12px' }}
+                onClick={() => setExpanded(new Set())}>▶ Minimizar todas</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '2px' }}>
+              {view.map(c => (
+                <CaseCard key={c.numero_venda} c={c} expanded={expanded.has(c.numero_venda)} onToggle={() => toggleExpand(c.numero_venda)}
+                  copiado={copiado} onCopiar={copiar}
+                  onCampo={salvarCampo} onAddTent={addTentativa} onDelTent={delTentativa} onExcluir={excluirCaso} />
+              ))}
+              {view.length === 0 && <div className="empty-state"><p>Nenhum caso no filtro atual.</p></div>}
+            </div>
+          </>
         )}
 
         {saíram.length > 0 && (
@@ -212,7 +223,8 @@ export default function Reputacao() {
             {showSairam && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginTop: '8px' }}>
                 {saíram.map(c => (
-                  <CaseCard key={c.numero_venda} c={c} saiu copiado={copiado} onCopiar={copiar}
+                  <CaseCard key={c.numero_venda} c={c} saiu expanded={expanded.has(c.numero_venda)} onToggle={() => toggleExpand(c.numero_venda)}
+                    copiado={copiado} onCopiar={copiar}
                     onCampo={salvarCampo} onAddTent={addTentativa} onDelTent={delTentativa} onExcluir={excluirCaso} />
                 ))}
               </div>
@@ -244,23 +256,35 @@ function CaseCard({ c, saiu, copiado, onCopiar, onCampo, onAddTent, onDelTent, o
     if (ok) { setProtocolo(''); setNota(''); }
   }
 
+  const iaN = tentativas.filter(t => t.canal !== 'humano').length;
+  const humN = tentativas.filter(t => t.canal === 'humano').length;
+
   return (
     <div style={{ ...styles.caseCard, borderLeft: `5px solid ${sm.fg}`, ...(saiu ? { opacity: 0.7 } : {}) }}>
-      <div style={styles.caseHead}>
+      {/* Cabeçalho minimizado (clique expande) */}
+      <div style={styles.caseHead} onClick={onToggle} title={expanded ? 'Recolher' : 'Expandir'}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <a href={vendaLink(c.numero_venda)} target="_blank" rel="noreferrer" style={styles.vendaNum} title="Abrir a venda no Mercado Livre">
-            #{c.numero_venda}
-          </a>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{c.data_venda}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '12px', width: '12px' }}>{expanded ? '▼' : '▶'}</span>
+          <span style={styles.vendaNum}>#{c.numero_venda}</span>
           <span style={{ ...styles.statusBadge, background: sm.bg, color: sm.fg }}>{sm.label}</span>
+          <span style={styles.miniCount} title="Tentativas com IA">🤖 {iaN}</span>
+          <span style={styles.miniCount} title="Tentativas com humano">👤 {humN}</span>
           {c.status === 'aguardar' && c.aguardar_ate && (
-            <span style={{ fontSize: '12px', color: '#7b341e', fontWeight: 600 }}>⏰ verificar em {fmtDay(c.aguardar_ate)}</span>
+            <span style={{ fontSize: '12px', color: '#7b341e', fontWeight: 600 }}>⏰ {fmtDay(c.aguardar_ate)}</span>
           )}
         </div>
-        <button onClick={() => onExcluir(c.numero_venda)} title="Remover caso"
-          style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#c53030', fontSize: '14px' }}>🗑</button>
+        {expanded && (
+          <button onClick={(e) => { e.stopPropagation(); onExcluir(c.numero_venda); }} title="Remover caso"
+            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#c53030', fontSize: '14px' }}>🗑</button>
+        )}
       </div>
 
+      {!expanded ? null : (<>
+      <div style={{ marginTop: '6px' }} />
+      <div style={styles.tituloRow}>
+        <a href={vendaLink(c.numero_venda)} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#2b6cb0', textDecoration: 'none', whiteSpace: 'nowrap' }} title="Abrir a venda no Mercado Livre">abrir venda ↗</a>
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{c.data_venda}</span>
+      </div>
       <div style={styles.titulo}>
         <span>{c.titulo || '—'}</span>
         <button onClick={() => onCopiar(c.titulo, c.numero_venda)} title="Copiar o título"
@@ -339,6 +363,7 @@ function CaseCard({ c, saiu, copiado, onCopiar, onCampo, onAddTent, onDelTent, o
           </button>
         </div>
       </div>
+      </>)}
     </div>
   );
 }
@@ -353,8 +378,10 @@ const styles = {
   chipOn: { background: 'var(--btn-primary, #2b6cb0)', color: '#fff', borderColor: 'var(--btn-primary, #2b6cb0)' },
   copyArg: { padding: '2px 8px', fontSize: '11px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', color: '#2b6cb0', cursor: 'pointer' },
   caseCard: { border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 16px', background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.07)' },
-  caseHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' },
+  caseHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' },
   vendaNum: { fontFamily: 'monospace', fontWeight: 700, color: '#2b6cb0', textDecoration: 'none', fontSize: '13.5px' },
+  miniCount: { fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-hover, #f1f5f9)', padding: '1px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
+  tituloRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px' },
   statusBadge: { fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
   titulo: { display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, fontSize: '14px', marginBottom: '3px' },
   infoBtn: { border: 'none', background: 'none', cursor: 'pointer', fontSize: '13px' },
