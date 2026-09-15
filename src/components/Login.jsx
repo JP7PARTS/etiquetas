@@ -26,7 +26,7 @@ export default function Login({ onLogin }) {
       <div style={styles.card}>
         <div style={styles.logo}>
           <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <rect width="48" height="48" rx="12" fill="#0077b6"/>
+            <rect width="48" height="48" rx="12" fill="#047857"/>
             <rect x="8" y="14" width="32" height="20" rx="3" fill="#fff" opacity="0.15"/>
             <rect x="10" y="16" width="28" height="16" rx="2" fill="#fff" opacity="0.2"/>
             <rect x="12" y="19" width="12" height="2" rx="1" fill="#fff"/>
@@ -90,7 +90,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+    background: 'linear-gradient(140deg, #0f172a 0%, #1e293b 55%, #334155 100%)',
     padding: '20px',
   },
   card: {
