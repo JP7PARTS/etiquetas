@@ -13,6 +13,14 @@ const STATUS_META = {
   recusada: { label: 'Recusada', bg: '#fed7d7', fg: '#822727' },
 };
 const STATUS_ORDER = ['a_analisar', 'reclamada', 'aguardar', 'resolvida', 'recusada'];
+// Rótulo curto para o chip de tipo de problema
+const tipoLabel = (t) => {
+  const s = (t || '').toLowerCase();
+  if (s.includes('entregue')) return '📦 Produto entregue';
+  if (s.includes('gerenciar') || s.includes('preparar')) return '🛠️ Preparar/gerenciar';
+  if (s.includes('outros')) return '❓ Outros motivos';
+  return t;
+};
 const vendaLink = (n) => `https://www.mercadolivre.com.br/vendas/${n}/detalhe`;
 const casoLink = (p) => `https://www.mercadolivre.com.br/cases/detail/${p}`;
 const fmtDT = (s) => { try { return new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return s; } };
@@ -27,6 +35,7 @@ export default function Reputacao() {
   const [parsing, setParsing] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFiltro, setStatusFiltro] = useState(new Set()); // vazio = todos
+  const [tipoFiltro, setTipoFiltro] = useState(new Set());     // filtro por tipo de problema
   const [showSairam, setShowSairam] = useState(false);
   const [copiado, setCopiado] = useState(null);
   const inputRef = useRef(null);
@@ -115,14 +124,19 @@ export default function Reputacao() {
   const statusCount = useMemo(() => {
     const c = {}; for (const x of ativos) c[x.status] = (c[x.status] || 0) + 1; return c;
   }, [ativos]);
+  const tipoCount = useMemo(() => {
+    const c = {}; for (const x of ativos) { const t = (x.tipo_problema || '').trim(); if (t) c[t] = (c[t] || 0) + 1; } return c;
+  }, [ativos]);
 
   const q = search.trim().toLowerCase();
   const view = useMemo(() => ativos.filter(c =>
     (!statusFiltro.size || statusFiltro.has(c.status)) &&
+    (!tipoFiltro.size || tipoFiltro.has((c.tipo_problema || '').trim())) &&
     (!q || c.numero_venda.includes(q) || (c.titulo || '').toLowerCase().includes(q))
-  ), [ativos, statusFiltro, q]);
+  ), [ativos, statusFiltro, tipoFiltro, q]);
 
   const toggleStatus = (k) => setStatusFiltro(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const toggleTipo = (k) => setTipoFiltro(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   return (
     <div>
@@ -154,6 +168,7 @@ export default function Reputacao() {
               </div>
             </div>
             <div style={styles.chipRow}>
+              <span style={styles.chipGroupLbl}>Status</span>
               {STATUS_ORDER.filter(k => statusCount[k]).map(k => (
                 <button key={k} onClick={() => toggleStatus(k)}
                   style={{ ...styles.chip, ...(statusFiltro.has(k) ? { background: STATUS_META[k].fg, color: '#fff', borderColor: STATUS_META[k].fg } : {}) }}>
@@ -162,13 +177,25 @@ export default function Reputacao() {
               ))}
               {statusFiltro.size > 0 && <button onClick={() => setStatusFiltro(new Set())} style={styles.chip}>limpar</button>}
             </div>
+            {Object.keys(tipoCount).length > 0 && (
+              <div style={styles.chipRow}>
+                <span style={styles.chipGroupLbl}>Problema</span>
+                {Object.keys(tipoCount).sort((a, b) => tipoCount[b] - tipoCount[a]).map(t => (
+                  <button key={t} onClick={() => toggleTipo(t)}
+                    style={{ ...styles.chip, ...(tipoFiltro.has(t) ? styles.chipOn : {}) }}>
+                    {tipoFiltro.has(t) ? '✓ ' : ''}{tipoLabel(t)} ({tipoCount[t]})
+                  </button>
+                ))}
+                {tipoFiltro.size > 0 && <button onClick={() => setTipoFiltro(new Set())} style={styles.chip}>limpar</button>}
+              </div>
+            )}
           </>
         )}
 
         {loading ? null : ativos.length === 0 ? (
           <div className="empty-state"><p>Nenhum caso ainda. Suba a planilha "Vendas com problemas" exportada do Mercado Livre.</p></div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginTop: '6px' }}>
             {view.map(c => (
               <CaseCard key={c.numero_venda} c={c} copiado={copiado} onCopiar={copiar}
                 onCampo={salvarCampo} onAddTent={addTentativa} onDelTent={delTentativa} onExcluir={excluirCaso} />
@@ -183,7 +210,7 @@ export default function Reputacao() {
               📤 {saíram.length} saíram da última planilha (confira se foram resolvidas) {showSairam ? '▲' : '▼'}
             </button>
             {showSairam && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginTop: '8px' }}>
                 {saíram.map(c => (
                   <CaseCard key={c.numero_venda} c={c} saiu copiado={copiado} onCopiar={copiar}
                     onCampo={salvarCampo} onAddTent={addTentativa} onDelTent={delTentativa} onExcluir={excluirCaso} />
@@ -218,7 +245,7 @@ function CaseCard({ c, saiu, copiado, onCopiar, onCampo, onAddTent, onDelTent, o
   }
 
   return (
-    <div style={{ ...styles.caseCard, ...(saiu ? { opacity: 0.75 } : {}) }}>
+    <div style={{ ...styles.caseCard, borderLeft: `5px solid ${sm.fg}`, ...(saiu ? { opacity: 0.7 } : {}) }}>
       <div style={styles.caseHead}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <a href={vendaLink(c.numero_venda)} target="_blank" rel="noreferrer" style={styles.vendaNum} title="Abrir a venda no Mercado Livre">
@@ -263,13 +290,19 @@ function CaseCard({ c, saiu, copiado, onCopiar, onCampo, onAddTent, onDelTent, o
       <div style={styles.grid2}>
         <div>
           <span style={styles.lbl}>Análise (o que aconteceu)</span>
-          <textarea rows={2} value={analise} onChange={e => setAnalise(e.target.value)}
+          <textarea rows={4} value={analise} onChange={e => setAnalise(e.target.value)}
             onBlur={() => analise !== (c.analise || '') && onCampo(c.numero_venda, 'analise', analise)}
             placeholder="Descreva o problema da venda..." style={styles.ta} />
         </div>
         <div>
-          <span style={styles.lbl}>Argumento (como justificar)</span>
-          <textarea rows={2} value={argumento} onChange={e => setArgumento(e.target.value)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={styles.lbl}>Argumento (como justificar)</span>
+            <button onClick={() => onCopiar(argumento, c.numero_venda + ':arg')} disabled={!argumento.trim()}
+              title="Copiar o argumento" style={styles.copyArg}>
+              {copiado === c.numero_venda + ':arg' ? '✅ copiado' : '📋 copiar'}
+            </button>
+          </div>
+          <textarea rows={4} value={argumento} onChange={e => setArgumento(e.target.value)}
             onBlur={() => argumento !== (c.argumento || '') && onCampo(c.numero_venda, 'argumento', argumento)}
             placeholder="Como vai argumentar para remover o impacto..." style={styles.ta} />
         </div>
@@ -314,9 +347,12 @@ const styles = {
   uploadRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' },
   toolbar: { display: 'flex', gap: '12px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' },
   searchWrapper: { flex: 1, minWidth: '220px' },
-  chipRow: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' },
+  chipRow: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' },
+  chipGroupLbl: { fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: '2px' },
   chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
-  caseCard: { border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 14px', background: '#fff' },
+  chipOn: { background: 'var(--btn-primary, #2b6cb0)', color: '#fff', borderColor: 'var(--btn-primary, #2b6cb0)' },
+  copyArg: { padding: '2px 8px', fontSize: '11px', fontWeight: 700, border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', color: '#2b6cb0', cursor: 'pointer' },
+  caseCard: { border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 16px', background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.07)' },
   caseHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' },
   vendaNum: { fontFamily: 'monospace', fontWeight: 700, color: '#2b6cb0', textDecoration: 'none', fontSize: '13.5px' },
   statusBadge: { fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
