@@ -322,7 +322,11 @@ function CaseCard({ c, saiu, expanded, onToggle, copiado, onCopiar, onCampo, onA
   const [protocolo, setProtocolo] = useState('');
   const [nota, setNota] = useState('');
   const [saving, setSaving] = useState(false);
-  useEffect(() => { setAnalise(c.analise || ''); setArgumento(c.argumento || ''); }, [c.numero_venda]);
+  const [dataAg, setDataAg] = useState(c.aguardar_ate ? c.aguardar_ate.slice(0, 10) : '');
+  useEffect(() => {
+    setAnalise(c.analise || ''); setArgumento(c.argumento || '');
+    setDataAg(c.aguardar_ate ? c.aguardar_ate.slice(0, 10) : '');
+  }, [c.numero_venda]);
 
   const sm = STATUS_META[c.status] || STATUS_META.a_analisar;
   const tentativas = Array.isArray(c.tentativas) ? c.tentativas : [];
@@ -391,8 +395,9 @@ function CaseCard({ c, saiu, expanded, onToggle, copiado, onCopiar, onCampo, onA
         {c.status === 'aguardar' && (
           <>
             <span style={styles.lbl}>Verificar em</span>
-            <input type="date" value={c.aguardar_ate ? c.aguardar_ate.slice(0, 10) : todayISO()}
-              onChange={e => onCampo(c.numero_venda, 'aguardar_ate', e.target.value)} style={styles.dt} />
+            <input type="date" value={dataAg}
+              onChange={e => { setDataAg(e.target.value); onCampo(c.numero_venda, 'aguardar_ate', e.target.value); }}
+              style={styles.dt} />
           </>
         )}
       </div>
