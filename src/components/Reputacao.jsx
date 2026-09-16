@@ -105,8 +105,8 @@ export default function Reputacao() {
       const r = await api.get('/reputacao');
       const data = r.data || [];
       setCases(data);
-      // Deixa expandidas as que faltam preencher (análise/argumento); as prontas ficam minimizadas.
-      setExpanded(new Set(data.filter(c => c.ativo && !isPreenchida(c)).map(c => c.numero_venda)));
+      // Deixa expandidas as que faltam preencher (análise/argumento); prontas e resolvidas ficam minimizadas.
+      setExpanded(new Set(data.filter(c => c.ativo && c.status !== 'resolvida' && !isPreenchida(c)).map(c => c.numero_venda)));
     }
     catch (e) { setError('Erro ao carregar: ' + (e.response?.data?.error || e.message)); }
     finally { setLoading(false); }
@@ -183,8 +183,10 @@ export default function Reputacao() {
     else { try { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ok(); } catch {} }
   }
 
-  const ativos = useMemo(() => cases.filter(c => c.ativo).sort(porDataVendaDesc), [cases]);
-  const saíram = useMemo(() => cases.filter(c => !c.ativo).sort(porDataVendaDesc), [cases]);
+  // Resolvida = marcada manualmente como resolvida OU sumiu da última planilha (impacto saiu da reputação).
+  const ehResolvida = (c) => c.status === 'resolvida' || !c.ativo;
+  const ativos = useMemo(() => cases.filter(c => !ehResolvida(c)).sort(porDataVendaDesc), [cases]);
+  const resolvidas = useMemo(() => cases.filter(ehResolvida).sort(porDataVendaDesc), [cases]);
   const statusCount = useMemo(() => {
     const c = {}; for (const x of ativos) c[x.status] = (c[x.status] || 0) + 1; return c;
   }, [ativos]);
@@ -292,15 +294,15 @@ export default function Reputacao() {
           </>
         )}
 
-        {saíram.length > 0 && (
+        {resolvidas.length > 0 && (
           <div style={{ marginTop: '16px' }}>
             <button className="btn-outline" style={{ padding: '5px 12px' }} onClick={() => setShowSairam(v => !v)}>
-              📤 {saíram.length} saíram da última planilha (confira se foram resolvidas) {showSairam ? '▲' : '▼'}
+              ✅ Resolvidas ({resolvidas.length}) {showSairam ? '▲' : '▼'}
             </button>
             {showSairam && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginTop: '8px' }}>
-                {saíram.map(c => (
-                  <CaseCard key={c.numero_venda} c={c} saiu expanded={expanded.has(c.numero_venda)} onToggle={() => toggleExpand(c.numero_venda)}
+                {resolvidas.map(c => (
+                  <CaseCard key={c.numero_venda} c={c} saiu={!c.ativo} expanded={expanded.has(c.numero_venda)} onToggle={() => toggleExpand(c.numero_venda)}
                     copiado={copiado} onCopiar={copiar}
                     onCampo={salvarCampo} onAddTent={addTentativa} onDelTent={delTentativa} onExcluir={excluirCaso} />
                 ))}
