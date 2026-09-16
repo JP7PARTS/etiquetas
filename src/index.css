@@ -367,6 +367,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 22%, transparent);
 }
 
+/* Controles nativos (input date/time, seletores) seguem a propriedade color-scheme,
+   não o data-theme. Amarra os dois — senão o calendário/segmentos ficam com o
+   esquema do SO (ex.: texto e ícone brancos sumindo no tema claro do app). */
+:root, :root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
+
 /* Autofill do navegador: força o fundo/texto do tema (senão o Chrome pinta um cinza estranho) */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
