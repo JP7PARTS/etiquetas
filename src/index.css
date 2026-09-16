@@ -367,6 +367,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ring) 22%, transparent);
 }
 
+/* Autofill do navegador: força o fundo/texto do tema (senão o Chrome pinta um cinza estranho) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-foreground);
+  -webkit-box-shadow: 0 0 0 1000px var(--color-card) inset;
+  box-shadow: 0 0 0 1000px var(--color-card) inset;
+  caret-color: var(--color-foreground);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
 input:disabled, select:disabled, textarea:disabled {
   background: var(--color-muted);
   color: var(--color-subtle);

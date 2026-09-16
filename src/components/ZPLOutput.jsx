@@ -64,7 +64,7 @@ export default function ZPLOutput({ zpl, sku, descricao_curta, quantity, filenam
         </div>
         <div style={styles.actions}>
           <button
-            className="btn-outline"
+            className="btn-secondary"
             onClick={handleCopy}
             style={{ minWidth: '110px' }}
           >
