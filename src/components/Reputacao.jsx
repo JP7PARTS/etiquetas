@@ -61,7 +61,7 @@ const tipoLabel = (t) => {
 const vendaLink = (n) => `https://www.mercadolivre.com.br/vendas/${n}/detalhe`;
 const casoLink = (p) => `https://www.mercadolivre.com.br/cases/detail/${p}`;
 const fmtDT = (s) => { try { return new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return s; } };
-const fmtDay = (s) => { if (!s) return ''; try { return new Date(s + 'T00:00:00').toLocaleDateString('pt-BR'); } catch { return s; } };
+const fmtDay = (s) => { if (!s) return ''; try { return new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR'); } catch { return s; } };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 // Preenchida = tem análise E argumento → já dá pra reclamar
 const isPreenchida = (c) => !!((c.analise || '').trim() && (c.argumento || '').trim());
@@ -359,8 +359,12 @@ function CaseCard({ c, saiu, expanded, onToggle, copiado, onCopiar, onCampo, onA
             : <span style={{ ...styles.prenBadge, background: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }} title="Falta análise e/ou argumento">✍️ falta preencher</span>}
           {c.status === 'aguardar' && c.aguardar_ate && (() => {
             const n = diasRestantes(c.aguardar_ate);
-            const venceu = n != null && n < 0;
-            return <span style={{ fontSize: '12px', color: venceu ? 'var(--color-error-fg)' : 'var(--color-warning-fg)', fontWeight: 700 }}>
+            if (n != null && n <= 0) {
+              return <span style={{ fontSize: '12px', color: 'var(--color-error-fg)', fontWeight: 800 }}>
+                ⚠️ Reclamar {n === 0 ? 'hoje' : `— venceu há ${-n} dia${-n > 1 ? 's' : ''}`}
+              </span>;
+            }
+            return <span style={{ fontSize: '12px', color: 'var(--color-warning-fg)', fontWeight: 700 }}>
               ⏰ até {fmtDay(c.aguardar_ate)} ({aguardarTxt(c.aguardar_ate)})
             </span>;
           })()}
