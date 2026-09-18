@@ -124,7 +124,23 @@ router.post('/reclamar', async (req, res) => {
   } catch (e) { console.error('POST /retirada/reclamar:', e); res.status(500).json({ error: 'Erro ao reclamar' }); }
 });
 
-// PUT /protocolos/:protocolo — muda o status do bloco (resolvido / nao_resolvido / em_acompanhamento)
+// POST /itens/status — muda o status de itens selecionados (resolver 4 de 6, por ex.)
+router.post('/itens/status', async (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
+  const status = s(req.body.status, 20);
+  const ok = ['em_acompanhamento', 'resolvido', 'nao_resolvido'];
+  if (!ids.length) return res.status(400).json({ error: 'Selecione ao menos um item' });
+  if (!ok.includes(status)) return res.status(400).json({ error: 'Status inválido' });
+  try {
+    const r = await db.query(
+      `UPDATE retirada_itens SET status = $1, updated_at = NOW() WHERE id = ANY($2) AND protocolo IS NOT NULL RETURNING *`,
+      [status, ids]
+    );
+    res.json({ atualizados: r.rowCount, itens: r.rows });
+  } catch (e) { console.error('POST /retirada/itens/status:', e); res.status(500).json({ error: 'Erro ao atualizar status' }); }
+});
+
+// PUT /protocolos/:protocolo — muda o status de TODOS os itens do bloco de uma vez
 router.put('/protocolos/:protocolo', async (req, res) => {
   const status = s(req.body.status, 20);
   const ok = ['em_acompanhamento', 'resolvido', 'nao_resolvido'];

@@ -12,7 +12,18 @@ const STATUS_BLOCO = {
   nao_resolvido: { label: 'Não resolvido', bg: 'var(--color-error-bg)', fg: 'var(--color-error-fg)' },
 };
 const CUSTOM = '__custom__';
-const emptyForm = { qtd: 1, sku: '', bling: '', ml: '', motivo: '', justificativa: '', justCustom: '' };
+const emptyForm = { qtd: 1, sku: '', bling: '', ml: '', motivo: '', motivoCustom: '', justificativa: '', justCustom: '' };
+// Prepara o form a partir de um item existente: se o texto não está na lista de opções, vira "Personalizado".
+function formFromItem(it, motivos, justificativas) {
+  const inList = (arr, txt) => arr.some(o => o.texto === txt);
+  return {
+    qtd: it.qtd, sku: it.sku || '', bling: it.bling || '', ml: it.ml || '',
+    motivo: it.motivo && !inList(motivos, it.motivo) ? CUSTOM : (it.motivo || ''),
+    motivoCustom: it.motivo && !inList(motivos, it.motivo) ? it.motivo : '',
+    justificativa: it.justificativa && !inList(justificativas, it.justificativa) ? CUSTOM : (it.justificativa || ''),
+    justCustom: it.justificativa && !inList(justificativas, it.justificativa) ? it.justificativa : '',
+  };
+}
 
 // Texto formatado para copiar (estilo da planilha de origem)
 function formatBloco(itens, titulo = 'SOLICITAR RETIRADA -') {
@@ -31,10 +42,12 @@ export default function SolicitarRetirada() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [form, setForm] = useState(emptyForm);
+  const [editId, setEditId] = useState(null);   // id do item em edição (null = adicionando)
   const [saving, setSaving] = useState(false);
   const [sel, setSel] = useState(new Set());
   const [gerenciar, setGerenciar] = useState(false);
   const [novaOpcao, setNovaOpcao] = useState({ motivo: '', justificativa: '' });
+  const [motivoFiltro, setMotivoFiltro] = useState(new Set()); // filtro da lista "A reclamar"
 
   useEffect(() => { load(); api.get('/skus').then(r => setSkus(r.data || [])).catch(() => {}); }, []);
   async function load() {
@@ -47,24 +60,53 @@ export default function SolicitarRetirada() {
 
   const motivos = useMemo(() => opcoes.filter(o => o.tipo === 'motivo'), [opcoes]);
   const justificativas = useMemo(() => opcoes.filter(o => o.tipo === 'justificativa'), [opcoes]);
-  const pendentes = useMemo(() => itens.filter(i => !i.protocolo), [itens]);
+  const pendentesTodos = useMemo(() => itens.filter(i => !i.protocolo), [itens]);
+  const motivoCount = useMemo(() => {
+    const m = {}; for (const i of pendentesTodos) { const t = (i.motivo || '').trim() || '(sem motivo)'; m[t] = (m[t] || 0) + 1; } return m;
+  }, [pendentesTodos]);
+  const pendentes = useMemo(() => motivoFiltro.size
+    ? pendentesTodos.filter(i => motivoFiltro.has((i.motivo || '').trim() || '(sem motivo)'))
+    : pendentesTodos, [pendentesTodos, motivoFiltro]);
+  const toggleMotivo = (t) => setMotivoFiltro(s => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
   const blocos = useMemo(() => {
     const m = new Map();
     for (const i of itens) if (i.protocolo) { if (!m.has(i.protocolo)) m.set(i.protocolo, []); m.get(i.protocolo).push(i); }
     return [...m.entries()].map(([protocolo, its]) => ({ protocolo, status: its[0].status || 'em_acompanhamento', itens: its }));
   }, [itens]);
 
-  async function addItem(e) {
+  async function submitItem(e) {
     e.preventDefault();
+    const motivo = form.motivo === CUSTOM ? form.motivoCustom.trim() : form.motivo;
     const justificativa = form.justificativa === CUSTOM ? form.justCustom.trim() : form.justificativa;
     if (!form.sku.trim()) { setError('Informe o SKU'); return; }
     setSaving(true); setError('');
+    const payload = { qtd: form.qtd, sku: form.sku, bling: form.bling, ml: form.ml, motivo, justificativa };
     try {
-      const r = await api.post('/retirada/itens', { qtd: form.qtd, sku: form.sku, bling: form.bling, ml: form.ml, motivo: form.motivo, justificativa });
-      setItens(prev => [r.data, ...prev]);
-      setForm(f => ({ ...emptyForm, motivo: f.motivo, justificativa: f.justificativa, justCustom: f.justCustom })); // mantém motivo/justif p/ agilizar
-    } catch (e) { setError('Erro ao adicionar: ' + (e.response?.data?.error || e.message)); }
+      if (editId) {
+        const r = await api.put(`/retirada/itens/${editId}`, payload);
+        setItens(prev => prev.map(i => i.id === editId ? r.data : i));
+        setEditId(null); setForm(emptyForm);
+      } else {
+        const r = await api.post('/retirada/itens', payload);
+        setItens(prev => [r.data, ...prev]);
+        setForm(f => ({ ...emptyForm, motivo: f.motivo, motivoCustom: f.motivoCustom, justificativa: f.justificativa, justCustom: f.justCustom })); // mantém motivo/justif
+      }
+    } catch (e) { setError('Erro ao salvar: ' + (e.response?.data?.error || e.message)); }
     finally { setSaving(false); }
+  }
+  function startEdit(it) {
+    setEditId(it.id); setForm(formFromItem(it, motivos, justificativas)); setError('');
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function cancelEdit() { setEditId(null); setForm(emptyForm); }
+  async function marcarStatus(ids, status) {
+    if (!ids.length) return;
+    try {
+      const r = await api.post('/retirada/itens/status', { ids, status });
+      const byId = new Map(r.data.itens.map(i => [i.id, i]));
+      setItens(prev => prev.map(i => byId.get(i.id) || i));
+      setSel(new Set());
+    } catch (e) { setError('Erro ao atualizar status: ' + (e.response?.data?.error || e.message)); }
   }
   async function delItem(id) {
     try { await api.delete(`/retirada/itens/${id}`); setItens(prev => prev.filter(i => i.id !== id)); setSel(s => { const n = new Set(s); n.delete(id); return n; }); }
@@ -73,7 +115,8 @@ export default function SolicitarRetirada() {
   const toggleSel = (id) => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   async function reclamar() {
-    const ids = [...sel];
+    const pendIds = new Set(pendentesTodos.map(i => i.id));
+    const ids = [...sel].filter(id => pendIds.has(id));
     if (!ids.length) return;
     const protocolo = window.prompt(`Número do protocolo para as ${ids.length} venda(s) selecionada(s):`);
     if (protocolo == null || !protocolo.trim()) return;
@@ -85,10 +128,6 @@ export default function SolicitarRetirada() {
       setSel(new Set());
       flash(`✅ ${r.data.atualizados} venda(s) agrupadas no protocolo ${protocolo.trim()}.`);
     } catch (e) { setError('Erro ao reclamar: ' + (e.response?.data?.error || e.message)); }
-  }
-  async function setStatusBloco(protocolo, status) {
-    try { const r = await api.put(`/retirada/protocolos/${protocolo}`, { status }); const byId = new Map(r.data.itens.map(i => [i.id, i])); setItens(prev => prev.map(i => byId.get(i.id) || i)); }
-    catch (e) { setError('Erro ao atualizar bloco: ' + (e.response?.data?.error || e.message)); }
   }
   async function reabrir(protocolo) {
     if (!window.confirm(`Devolver os itens do protocolo ${protocolo} para "A reclamar"?`)) return;
@@ -131,7 +170,8 @@ export default function SolicitarRetirada() {
 
       {/* Adicionar item */}
       <div className="card">
-        <form onSubmit={addItem} style={styles.formRow}>
+        {editId && <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-warning-fg)', marginBottom: '8px' }}>✏️ Editando item — altere e salve, ou cancele.</div>}
+        <form onSubmit={submitItem} style={styles.formRow}>
           <div style={{ width: '64px' }}>
             <label style={styles.lbl}>Qtd</label>
             <input type="number" min="1" value={form.qtd} onChange={e => setForm(f => ({ ...f, qtd: e.target.value }))} />
@@ -154,7 +194,11 @@ export default function SolicitarRetirada() {
             <select value={form.motivo} onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))}>
               <option value="">—</option>
               {motivos.map(o => <option key={o.id} value={o.texto}>{o.texto}</option>)}
+              <option value={CUSTOM}>Personalizado…</option>
             </select>
+            {form.motivo === CUSTOM && (
+              <input value={form.motivoCustom} onChange={e => setForm(f => ({ ...f, motivoCustom: e.target.value }))} placeholder="Digite o motivo" style={{ marginTop: '4px' }} />
+            )}
           </div>
           <div style={{ flex: '1 1 200px' }}>
             <label style={styles.lbl}>Justificativa</label>
@@ -167,8 +211,9 @@ export default function SolicitarRetirada() {
               <input value={form.justCustom} onChange={e => setForm(f => ({ ...f, justCustom: e.target.value }))} placeholder="Digite a justificativa" style={{ marginTop: '4px' }} />
             )}
           </div>
-          <div style={{ alignSelf: 'flex-end' }}>
-            <button type="submit" className="btn-primary" disabled={saving}>{saving ? '...' : '+ Adicionar'}</button>
+          <div style={{ alignSelf: 'flex-end', display: 'flex', gap: '6px' }}>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? '...' : (editId ? 'Salvar' : '+ Adicionar')}</button>
+            {editId && <button type="button" className="btn-outline" onClick={cancelEdit}>Cancelar</button>}
           </div>
         </form>
         <button className="btn-outline" style={{ marginTop: '10px', padding: '4px 10px', fontSize: '12.5px' }} onClick={() => setGerenciar(v => !v)}>
@@ -208,6 +253,18 @@ export default function SolicitarRetirada() {
             </button>
           </div>
         </div>
+        {Object.keys(motivoCount).length > 1 && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={styles.lbl}>Filtrar motivo</span>
+            {Object.keys(motivoCount).sort((a, b) => motivoCount[b] - motivoCount[a]).map(t => (
+              <button key={t} onClick={() => toggleMotivo(t)}
+                style={{ ...styles.chip, ...(motivoFiltro.has(t) ? styles.chipOn : {}) }}>
+                {motivoFiltro.has(t) ? '✓ ' : ''}{t} ({motivoCount[t]})
+              </button>
+            ))}
+            {motivoFiltro.size > 0 && <button onClick={() => setMotivoFiltro(new Set())} style={styles.chip}>limpar</button>}
+          </div>
+        )}
         {loading ? <p>Carregando...</p> : pendentes.length === 0 ? (
           <div className="empty-state"><p>Nenhuma venda pendente. Adicione acima.</p></div>
         ) : (
@@ -230,7 +287,10 @@ export default function SolicitarRetirada() {
                     <td>{i.ml || '—'}</td>
                     <td style={{ fontSize: '12.5px' }}>{i.motivo || '—'}</td>
                     <td style={{ fontSize: '12.5px' }}>{i.justificativa || '—'}</td>
-                    <td><button className="btn-outline" style={{ ...styles.miniBtn, color: 'var(--color-error-fg)' }} onClick={() => delItem(i.id)}>🗑</button></td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button className="btn-outline" style={styles.miniBtn} onClick={() => startEdit(i)}>editar</button>
+                      <button className="btn-outline" style={{ ...styles.miniBtn, color: 'var(--color-error-fg)', marginLeft: '4px' }} onClick={() => delItem(i.id)}>🗑</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -242,39 +302,53 @@ export default function SolicitarRetirada() {
 
       {/* Blocos por protocolo */}
       {blocos.map(b => {
-        const sm = STATUS_BLOCO[b.status] || STATUS_BLOCO.em_acompanhamento;
+        const nResolv = b.itens.filter(i => i.status === 'resolvido').length;
+        const nNao = b.itens.filter(i => i.status === 'nao_resolvido').length;
+        const selBloco = b.itens.filter(i => sel.has(i.id)).map(i => i.id);
+        const cor = nResolv === b.itens.length ? STATUS_BLOCO.resolvido.fg : (nNao ? STATUS_BLOCO.nao_resolvido.fg : STATUS_BLOCO.em_acompanhamento.fg);
         return (
-          <div className="card" key={b.protocolo} style={{ borderLeft: `5px solid ${sm.fg}` }}>
+          <div className="card" key={b.protocolo} style={{ borderLeft: `5px solid ${cor}` }}>
             <div style={styles.secHead}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <h2 style={styles.h2}>Protocolo {b.protocolo}</h2>
                 <a href={casoLink(b.protocolo)} target="_blank" rel="noreferrer" style={{ fontSize: '12.5px', color: 'var(--color-info-fg)' }}>abrir caso ↗</a>
-                <span style={{ ...styles.badge, background: sm.bg, color: sm.fg }}>{sm.label}</span>
-                <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>{b.itens.length} item(ns)</span>
+                <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>{nResolv}/{b.itens.length} resolvidos{nNao ? ` · ${nNao} não resolvido(s)` : ''}</span>
               </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                <select value={b.status} onChange={e => setStatusBloco(b.protocolo, e.target.value)} style={{ maxWidth: '190px' }}>
-                  <option value="em_acompanhamento">Em acompanhamento</option>
-                  <option value="resolvido">Resolvido</option>
-                  <option value="nao_resolvido">Não resolvido</option>
-                </select>
                 <button className="btn-outline" style={{ padding: '6px 10px' }} onClick={() => copiar(formatBloco(b.itens, `SOLICITAR RETIRADA - protocolo ${b.protocolo}`))}>📋 Copiar</button>
                 <button className="btn-outline" style={{ padding: '6px 10px' }} onClick={() => reabrir(b.protocolo)} title="Devolver para 'A reclamar'">↩ Reabrir</button>
               </div>
             </div>
+            {selBloco.length > 0 && (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>{selBloco.length} selecionado(s):</span>
+                <button className="btn-secondary" style={{ padding: '5px 10px' }} onClick={() => marcarStatus(selBloco, 'resolvido')}>✓ Resolvido</button>
+                <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => marcarStatus(selBloco, 'nao_resolvido')}>✗ Não resolvido</button>
+                <button className="btn-outline" style={{ padding: '5px 10px' }} onClick={() => marcarStatus(selBloco, 'em_acompanhamento')}>↺ Em acompanhamento</button>
+              </div>
+            )}
             <div style={{ overflowX: 'auto' }}>
               <table>
-                <thead><tr><th style={{ width: '50px' }}>Qtd</th><th>SKU</th><th>Nº Bling</th><th>Nº ML</th><th>Motivo</th><th>Justificativa</th></tr></thead>
+                <thead><tr>
+                  <th style={{ width: '36px' }}><input type="checkbox" checked={selBloco.length === b.itens.length && b.itens.length > 0}
+                    onChange={e => setSel(prev => { const n = new Set(prev); b.itens.forEach(i => e.target.checked ? n.add(i.id) : n.delete(i.id)); return n; })} /></th>
+                  <th style={{ width: '50px' }}>Qtd</th><th>SKU</th><th>Nº Bling</th><th>Nº ML</th><th>Motivo</th><th>Justificativa</th><th>Status</th>
+                </tr></thead>
                 <tbody>
-                  {b.itens.map(i => (
-                    <tr key={i.id}>
-                      <td style={{ fontWeight: 700 }}>{i.qtd}</td>
-                      <td><code>{i.sku}</code></td>
-                      <td>{i.bling || '—'}</td><td>{i.ml || '—'}</td>
-                      <td style={{ fontSize: '12.5px' }}>{i.motivo || '—'}</td>
-                      <td style={{ fontSize: '12.5px' }}>{i.justificativa || '—'}</td>
-                    </tr>
-                  ))}
+                  {b.itens.map(i => {
+                    const im = STATUS_BLOCO[i.status] || STATUS_BLOCO.em_acompanhamento;
+                    return (
+                      <tr key={i.id} style={sel.has(i.id) ? { background: 'var(--color-info-bg)' } : undefined}>
+                        <td><input type="checkbox" checked={sel.has(i.id)} onChange={() => toggleSel(i.id)} /></td>
+                        <td style={{ fontWeight: 700 }}>{i.qtd}</td>
+                        <td><code>{i.sku}</code></td>
+                        <td>{i.bling || '—'}</td><td>{i.ml || '—'}</td>
+                        <td style={{ fontSize: '12.5px' }}>{i.motivo || '—'}</td>
+                        <td style={{ fontSize: '12.5px' }}>{i.justificativa || '—'}</td>
+                        <td><span style={{ ...styles.badge, background: im.bg, color: im.fg }}>{im.label}</span></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -294,4 +368,6 @@ const styles = {
   secHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' },
   h2: { margin: 0, fontSize: '16px' },
   badge: { fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
+  chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--color-border)', background: 'var(--color-card)', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
+  chipOn: { background: 'var(--btn-primary, #2b6cb0)', color: '#fff', borderColor: 'var(--btn-primary, #2b6cb0)' },
 };
