@@ -48,6 +48,7 @@ export default function SolicitarRetirada() {
   const [gerenciar, setGerenciar] = useState(false);
   const [novaOpcao, setNovaOpcao] = useState({ motivo: '', justificativa: '' });
   const [motivoFiltro, setMotivoFiltro] = useState(new Set()); // filtro da lista "A reclamar"
+  const [justFiltro, setJustFiltro] = useState(new Set());     // filtro por justificativa
 
   useEffect(() => { load(); api.get('/skus').then(r => setSkus(r.data || [])).catch(() => {}); }, []);
   async function load() {
@@ -64,10 +65,15 @@ export default function SolicitarRetirada() {
   const motivoCount = useMemo(() => {
     const m = {}; for (const i of pendentesTodos) { const t = (i.motivo || '').trim() || '(sem motivo)'; m[t] = (m[t] || 0) + 1; } return m;
   }, [pendentesTodos]);
-  const pendentes = useMemo(() => motivoFiltro.size
-    ? pendentesTodos.filter(i => motivoFiltro.has((i.motivo || '').trim() || '(sem motivo)'))
-    : pendentesTodos, [pendentesTodos, motivoFiltro]);
+  const justCount = useMemo(() => {
+    const m = {}; for (const i of pendentesTodos) { const t = (i.justificativa || '').trim() || '(sem justificativa)'; m[t] = (m[t] || 0) + 1; } return m;
+  }, [pendentesTodos]);
+  const pendentes = useMemo(() => pendentesTodos.filter(i =>
+    (!motivoFiltro.size || motivoFiltro.has((i.motivo || '').trim() || '(sem motivo)')) &&
+    (!justFiltro.size || justFiltro.has((i.justificativa || '').trim() || '(sem justificativa)'))
+  ), [pendentesTodos, motivoFiltro, justFiltro]);
   const toggleMotivo = (t) => setMotivoFiltro(s => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
+  const toggleJust = (t) => setJustFiltro(s => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
   const blocos = useMemo(() => {
     const m = new Map();
     for (const i of itens) if (i.protocolo) { if (!m.has(i.protocolo)) m.set(i.protocolo, []); m.get(i.protocolo).push(i); }
@@ -254,8 +260,8 @@ export default function SolicitarRetirada() {
           </div>
         </div>
         {Object.keys(motivoCount).length > 1 && (
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={styles.lbl}>Filtrar motivo</span>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={styles.lbl}>Motivo</span>
             {Object.keys(motivoCount).sort((a, b) => motivoCount[b] - motivoCount[a]).map(t => (
               <button key={t} onClick={() => toggleMotivo(t)}
                 style={{ ...styles.chip, ...(motivoFiltro.has(t) ? styles.chipOn : {}) }}>
@@ -263,6 +269,18 @@ export default function SolicitarRetirada() {
               </button>
             ))}
             {motivoFiltro.size > 0 && <button onClick={() => setMotivoFiltro(new Set())} style={styles.chip}>limpar</button>}
+          </div>
+        )}
+        {Object.keys(justCount).length > 1 && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={styles.lbl}>Justificativa</span>
+            {Object.keys(justCount).sort((a, b) => justCount[b] - justCount[a]).map(t => (
+              <button key={t} onClick={() => toggleJust(t)}
+                style={{ ...styles.chip, ...(justFiltro.has(t) ? styles.chipOn : {}) }}>
+                {justFiltro.has(t) ? '✓ ' : ''}{t} ({justCount[t]})
+              </button>
+            ))}
+            {justFiltro.size > 0 && <button onClick={() => setJustFiltro(new Set())} style={styles.chip}>limpar</button>}
           </div>
         )}
         {loading ? <p>Carregando...</p> : pendentes.length === 0 ? (
