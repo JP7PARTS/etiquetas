@@ -49,6 +49,7 @@ export default function SolicitarRetirada() {
   const [novaOpcao, setNovaOpcao] = useState({ motivo: '', justificativa: '' });
   const [motivoFiltro, setMotivoFiltro] = useState(new Set()); // filtro da lista "A reclamar"
   const [justFiltro, setJustFiltro] = useState(new Set());     // filtro por justificativa
+  const [busca, setBusca] = useState('');                      // busca por SKU / Bling / ML
 
   useEffect(() => { load(); api.get('/skus').then(r => setSkus(r.data || [])).catch(() => {}); }, []);
   async function load() {
@@ -68,10 +69,14 @@ export default function SolicitarRetirada() {
   const justCount = useMemo(() => {
     const m = {}; for (const i of pendentesTodos) { const t = (i.justificativa || '').trim() || '(sem justificativa)'; m[t] = (m[t] || 0) + 1; } return m;
   }, [pendentesTodos]);
-  const pendentes = useMemo(() => pendentesTodos.filter(i =>
-    (!motivoFiltro.size || motivoFiltro.has((i.motivo || '').trim() || '(sem motivo)')) &&
-    (!justFiltro.size || justFiltro.has((i.justificativa || '').trim() || '(sem justificativa)'))
-  ), [pendentesTodos, motivoFiltro, justFiltro]);
+  const pendentes = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return pendentesTodos.filter(i =>
+      (!motivoFiltro.size || motivoFiltro.has((i.motivo || '').trim() || '(sem motivo)')) &&
+      (!justFiltro.size || justFiltro.has((i.justificativa || '').trim() || '(sem justificativa)')) &&
+      (!q || [i.sku, i.bling, i.ml].some(v => String(v || '').toLowerCase().includes(q)))
+    );
+  }, [pendentesTodos, motivoFiltro, justFiltro, busca]);
   const toggleMotivo = (t) => setMotivoFiltro(s => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
   const toggleJust = (t) => setJustFiltro(s => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
   const blocos = useMemo(() => {
@@ -251,7 +256,9 @@ export default function SolicitarRetirada() {
       <div className="card">
         <div style={styles.secHead}>
           <h2 style={styles.h2}>A reclamar ({pendentes.length})</h2>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
+              placeholder="Buscar SKU, Bling ou ML..." style={{ width: '220px' }} />
             <button className="btn-outline" style={{ padding: '6px 12px' }} disabled={!sel.size}
               onClick={() => copiar(formatBloco(pendentes.filter(i => sel.has(i.id))))}>📋 Copiar selecionadas</button>
             <button className="btn-primary" style={{ padding: '6px 12px' }} disabled={!sel.size} onClick={reclamar}>
