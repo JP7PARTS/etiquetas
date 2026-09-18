@@ -80,10 +80,12 @@ export default function SolicitarRetirada() {
   const toggleMotivo = (t) => setMotivoFiltro(s => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
   const toggleJust = (t) => setJustFiltro(s => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
   const blocos = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    const match = (i) => !q || [i.sku, i.bling, i.ml].some(v => String(v || '').toLowerCase().includes(q));
     const m = new Map();
-    for (const i of itens) if (i.protocolo) { if (!m.has(i.protocolo)) m.set(i.protocolo, []); m.get(i.protocolo).push(i); }
+    for (const i of itens) if (i.protocolo && match(i)) { if (!m.has(i.protocolo)) m.set(i.protocolo, []); m.get(i.protocolo).push(i); }
     return [...m.entries()].map(([protocolo, its]) => ({ protocolo, status: its[0].status || 'em_acompanhamento', itens: its }));
-  }, [itens]);
+  }, [itens, busca]);
 
   async function submitItem(e) {
     e.preventDefault();
@@ -291,7 +293,7 @@ export default function SolicitarRetirada() {
           </div>
         )}
         {loading ? <p>Carregando...</p> : pendentes.length === 0 ? (
-          <div className="empty-state"><p>Nenhuma venda pendente. Adicione acima.</p></div>
+          <div className="empty-state"><p>{(busca.trim() || motivoFiltro.size || justFiltro.size) ? 'Nenhuma pendente para a busca/filtro (veja os blocos abaixo).' : 'Nenhuma venda pendente. Adicione acima.'}</p></div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table>
