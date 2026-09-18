@@ -50,6 +50,7 @@ export default function SolicitarRetirada() {
   const [motivoFiltro, setMotivoFiltro] = useState(new Set()); // filtro da lista "A reclamar"
   const [justFiltro, setJustFiltro] = useState(new Set());     // filtro por justificativa
   const [busca, setBusca] = useState('');                      // busca por SKU / Bling / ML
+  const [tip, setTip] = useState(null);                        // aviso flutuante "Copiado!" {x,y}
 
   useEffect(() => { load(); api.get('/skus').then(r => setSkus(r.data || [])).catch(() => {}); }, []);
   async function load() {
@@ -148,13 +149,16 @@ export default function SolicitarRetirada() {
     catch (e) { setError('Erro ao reabrir: ' + (e.response?.data?.error || e.message)); }
   }
 
-  function copiar(texto) {
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(texto).then(() => flash('📋 Copiado!')).catch(() => {});
-    else { try { const ta = document.createElement('textarea'); ta.value = texto; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); flash('📋 Copiado!'); } catch {} }
+  function copiarRaw(texto) {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(texto).catch(() => {});
+    else { try { const ta = document.createElement('textarea'); ta.value = texto; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } catch {} }
   }
+  function copiar(texto) { copiarRaw(texto); flash('📋 Copiado!'); } // usado pelos botões "Copiar"
+  // Aviso discreto flutuante junto do clique (não empurra o layout)
+  function tipCopiado(e) { setTip({ x: e.clientX, y: e.clientY }); clearTimeout(tipCopiado._t); tipCopiado._t = setTimeout(() => setTip(null), 900); }
   // Célula clicável: copia o valor ao clicar (SKU / Bling / ML)
   const copyCell = (v, mono) => v
-    ? <span onClick={() => copiar(String(v))} title="Clique para copiar" style={styles.copyCell}>{mono ? <code>{v}</code> : v}</span>
+    ? <span onClick={(e) => { copiarRaw(String(v)); tipCopiado(e); }} title="Clique para copiar" style={styles.copyCell}>{mono ? <code>{v}</code> : v}</span>
     : '—';
 
   async function addOpcao(tipo) {
@@ -386,6 +390,12 @@ export default function SolicitarRetirada() {
           </div>
         );
       })}
+
+      {tip && (
+        <div style={{ position: 'fixed', left: tip.x + 10, top: tip.y - 26, zIndex: 3000, pointerEvents: 'none',
+          background: 'var(--color-foreground)', color: 'var(--color-card)', padding: '2px 8px', borderRadius: '6px',
+          fontSize: '11px', fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>Copiado!</div>
+      )}
     </div>
   );
 }
