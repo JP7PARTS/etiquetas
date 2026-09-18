@@ -55,6 +55,8 @@ const ensure = () => {
 router.use(async (req, res, next) => { try { await ensure(); next(); } catch (e) { console.error('ensure retirada:', e); res.status(500).json({ error: 'Erro ao preparar tabelas' }); } });
 
 const s = (v, n) => (v == null ? '' : String(v)).slice(0, n);
+// Números (Bling / ML): remove TODOS os espaços (inclusive colados no meio, ex.: "2000018 183397884")
+const semEspaco = (v, n) => s(v, n).replace(/\s+/g, '');
 const qtd = (v) => Math.max(1, parseInt(v, 10) || 1);
 
 // GET / — itens + opções
@@ -73,7 +75,7 @@ router.post('/itens', async (req, res) => {
     const r = await db.query(
       `INSERT INTO retirada_itens (qtd, sku, bling, ml, motivo, justificativa, created_by_name)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [qtd(b.qtd), s(b.sku, 100).toUpperCase(), s(b.bling, 40), s(b.ml, 40), s(b.motivo, 300), s(b.justificativa, 500), req.user.username || req.user.email]
+      [qtd(b.qtd), s(b.sku, 100).trim().toUpperCase(), semEspaco(b.bling, 40), semEspaco(b.ml, 40), s(b.motivo, 300), s(b.justificativa, 500), req.user.username || req.user.email]
     );
     res.status(201).json(r.rows[0]);
   } catch (e) { console.error('POST /retirada/itens:', e); res.status(500).json({ error: 'Erro ao adicionar item' }); }
@@ -85,9 +87,9 @@ router.put('/itens/:id', async (req, res) => {
   const set = [], vals = []; let i = 1;
   const add = (col, val) => { set.push(`${col} = $${i++}`); vals.push(val); };
   if (b.qtd !== undefined) add('qtd', qtd(b.qtd));
-  if (b.sku !== undefined) add('sku', s(b.sku, 100).toUpperCase());
-  if (b.bling !== undefined) add('bling', s(b.bling, 40));
-  if (b.ml !== undefined) add('ml', s(b.ml, 40));
+  if (b.sku !== undefined) add('sku', s(b.sku, 100).trim().toUpperCase());
+  if (b.bling !== undefined) add('bling', semEspaco(b.bling, 40));
+  if (b.ml !== undefined) add('ml', semEspaco(b.ml, 40));
   if (b.motivo !== undefined) add('motivo', s(b.motivo, 300));
   if (b.justificativa !== undefined) add('justificativa', s(b.justificativa, 500));
   if (!set.length) return res.status(400).json({ error: 'Nada para atualizar' });
