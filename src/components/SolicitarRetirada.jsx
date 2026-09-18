@@ -152,6 +152,10 @@ export default function SolicitarRetirada() {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(texto).then(() => flash('📋 Copiado!')).catch(() => {});
     else { try { const ta = document.createElement('textarea'); ta.value = texto; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); flash('📋 Copiado!'); } catch {} }
   }
+  // Célula clicável: copia o valor ao clicar (SKU / Bling / ML)
+  const copyCell = (v, mono) => v
+    ? <span onClick={() => copiar(String(v))} title="Clique para copiar" style={styles.copyCell}>{mono ? <code>{v}</code> : v}</span>
+    : '—';
 
   async function addOpcao(tipo) {
     const texto = novaOpcao[tipo].trim(); if (!texto) return;
@@ -309,9 +313,9 @@ export default function SolicitarRetirada() {
                   <tr key={i.id} style={sel.has(i.id) ? { background: 'var(--color-info-bg)' } : undefined}>
                     <td><input type="checkbox" checked={sel.has(i.id)} onChange={() => toggleSel(i.id)} /></td>
                     <td style={{ fontWeight: 700 }}>{i.qtd}</td>
-                    <td><code>{i.sku}</code></td>
-                    <td>{i.bling || '—'}</td>
-                    <td>{i.ml || '—'}</td>
+                    <td>{copyCell(i.sku, true)}</td>
+                    <td>{copyCell(i.bling)}</td>
+                    <td>{copyCell(i.ml)}</td>
                     <td style={{ fontSize: '12.5px' }}>{i.motivo || '—'}</td>
                     <td style={{ fontSize: '12.5px' }}>{i.justificativa || '—'}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
@@ -368,8 +372,8 @@ export default function SolicitarRetirada() {
                       <tr key={i.id} style={sel.has(i.id) ? { background: 'var(--color-info-bg)' } : undefined}>
                         <td><input type="checkbox" checked={sel.has(i.id)} onChange={() => toggleSel(i.id)} /></td>
                         <td style={{ fontWeight: 700 }}>{i.qtd}</td>
-                        <td><code>{i.sku}</code></td>
-                        <td>{i.bling || '—'}</td><td>{i.ml || '—'}</td>
+                        <td>{copyCell(i.sku, true)}</td>
+                        <td>{copyCell(i.bling)}</td><td>{copyCell(i.ml)}</td>
                         <td style={{ fontSize: '12.5px' }}>{i.motivo || '—'}</td>
                         <td style={{ fontSize: '12.5px' }}>{i.justificativa || '—'}</td>
                         <td><span style={{ ...styles.badge, background: im.bg, color: im.fg }}>{im.label}</span></td>
@@ -397,4 +401,5 @@ const styles = {
   badge: { fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' },
   chip: { padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--color-border)', background: 'var(--color-card)', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' },
   chipOn: { background: 'var(--btn-primary, #2b6cb0)', color: '#fff', borderColor: 'var(--btn-primary, #2b6cb0)' },
+  copyCell: { cursor: 'pointer', borderRadius: '4px', padding: '1px 3px', transition: 'background 0.1s' },
 };
