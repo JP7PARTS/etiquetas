@@ -65,6 +65,7 @@ const navSections = [
       { id: 'full', label: 'Envio Full', icon: 'truck', roles: ['admin'] },
       { id: 'full-tempo', label: 'Tempo de estoque', icon: 'clock', roles: ['admin'] },
       { id: 'reputacao', label: 'Reclamações', icon: 'scale', roles: ['admin'] },
+      { id: 'retirada', label: 'Solicitar Retirada', icon: 'box', roles: ['admin'] },
       { id: 'skus', label: 'Gerenciar SKUs', icon: 'box', roles: ['admin'] },
       { id: 'embalagens', label: 'Embalagens', icon: 'mail', roles: ['admin'] },
       { id: 'users', label: 'Usuários', icon: 'users', roles: ['admin'] },

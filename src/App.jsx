@@ -15,6 +15,7 @@ import PickingLists from './components/PickingLists.jsx';
 import FullShipments from './components/full/FullShipments.jsx';
 import FullTempoEstoque from './components/full/FullTempoEstoque.jsx';
 import Reputacao from './components/Reputacao.jsx';
+import SolicitarRetirada from './components/SolicitarRetirada.jsx';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -72,6 +73,8 @@ export default function App() {
     content = <FullTempoEstoque user={user} />;
   } else if (page === 'reputacao' && user.role === 'admin') {
     content = <Reputacao />;
+  } else if (page === 'retirada' && user.role === 'admin') {
+    content = <SolicitarRetirada />;
   } else if (page === 'import-sales') {
     content = <ImportSales user={user} onSendToLote={items => { setLoteSeed(items); setPage('generate-sku'); }} />;
   } else if (page === 'generate-custom') {
